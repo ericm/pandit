@@ -4,17 +4,22 @@
 #include <linux/tcp.h>
 #include <linux/ip.h>
 #include <bits/stdint-uintn.h>
+#include <bpf/bpf_core_read.h>
+#include <bpf/bpf_tracing.h>
+
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 const char HTTP[] = "HTTP/1.1";
+struct lookup {
 
+};
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 8192);
     __type(key, uint32_t);
     __type(value, struct lookup);
-} s SEC(".maps");
+} lookups SEC(".maps");
 
 SEC("xdp")
 int handle_egress_packet(struct xdp_md *ctx) {
@@ -26,17 +31,20 @@ int handle_egress_packet(struct xdp_md *ctx) {
     struct tcphdr *tcp = (struct tcphdr *)data+sizeof(struct ethhdr)+sizeof(struct iphdr);
 
     uint64_t tuple = (ip->daddr << 16) + tcp->source;
+    struct lookup *lookup = bpf_map_lookup_elem(&lookups, &tuple);
 
     if ((data_end-data) < sizeof(HTTP))  {
         return XDP_PASS;
     }
 
-    for (int i = 0; i < sizeof(HTTP); i++) {
-        if (*(data+i) != HTTP[i]) {
-            return XDP_PASS;
+    if (!lookup) {
+        for (int i = 0; i < sizeof(HTTP); i++) {
+            if (*(data+i) != HTTP[i]) {
+                return XDP_PASS;
+            }
         }
+        bpf_map_update_elem(&lookups, &tuple, payload, BPF_ANY);
+        return XDP_PASS;
     }
-
-    if ()
-
+    return XDP_DROP;
 }
