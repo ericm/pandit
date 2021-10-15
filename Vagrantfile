@@ -12,7 +12,7 @@ Vagrant.configure("2") do |config|
 
   # Every Vagrant development environment requires a box. You can search for
   # boxes at https://vagrantcloud.com/search.
-  config.vm.box = "ubuntu/xenial64"
+  config.vm.box = "ubuntu/impish64"
 
   # Disable automatic box update checking. If you disable this, then
   # boxes will only be checked for updates when the user runs
@@ -73,6 +73,7 @@ Vagrant.configure("2") do |config|
       libbpf-dev \
       clang \
       libelf-dev \
+      cmake \
       linux-tools-$(uname -r)
     bpftool btf dump file \
       /sys/kernel/btf/vmlinux \
