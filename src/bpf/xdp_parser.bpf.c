@@ -1,11 +1,8 @@
-#include <linux/bpf.h>
-#include <linux/if_ether.h>
-#include <linux/tcp.h>
-#include <linux/ip.h>
+#include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
-#include "vmlinux.h"
+#include <bits/stdint-uintn.h>
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 

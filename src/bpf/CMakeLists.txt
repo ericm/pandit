@@ -6,7 +6,6 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/cmake)
 set(BPFOBJECT_BPFTOOL_EXE ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/bpftool)
 set(BPFOBJECT_VMLINUX_H ${CMAKE_CURRENT_SOURCE_DIR}/../../vmlinux/vmlinux.h)
 find_package(BpfObject REQUIRED)
-file(GLOB apps *.bpf.c)
 
 # Create an executable for each application
 file(GLOB apps *.bpf.c)

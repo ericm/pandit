@@ -3,4 +3,4 @@ project(pandit)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(pandit main.cpp src/bpf/xdp_parser.bpf.c)
+add_executable(pandit src/main.cpp src/bpf/xdp_parser.bpf.c)
