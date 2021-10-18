@@ -1,6 +1,6 @@
 """Provides ability to embed assets in C++ libraries and binaries.
 
-Use the rules in this bazel files by configuring your WORKSPACE with:
+Use the rules in this bazel files by configuring your BUILD with:
 
   load("//build/embed.bzl", "cc_embed")
   ...
@@ -52,56 +52,57 @@ load("@bazel_tools//tools/build_defs/cc:action_names.bzl", "CPP_LINK_STATIC_LIBR
 load("@bazel_tools//tools/build_defs/cc:action_names.bzl", "C_COMPILE_ACTION_NAME")
 
 def _clean_path(directory):
-   """Turns a bazel-out/whatever/bin/base/dir into base/dir.
+    """Turns a bazel-out/whatever/bin/base/dir into base/dir.
 
-   Args:
-     directory: string, the path to clean.
+    Args:
+      directory: string, the path to clean.
 
-   Returns:
-     The cleaned path, or the original path if the cleaning pattern
-     cannot be found.
-   """
-   parts = directory.split("/bin/", 1)
-   if len(parts) > 1:
-     return _clean_string(parts[1])
-   return _clean_string(parts[0])
+    Returns:
+      The cleaned path, or the original path if the cleaning pattern
+      cannot be found.
+    """
+    parts = directory.split("/bin/", 1)
+    if len(parts) > 1:
+        return _clean_string(parts[1])
+    return _clean_string(parts[0])
 
 def _strip_extensions(s, extensions):
-   """Remove all the specified extensions from the supplied string.
+    """Remove all the specified extensions from the supplied string.
 
-   Args:
-     s: string, generally a filename.
-     extensions: list of strings, extensions to remove. Each extension
-       is removed in order. For example, To remove .tar.gz, you can
-       either specify [".tar.gz"] or [".gz", ".tar"]. The former will only
-       remove ".tar.gz", while the latter will remove ".gz", ".tar",
-       ".tar.gz", but not ".gz.tar".
+    Args:
+      s: string, generally a filename.
+      extensions: list of strings, extensions to remove. Each extension
+        is removed in order. For example, To remove .tar.gz, you can
+        either specify [".tar.gz"] or [".gz", ".tar"]. The former will only
+        remove ".tar.gz", while the latter will remove ".gz", ".tar",
+        ".tar.gz", but not ".gz.tar".
 
-   Returns:
-     The string with all the supplied extensions removed.
-   """
-   for e in extensions:
-     if s.endswith(e):
-       s = s[:-len(e)]
-   return s
+    Returns:
+      The string with all the supplied extensions removed.
+    """
+    for e in extensions:
+        if s.endswith(e):
+            s = s[:-len(e)]
+    return s
 
 def _clean_string(s):
-   """Replaces invalid characters with _.
+    """Replaces invalid characters with _.
 
-   This is used to turn filenames (or strings in general) into valid
-   variable names. It losely emulates the behavior of "ld".
+    This is used to turn filenames (or strings in general) into valid
+    variable names. It losely emulates the behavior of "ld".
 
-   Args:
-     s: string, path of a file to clean.
+    Args:
+      s: string, path of a file to clean.
 
-   Returns:
-     The cleaned string, with invalid characters replaced.
-   """
-   # TODO: it would be better to say s/[^a-zA-Z0-9]/_/g, but starlark
-   #   does not support regexes, or python APIs that would allow this.
-   #   Recommended solution would be to build and use a tool.
-   #   Much more work. Fix it if we ever get paths with invalid characters.
-   return s.replace("/", "_").replace(".", "_").replace("-", "_").replace(" ", "_").replace("[", "_").replace("]", "_")
+    Returns:
+      The cleaned string, with invalid characters replaced.
+    """
+
+    # TODO: it would be better to say s/[^a-zA-Z0-9]/_/g, but starlark
+    #   does not support regexes, or python APIs that would allow this.
+    #   Recommended solution would be to build and use a tool.
+    #   Much more work. Fix it if we ever get paths with invalid characters.
+    return s.replace("/", "_").replace(".", "_").replace("-", "_").replace(" ", "_").replace("[", "_").replace("]", "_")
 
 def _cc_embed(ctx):
     cc_toolchain = find_cpp_toolchain(ctx)
@@ -109,25 +110,25 @@ def _cc_embed(ctx):
     ### Step 1: Determine the input files to add to the .o file.
     libinputs = []
     for input in ctx.attr.data:
-      # Bazel dependencies can attach arbitrary metadata to a rule via
-      # providers. Check if the dependency is a cc_.* "thing", having
-      # the CcInfo provider. If it is a Cc thing, embed the generated
-      # object files that best work for us.
-      if CcInfo not in input:
-        continue
-      info = input[CcInfo]
-      if not info.linking_context:
-        continue
-      for lib in info.linking_context.libraries_to_link.to_list():
-        if lib.pic_static_library:
-          libinputs.append(lib.pic_static_library)
-        elif lib.static_library:
-          libinputs.append(lib.static_library)
-        elif lib.interface_library:
-          libinputs.append(lib.interface_library)
-        elif lib.dynamic_library:
-          libinputs.append(lib.interface_library)
-    inputs = depset(direct=libinputs, transitive=[target.files for target in ctx.attr.data])
+        # Bazel dependencies can attach arbitrary metadata to a rule via
+        # providers. Check if the dependency is a cc_.* "thing", having
+        # the CcInfo provider. If it is a Cc thing, embed the generated
+        # object files that best work for us.
+        if CcInfo not in input:
+            continue
+        info = input[CcInfo]
+        if not info.linking_context:
+            continue
+        for lib in info.linking_context.libraries_to_link.to_list():
+            if lib.pic_static_library:
+                libinputs.append(lib.pic_static_library)
+            elif lib.static_library:
+                libinputs.append(lib.static_library)
+            elif lib.interface_library:
+                libinputs.append(lib.interface_library)
+            elif lib.dynamic_library:
+                libinputs.append(lib.interface_library)
+    inputs = depset(direct = libinputs, transitive = [target.files for target in ctx.attr.data])
 
     objfile = ctx.actions.declare_file(ctx.label.name + ".o")
 
@@ -158,28 +159,28 @@ def _cc_embed(ctx):
     symbols = []
     accessors = []
     for i in inputs.to_list():
-      clean = _clean_string(i.path)
-      subs = {
-        "start": "_binary_{}_start".format(clean),
-        "end": "_binary_{}_end".format(clean),
-        "var": _clean_string(_strip_extensions(i.path.split("/")[-1], ctx.attr.strip)),
-      }
+        clean = _clean_string(i.path)
+        subs = {
+            "start": "_binary_{}_start".format(clean),
+            "end": "_binary_{}_end".format(clean),
+            "var": _clean_string(_strip_extensions(i.path.split("/")[-1], ctx.attr.strip)),
+        }
 
-      symbols.append("extern const char {start};".format(**subs))
-      symbols.append("extern const char {end};".format(**subs))
-      accessors.append("inline const std::string_view {var}(&{start}, &{end} - &{start});".format(**subs))
+        symbols.append("extern const char {start};".format(**subs))
+        symbols.append("extern const char {end};".format(**subs))
+        accessors.append("inline const std::string_view {var}(&{start}, &{end} - &{start});".format(**subs))
 
     # This is the string used for #ifdef, eg, #ifdef LIB_EBPF_SIMPLE_H_
     ifguard = _clean_path(hfile.path).upper() + "_"
     ctx.actions.expand_template(
-      template = ctx.file._template,
-      output = hfile,
-      substitutions = {
-        "IFGUARD": ifguard,
-        "NAMESPACE": ctx.attr.namespace,
-        "SYMBOLS": "\n".join(symbols),
-        "ACCESSORS": "\n".join(accessors),
-      }
+        template = ctx.file._template,
+        output = hfile,
+        substitutions = {
+            "IFGUARD": ifguard,
+            "NAMESPACE": ctx.attr.namespace,
+            "SYMBOLS": "\n".join(symbols),
+            "ACCESSORS": "\n".join(accessors),
+        },
     )
 
     ### Step 3: create .a static library - required for linking.
@@ -240,7 +241,7 @@ def _cc_embed(ctx):
     )
     compilation_context = cc_common.create_compilation_context(
         includes = depset([hfile.dirname]),
-        headers = depset([hfile])
+        headers = depset([hfile]),
     )
     linking_context = cc_common.create_linking_context(libraries_to_link = [library_to_link])
 
@@ -250,32 +251,32 @@ def _cc_embed(ctx):
     ]
 
 cc_embed = rule(
-  implementation = _cc_embed,
-  attrs = {
-       "data": attr.label_list(
-           allow_files = True,
-           mandatory = True,
-           doc = "Targets to turn into strings and embed in the binary."
-       ),
-       "namespace": attr.string(
-           default = "embedded",
-           doc = "The namespace to use for exporting the symbols in the header."
-       ),
-       "strip": attr.string_list(
-           default = [".o", ".pic"],
-           doc = "Extensions to strip to generate variable names, processed in order."
-       ),
-       "_template": attr.label(
-           default = Label("//build:embed.h.tpl"),
-           allow_single_file = True,
-       ),
-       "_cc_toolchain": attr.label(
-           default = Label("@bazel_tools//tools/cpp:current_cc_toolchain")
-       ),
-  },
-  toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
-  fragments = ["cpp"],
-  doc = """
+    implementation = _cc_embed,
+    attrs = {
+        "data": attr.label_list(
+            allow_files = True,
+            mandatory = True,
+            doc = "Targets to turn into strings and embed in the binary.",
+        ),
+        "namespace": attr.string(
+            default = "embedded",
+            doc = "The namespace to use for exporting the symbols in the header.",
+        ),
+        "strip": attr.string_list(
+            default = [".o", ".pic"],
+            doc = "Extensions to strip to generate variable names, processed in order.",
+        ),
+        "_template": attr.label(
+            default = Label("//build:embed.h.tpl"),
+            allow_single_file = True,
+        ),
+        "_cc_toolchain": attr.label(
+            default = Label("@bazel_tools//tools/cpp:current_cc_toolchain"),
+        ),
+    },
+    toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
+    fragments = ["cpp"],
+    doc = """
 Creates a library with the specified data dependencies as string.
 
 Example:

@@ -1,6 +1,6 @@
 package(default_visibility = ["//lib:__subpackages__"])
 
-load("//bzl:ebpf.bzl", "cc_ebpf")
+load("//build:ebpf.bzl", "cc_ebpf")
 
 cc_ebpf(
     name = "xdp_parser",

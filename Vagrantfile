@@ -75,12 +75,13 @@ Vagrant.configure("2") do |config|
       clang \
       libelf-dev \
       cmake \
+      libcurl4-openssl-dev
       linux-tools-$(uname -r)
     sudo apt install apt-transport-https curl gnupg
     curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel.gpg
     mv bazel.gpg /etc/apt/trusted.gpg.d/
     echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/sources.list.d/bazel.list
-    apt update && apt install bazel-4.0.0
+    apt update && apt install -y bazel-4.0.0
     bpftool btf dump file \
       /sys/kernel/btf/vmlinux \
       format c > /vagrant/src/bpf/vmlinux.h

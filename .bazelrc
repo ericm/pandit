@@ -1,0 +1,58 @@
+# Use our custom-configured c++ toolchain.
+build --crosstool_top=@llvm_toolchain//:local-x86_64-linux
+build --host_crosstool_top=@bazel_tools//tools/cpp:toolchain
+
+# Address sanitizer
+# To use it: bazel build --config asan
+build:asan --compiler clang
+build:asan --strip=never
+build:asan --copt -fsanitize=address
+build:asan --copt -DADDRESS_SANITIZER
+build:asan --copt -O1
+build:asan --copt -g
+build:asan --copt -fno-omit-frame-pointer
+build:asan --linkopt -fsanitize=address
+
+# Thread sanitizer
+# bazel build --config tsan
+build:tsan --compiler clang
+build:tsan --strip=never
+build:tsan --copt -fsanitize=thread
+build:tsan --copt -DTHREAD_SANITIZER
+build:tsan --copt -DDYNAMIC_ANNOTATIONS_ENABLED=1
+build:tsan --copt -DDYNAMIC_ANNOTATIONS_EXTERNAL_IMPL=1
+build:tsan --copt -O1
+build:tsan --copt -fno-omit-frame-pointer
+build:tsan --linkopt -fsanitize=thread
+
+# --config msan: Memory sanitizer
+build:msan --compiler clang
+build:msan --strip=never
+build:msan --copt -fsanitize=memory
+build:msan --copt -DADDRESS_SANITIZER
+build:msan --copt -O1
+build:msan --copt -fno-omit-frame-pointer
+build:msan --linkopt -fsanitize=memory
+
+# --config ubsan: Undefined Behavior Sanitizer
+build:ubsan --compiler clang
+build:ubsan --strip=never
+build:ubsan --copt -fsanitize=undefined
+build:ubsan --copt -O1
+build:ubsan --copt -fno-omit-frame-pointer
+build:ubsan --linkopt -fsanitize=undefined
+build:ubsan --linkopt -lubsan
+
+# The following flags are only necessary for local docker sandboxing
+# with the rbe-ubuntu16-04 container. Use of these flags is still experimental.
+build:docker-sandbox --host_javabase=@bazel_toolchains//configs/ubuntu16_04_clang/1.2:jdk8
+build:docker-sandbox --javabase=@bazel_toolchains//configs/ubuntu16_04_clang/1.2:jdk8
+build:docker-sandbox --crosstool_top=@bazel_toolchains//configs/ubuntu16_04_clang/1.2/bazel_0.25.0/default:toolchain
+build:docker-sandbox --experimental_docker_image=gcr.io/cloud-marketplace/google/rbe-ubuntu16-04@sha256:da0f21c71abce3bbb92c3a0c44c3737f007a82b60f8bd2930abc55fe64fc2729
+build:docker-sandbox --spawn_strategy=docker
+build:docker-sandbox --strategy=Javac=docker
+build:docker-sandbox --strategy=Closure=docker
+build:docker-sandbox --strategy=Genrule=docker
+build:docker-sandbox --define=EXECUTOR=remote
+build:docker-sandbox --experimental_docker_verbose
+build:docker-sandbox --experimental_enable_docker_sandbox
