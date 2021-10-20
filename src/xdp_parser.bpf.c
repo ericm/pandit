@@ -14,14 +14,29 @@ struct {
     __type(value, char *);
 } lookups SEC(".maps");
 
-SEC("xdp")
-int handle_egress_packet(struct xdp_md *ctx) {
+int parse_header(struct xdp_md *ctx, size_t offset, void *hdr) {
     char *data = (char *)(long)ctx->data;
     char *data_end = (char *)(long)ctx->data_end;
 
-    char *payload = data + sizeof(struct ethhdr)+sizeof(struct iphdr)+sizeof(struct tcphdr);
-    struct iphdr *ip = (struct iphdr *)data+sizeof(struct ethhdr);
-    struct tcphdr *tcp = (struct tcphdr *)data+sizeof(struct ethhdr)+sizeof(struct iphdr);
+    if (data+offset > data_end)
+        return 1;
+
+    hdr = (void *)data+offset;
+    return 0;
+}
+
+SEC("xdp")
+int handle_egress_packet(struct xdp_md *ctx) {
+    struct iphdr *ip;
+    struct tcphdr *tcp;
+    char *payload;
+
+    char *data = (char *)(long)ctx->data;
+    char *data_end = (char *)(long)ctx->data_end;
+
+    parse_header(ctx, sizeof(struct ethhdr), &ip);
+    parse_header(ctx, sizeof(struct ethhdr)+sizeof(struct iphdr), &tcp);
+    parse_header(ctx, sizeof(struct ethhdr)+sizeof(struct iphdr)+sizeof(struct tcphdr), &payload);
 
     uint64_t tuple = (uint64_t)(ip->daddr << 16) + tcp->source;
     struct lookup *lookup = bpf_map_lookup_elem(&lookups, &tuple);
