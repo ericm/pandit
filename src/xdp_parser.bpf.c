@@ -7,52 +7,71 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 const char HTTP[] = "HTTP/1.1";
 
+struct tuple_t {
+    uint32_t ip;
+    uint16_t port;
+};
+
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 8192);
-    __type(key, uint64_t);
+    __type(key, u32 *);
     __type(value, char *);
 } lookups SEC(".maps");
 
-int parse_header(struct xdp_md *ctx, size_t offset, void *hdr) {
-    char *data = (char *)(long)ctx->data;
-    char *data_end = (char *)(long)ctx->data_end;
-
+static void parse_header(char *data, char *data_end, size_t offset, void *hdr) {
     if (data+offset > data_end)
-        return 1;
+        return;
 
     hdr = (void *)data+offset;
-    return 0;
+}
+
+static int from_data(struct xdp_md *ctx, char **payload, u32 *ip, char **data) {
+    struct iphdr *ip_hdr;
+    char *data_end;
+
+    data = (char **) (char *) (long) ctx->data;
+    data_end = (char *)(long)ctx->data_end;
+
+    if ((data_end-*data) < sizeof(HTTP))  {
+        return XDP_PASS;
+    }
+
+    parse_header(*data, data_end, sizeof(struct ethhdr), &ip_hdr);
+    parse_header(*data, data_end, sizeof(struct ethhdr)+sizeof(struct iphdr)+sizeof(struct tcphdr), &payload);
+    ip = &ip_hdr->daddr;
+
+    return -1;
+}
+
+static int parse_payload(u32 *ip, char **data, char **payload) {
+    struct lookup *lookup = bpf_map_lookup_elem(&lookups, &ip);
+
+    if (!lookup) {
+        for (int i = 0; i < sizeof(HTTP); i++) {
+            if (*(*data+i) != HTTP[i]) {
+                bpf_printk("Error parsing");
+                return XDP_PASS;
+            }
+        }
+        bpf_map_update_elem(&lookups, &ip, &payload, BPF_ANY);
+    }
+    return -1;
 }
 
 SEC("xdp")
 int handle_egress_packet(struct xdp_md *ctx) {
-    struct iphdr *ip;
-    struct tcphdr *tcp;
-    char *payload;
+    char *data, *payload;
+    u32 ip;
+    int ret;
 
-    char *data = (char *)(long)ctx->data;
-    char *data_end = (char *)(long)ctx->data_end;
+    ret = from_data(ctx, &payload, &ip, &data);
+    if (ret > -1)
+        return ret;
 
-    parse_header(ctx, sizeof(struct ethhdr), &ip);
-    parse_header(ctx, sizeof(struct ethhdr)+sizeof(struct iphdr), &tcp);
-    parse_header(ctx, sizeof(struct ethhdr)+sizeof(struct iphdr)+sizeof(struct tcphdr), &payload);
+    ret = parse_payload(&ip, &data, &payload);
+    if (ret > -1)
+        return ret;
 
-    uint64_t tuple = (uint64_t)(ip->daddr << 16) + tcp->source;
-    struct lookup *lookup = bpf_map_lookup_elem(&lookups, &tuple);
-
-    if ((data_end-data) < sizeof(HTTP))  {
-        return XDP_PASS;
-    }
-
-    if (!lookup) {
-        for (int i = 0; i < sizeof(HTTP); i++) {
-            if (*(data+i) != HTTP[i]) {
-                return XDP_PASS;
-            }
-        }
-        bpf_map_update_elem(&lookups, &tuple, payload, BPF_ANY);
-        return XDP_PASS;
-    }
-    return XDP_DROP;
+    return XDP_PASS;
 }
