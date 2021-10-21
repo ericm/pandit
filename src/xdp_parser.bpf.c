@@ -28,17 +28,18 @@ static void parse_header(char *data, char *data_end, size_t offset, void *hdr) {
 
 static int from_data(struct xdp_md *ctx, char **payload, u32 *ip, char **data) {
     struct iphdr *ip_hdr;
-    char *data_end;
+    char *l_data, *data_end;
 
-    data = (char **) (char *) (long) ctx->data;
+    l_data = (char *)(long) ctx->data;
     data_end = (char *)(long)ctx->data_end;
+    data = &l_data;
 
-    if ((data_end-*data) < sizeof(HTTP))  {
+    if ((data_end-l_data) < sizeof(HTTP))  {
         return XDP_PASS;
     }
 
-    parse_header(*data, data_end, sizeof(struct ethhdr), &ip_hdr);
-    parse_header(*data, data_end, sizeof(struct ethhdr)+sizeof(struct iphdr)+sizeof(struct tcphdr), &payload);
+    parse_header(l_data, data_end, sizeof(struct ethhdr), &ip_hdr);
+    parse_header(l_data, data_end, sizeof(struct ethhdr)+sizeof(struct iphdr)+sizeof(struct tcphdr), &payload);
     ip = &ip_hdr->daddr;
 
     return -1;
