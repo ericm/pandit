@@ -41,12 +41,12 @@ include_directories(${CMAKE_BINARY_DIR}/libbpf)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-add_library(ignore src/xdp_parser.bpf.c)
+add_library(ignore src/bpf/xdp_parser.c)
 set_target_properties(ignore PROPERTIES EXCLUDE_FROM_ALL 1)
 
 # Create an executable for each application
 # Build object skeleton and depend skeleton on libbpf build
-bpf_object(xdp_parser /src/xdp_parser.bpf.c)
+bpf_object(xdp_parser /src/bpf/xdp_parser.c)
 add_dependencies(xdp_parser_skel libbpf-build)
 
 add_executable(xdp_parser src/main.cpp)

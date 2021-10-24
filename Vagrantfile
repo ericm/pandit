@@ -84,6 +84,6 @@ Vagrant.configure("2") do |config|
     apt update && apt install -y bazel-4.0.0
     bpftool btf dump file \
       /sys/kernel/btf/vmlinux \
-      format c > /vagrant/src/vmlinux.h
+      format c > /vagrant/src/bpf/vmlinux.h
   SHELL
 end
