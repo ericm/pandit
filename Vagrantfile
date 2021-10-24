@@ -54,7 +54,7 @@ Vagrant.configure("2") do |config|
     vb.gui = false
 
     # Customize the amount of memory on the VM:
-    vb.memory = "8192"
+    vb.memory = "4096"
     vb.cpus = 2
   end
 
@@ -84,6 +84,6 @@ Vagrant.configure("2") do |config|
     apt update && apt install -y bazel-4.0.0
     bpftool btf dump file \
       /sys/kernel/btf/vmlinux \
-      format c > /vagrant/src/bpf/vmlinux.h
+      format c > /vagrant/src/vmlinux.h
   SHELL
 end
