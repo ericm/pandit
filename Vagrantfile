@@ -74,6 +74,7 @@ Vagrant.configure("2") do |config|
       libbpf-dev \
       clang \
       libelf-dev \
+      gdb \
       cmake \
       libcurl4-openssl-dev
       linux-tools-$(uname -r)

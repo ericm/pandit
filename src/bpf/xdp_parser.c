@@ -62,6 +62,7 @@ static int parse_payload(u32 *ip, char **data, char **payload) {
 
 SEC("xdp")
 int handle_egress_packet(struct xdp_md *ctx) {
+    bpf_printk("Packet received");
     char *data, *payload;
     u32 ip;
     int ret;
