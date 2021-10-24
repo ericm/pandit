@@ -15,18 +15,18 @@ struct tuple_t {
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 8192);
-    __type(key, u32 *);
-    __type(value, char *);
+    u32 *key;
+    char *value;
 } lookups SEC(".maps");
 
-static void parse_header(char *data, char *data_end, size_t offset, void *hdr) {
+static void parse_header(char *data, const char *data_end, size_t offset, void *hdr) {
     if (data+offset > data_end)
         return;
 
     hdr = (void *)data+offset;
 }
 
-static int from_data(struct xdp_md *ctx, char **payload, u32 *ip, char **data) {
+static int from_data(struct xdp_md *ctx, char **payload, const u32 *ip, char **data) {
     struct iphdr *ip_hdr;
     char *l_data, *data_end;
 

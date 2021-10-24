@@ -37,10 +37,12 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CMAKE_BINARY_DIR})
 include_directories(build)
 include_directories(${CMAKE_BINARY_DIR}/libbpf)
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+add_library(ignore src/xdp_parser.bpf.c)
+set_target_properties(ignore PROPERTIES EXCLUDE_FROM_ALL 1)
 
 # Create an executable for each application
 # Build object skeleton and depend skeleton on libbpf build
