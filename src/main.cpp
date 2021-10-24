@@ -32,13 +32,13 @@ int main() {
     }
 
     prog_fd = bpf_object__btf_fd(skeleton->obj);
-    err = bpf_set_link_xdp_fd(0, prog_fd, 0);
-
-    lookups_fd = bpf_map__fd(skeleton->maps.lookups);
+    err = bpf_set_link_xdp_fd(if_index, prog_fd, 0);
     if (err) {
-        std::cerr << "Failed to attach XDP to interface " << std::endl;
+        std::cerr << "Failed to attach XDP to interface: " << if_index << std::endl;
         return 1;
     }
+
+    lookups_fd = bpf_map__fd(skeleton->maps.lookups);
 
     char *key, *c_pack;
     while (true) {
