@@ -26,20 +26,17 @@ static void parse_header(char *data, const char *data_end, size_t offset, void *
     hdr = (void *)data+offset;
 }
 
-static int from_data(struct xdp_md *ctx, char **payload, const u32 *ip, char **data) {
+static int from_data(struct xdp_md *ctx, char **payload, const u32 *ip, char **data, char **data_end) {
     struct iphdr *ip_hdr;
-    char *l_data, *data_end;
+    char *l_data, *l_data_end;
 
     l_data = (char *)(long) ctx->data;
-    data_end = (char *)(long)ctx->data_end;
+    l_data_end = (char *)(long)ctx->data_end;
     data = &l_data;
+    data_end = &l_data_end;
 
-    if ((data_end-l_data) < sizeof(HTTP))  {
-        return XDP_PASS;
-    }
-
-    parse_header(l_data, data_end, sizeof(struct ethhdr), &ip_hdr);
-    parse_header(l_data, data_end, sizeof(struct ethhdr)+sizeof(struct iphdr)+sizeof(struct tcphdr), &payload);
+    parse_header(l_data, l_data_end, sizeof(struct ethhdr), &ip_hdr);
+    parse_header(l_data, l_data_end, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), &payload);
     ip = &ip_hdr->daddr;
 
     return -1;
@@ -50,8 +47,8 @@ static int parse_payload(u32 *ip, char **data, char **payload) {
 
     if (!lookup) {
         for (int i = 0; i < sizeof(HTTP); i++) {
-            if (*(*data+i) != HTTP[i]) {
-                bpf_printk("Error parsing");
+            if (*(*payload+i) != HTTP[i]) {
+                bpf_printk("Error parsing %s", *payload);
                 return XDP_PASS;
             }
         }
@@ -63,14 +60,16 @@ static int parse_payload(u32 *ip, char **data, char **payload) {
 SEC("xdp")
 int handle_egress_packet(struct xdp_md *ctx) {
     bpf_printk("Packet received");
-    char *data, *payload;
+    char *data, *data_end, *payload;
     u32 ip;
     int ret;
 
-    ret = from_data(ctx, &payload, &ip, &data);
+    ret = from_data(ctx, &payload, &ip, &data, &data_end);
     if (ret > -1)
         return ret;
 
+    if (data_end-payload <  sizeof(HTTP))
+        return XDP_PASS;
     ret = parse_payload(&ip, &data, &payload);
     if (ret > -1)
         return ret;

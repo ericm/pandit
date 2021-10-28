@@ -2,6 +2,7 @@
 #include <thread>
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
+#include <net/if.h>
 #include <xdp_parser.skel.h>
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
@@ -15,7 +16,7 @@ int main() {
     int lookups_fd, prog_fd;
     int if_index;
 
-    if_index = 1;
+    if_index = (int)if_nametoindex("lo");
 
     libbpf_set_print(libbpf_print_fn);
 
