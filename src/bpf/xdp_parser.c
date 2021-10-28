@@ -45,7 +45,7 @@ static int from_data(struct xdp_md *ctx, char **payload, const u32 *ip, char **d
 static int parse_payload(u32 *ip, char **data, char **payload) {
     struct lookup *lookup = bpf_map_lookup_elem(&lookups, &ip);
 
-    if (!lookup) {
+    if (!lookup && payload) {
         for (int i = 0; i < sizeof(HTTP); i++) {
             if (*(*payload+i) != HTTP[i]) {
                 bpf_printk("Error parsing %s", *payload);
@@ -68,7 +68,8 @@ int handle_egress_packet(struct xdp_md *ctx) {
     if (ret > -1)
         return ret;
 
-    if (data_end-payload <  sizeof(HTTP))
+    bpf_printk("Payload len = %p", (uintptr_t)payload);
+    if (data_end-payload < 8)
         return XDP_PASS;
     ret = parse_payload(&ip, &data, &payload);
     if (ret > -1)
