@@ -13,7 +13,7 @@
 This project entails creating a proxy that runs on each host machine in a cluster, turning services in the cluster into widely available microservices. 
 
 This will be done by providing a translation layer between the application layer of the containers making up a service and the clients and proxies.
-This translation layer will provide protobufs responses in place of the traditional container responses.
+This translation layer will provide Protobuf responses in place of the traditional container responses.
 
 Clients running on different hosts in the cluster will make the proxy aware that they are interested in certain services.
 When a client sends a request to a service, the proxy will first look for cached data on the host. 
