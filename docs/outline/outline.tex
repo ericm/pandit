@@ -1,5 +1,5 @@
-\documentclass[a4paper]{article}
-\usepackage[utf8]{inputenc}
+\documentclass[12pt]{article}
+\usepackage[a4paper, total={6in, 8in}]{geometry}
 
 \title{Pandit: A Service Level Distributed Proxy.}
 \author{Eric Gerard Moynihan}
@@ -10,9 +10,19 @@
 \maketitle
 
 \section{Outline}
-This project entails creating a proxy that runs on each host machine in a cluster, converting requests and responses to relevant services into Protobufs. 
+This project entails creating a proxy that runs on each host machine in a cluster, turning services in the cluster into widely available microservices. 
 
+This will be done by providing a translation layer between the application layer of the containers making up a service and the clients and proxies.
+This translation layer will provide protobufs responses in place of the traditional container responses.
 
-These Protobufs can then be distributed to relevant instances of the proxy running on other hosts for caching purposes.
+Clients running on different hosts in the cluster will make the proxy aware that they are interested in certain services.
+When a client sends a request to a service, the proxy will first look for cached data on the host. 
+If it cannot find it, it will delegate the request to an authorative container in the cluster.
+
+These Protobuf responses can then be distributed to relevant instances of the proxy running on other hosts for caching purposes.
+Since the mapping between application layer and Protobuf is implimentation specific, there can be side-effects pre-programmed into the resulting Protobuf, such as marking some fields to be updated in the cache before being written to the authorative container(s).
+
+This approach to a distributed proxy will allow for improved read/write performance within a cluster, as well as simplify distributed application development since every dependency can be interfaced via a universal API.
+
 
 \end{document}
