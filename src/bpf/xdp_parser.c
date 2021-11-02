@@ -1,4 +1,5 @@
 #include "vmlinux.h"
+#include "parsing_helpers.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
@@ -71,23 +72,44 @@ static int parse_payload(u32 *ip, char *data, char *payload) {
 SEC("xdp")
 int handle_egress_packet(struct xdp_md *ctx) {
     bpf_printk("Packet received");
-    char *data, *data_end, *payload;
-//    https://github.com/xdp-project/xdp-tutorial/blob/master/packet02-rewriting/xdp_prog_kern.c
-    u32 ip;
-    int ret;
 
-    ret = from_data(ctx, &payload, &ip, &data, &data_end);
-    if (ret > -1)
-        return ret;
+    void *data_end = (void *)(unsigned long long)ctx->data_end;
+    void *data = (void *)(unsigned long long)ctx->data;
 
-    bpf_printk("Payload = %p, Data End = %p", payload, data_end);
-    if (data_end-data < sizeof(HTTP)) {
-        bpf_printk("Invalid payload size = %d", sizeof(HTTP));
+    struct hdr_cursor nh;
+    struct ethhdr *eth;
+    int eth_type;
+    int ip_type;
+    int tcp_type;
+    struct iphdr *iphdr;
+    struct ipv6hdr *ipv6hdr;
+    struct tcphdr *tcphdr;
+
+    nh.pos = data;
+
+    eth_type = parse_ethhdr(&nh, data_end, &eth);
+    if (eth_type == bpf_htons(ETH_P_IP)) {
+        ip_type = parse_iphdr(&nh, data_end, &iphdr);
+        if (ip_type != IPPROTO_TCP)
+            return XDP_PASS;
+    }
+    else if (eth_type == bpf_htons(ETH_P_IPV6)) {
+        ip_type = parse_ip6hdr(&nh, data_end, &ipv6hdr);
+        if (ip_type != IPPROTO_TCP)
+            return XDP_PASS;
+    } else {
         return XDP_PASS;
     }
-    ret = parse_payload(&ip, data, payload);
-    if (ret > -1)
-        return ret;
+
+    tcp_type = parse_tcphdr(&nh, data_end, &tcphdr);
+    if ((void *)(tcphdr + 1) > data_end) {
+        return XDP_PASS;
+    }
+
+    switch (tcphdr->dest) {
+        case bpf_htons(8000):
+            bpf_printk("Right Port");
+    }
 
     return XDP_PASS;
 }
