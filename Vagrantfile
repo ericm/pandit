@@ -78,6 +78,7 @@ Vagrant.configure("2") do |config|
       cmake \
       libcurl4-openssl-dev \
       gcc-multilib \
+      libpcap-dev \
       linux-tools-$(uname -r)
     sudo apt install apt-transport-https curl gnupg
     curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel.gpg
