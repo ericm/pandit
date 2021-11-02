@@ -19,29 +19,34 @@ struct {
     char *value;
 } lookups SEC(".maps");
 
-static void parse_header(char *data, const char *data_end, size_t offset, char ***hdr) {
-    if (data+offset > data_end)
-        return;
+static int parse_header(char *data, const char *data_end, size_t offset, char ***hdr) {
+    if (data+offset >= data_end)
+        return XDP_PASS;
 
     char *l_hdr = data+offset;
     **hdr = l_hdr;
     bpf_printk("HDR = %p", hdr);
+    return -1;
 }
 
 static int from_data(struct xdp_md *ctx, char **payload, const u32 *ip, char **data, char **data_end) {
     struct iphdr *ip_hdr;
     char *l_data, *l_data_end;
+    int ret;
 
     if (*data<*data_end)
         return -1;
 
     l_data = (char *)(long) ctx->data;
     l_data_end = (char *)(long)ctx->data_end;
-    data = &l_data;
-    data_end = &l_data_end;
+    *data = l_data;
+    *data_end = l_data_end;
 
 //    parse_header(l_data, l_data_end, sizeof(struct ethhdr), &ip_hdr);
-    parse_header(l_data, l_data_end, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), &payload);
+    ret = parse_header(l_data, l_data_end, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), &payload);
+    if (ret > -1) {
+        return ret;
+    }
 //    ip = &ip_hdr->daddr;
 
     return -1;
@@ -57,6 +62,7 @@ static int parse_payload(u32 *ip, char *data, char *payload) {
                 return XDP_PASS;
             }
         }
+        bpf_printk("Packet passed: %s", payload);
         bpf_map_update_elem(&lookups, &ip, &payload, BPF_ANY);
     }
     return -1;
@@ -74,9 +80,11 @@ int handle_egress_packet(struct xdp_md *ctx) {
     if (ret > -1)
         return ret;
 
-    bpf_printk("Payload = %p", payload);
-    if (data_end-payload < sizeof(HTTP))
+    bpf_printk("Payload = %p, Data End = %p", payload, data_end);
+    if (data_end-data < sizeof(HTTP)) {
+        bpf_printk("Invalid payload size = %d", sizeof(HTTP));
         return XDP_PASS;
+    }
     ret = parse_payload(&ip, data, payload);
     if (ret > -1)
         return ret;
