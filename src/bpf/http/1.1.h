@@ -1,3 +1,4 @@
-struct http1hdr {
-    
+#include "../vmlinux.h"
+
+struct http1reqhdr {
 };
