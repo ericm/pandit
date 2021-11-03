@@ -16,7 +16,7 @@
 This project entails creating a proxy that runs on each host machine in a cluster, turning services in the cluster into widely available microservices. 
 
 This will be done by providing a translation layer between the application layer of the containers making up a service, and the clients \& proxies.
-This translation layer will provide Protobuf responses in place of the traditional container responses.
+This translation layer will provide Protobuf \cite{protobuf} responses in place of the traditional container responses.
 
 Clients running on different hosts in the cluster will make the proxy aware that they are interested in certain services.
 When a client sends a request to a service, the proxy will first look for cached data on the host. 
@@ -41,6 +41,8 @@ This approach to a distributed proxy will allow for improved read/write performa
 \end{enumerate}
 
 \begin{thebibliography}{9}
+    \bibitem{protobuf}
+        Profocol buffers documentation - \href{https://developers.google.com/protocol-buffers}{developers.google.com}.
     \bibitem{ebpf}
         eBPF official website - \href{http://ebpf.io}{eBPF.io}.
     \bibitem{xdp}
