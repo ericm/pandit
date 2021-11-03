@@ -1,5 +1,5 @@
 \documentclass[12pt]{article}
-\usepackage[a4paper, total={6in, 10in}]{geometry}
+\usepackage[a4paper, total={6in, 12in}]{geometry}
 \usepackage{hyperref}
 
 \title{Pandit: A Service Level Distributed Proxy.}
@@ -34,10 +34,19 @@ This approach to a distributed proxy will allow for improved read/write performa
 \section*{First Steps}
 
 \begin{enumerate}
-    \item Implement an \href{http://ebpf.io}{eBPF} program that uses eXpress Data Path (XDP) to parse application layer payloads. This can be used as a template by the configurable userspace program.
-    \item Write a userspace program that can be configured by the user to load + attach an eBPF program to a container's network interface and parse the data in a user-defined manner.
-    \item Allow the program to act as a \href{http://grpc.io}{gRPC} server that can be interfaced with by clients, providing the proxied Protobufs as responses.
-    \item Implement and test the distributed features of the proxy in a mock cloud setup, with multiple VMs on the same subnet.
+    \item \textbf{November} - Implement an eBPF \cite{ebpf} program that uses eXpress Data Path (XDP) \cite{xdp} to parse application layer payloads. This can be used as a template by the configurable userspace program.
+    \item \textbf{December} - Write a userspace program that can be configured by the user to load + attach an eBPF program to a container's network interface and parse the data in a user-defined manner.
+    \item \textbf{January - February} - Allow the program to act as a gRPC \cite{grpc} server that can be interfaced with by clients, providing the proxied Protobufs as responses.
+    \item \textbf{February onwards} - Implement and test the distributed features of the proxy in a mock cloud setup, with multiple VMs on the same subnet.
 \end{enumerate}
+
+\begin{thebibliography}{9}
+    \bibitem{ebpf}
+        eBPF official website - \href{http://ebpf.io}{eBPF.io}.
+    \bibitem{xdp}
+        eXpress Data Path official website - \href{https://www.kernel.org/doc/Documentation/networking/x_tables.txt}{Kernel.org}.
+    \bibitem{grpc}
+        gRPC official website - \href{https://grpc.io}{grpc.io}.
+\end{thebibliography}
 
 \end{document}
