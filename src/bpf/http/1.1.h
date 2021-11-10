@@ -3,7 +3,6 @@
 #include "../bpf_helpers/builtins.h"
 
 #define ascii_offset 48;
-#define crlf "\r\n";
 
 static __u8 HTTP[] = "HTTP";
 
@@ -16,20 +15,25 @@ struct http1_1_req_hdr_t {
 static __always_inline __maybe_unused int
 parse_http1_1_req_hdr(struct http1_1_req_hdr_t *hdr, const __u8 *buf, int len) {
     char h_buf[3];
-    int lower;
+    int lower, i;
+    char *sb;
 
-    if(__bpf_memcmp(&HTTP, h_buf, sizeof(HTTP)-1) != 0)
+    if(__bpf_memcmp(&HTTP, h_buf, sizeof(HTTP)-1))
         return 0;
 
-    __bpf_memcpy_builtin(&h_buf, h_buf+5, sizeof(buf));
+    __bpf_memcpy_builtin(&h_buf, h_buf+5, sizeof(h_buf));
     hdr->maj_version = h_buf[0]-ascii_offset;
     hdr->min_version = h_buf[2]-ascii_offset;
-    // strchr();
-
-    __bpf_memcpy_builtin(&h_buf, h_buf+9, sizeof(buf));
-    hdr->code = (h_buf[0]*100 + h_buf[1]*10 + h_buf[2]) - ascii_offset - ascii_offset - ascii_offset;
-    
-
     bpf_printk("version: %d.%d", hdr->maj_version, hdr->min_version);
+
+    __bpf_memcpy_builtin(&h_buf, h_buf+9, sizeof(h_buf));
+    hdr->code = (h_buf[0]*100 + h_buf[1]*10 + h_buf[2]) - ascii_offset - ascii_offset - ascii_offset;
+
+    bpf_printk("len %d", len);
+    
+    for (i = 13; i < len; i++) {
+        sb = strchr(sb, 13) + 1;
+    }
+
     return 1;
 };

@@ -77,14 +77,13 @@ int handle_egress_packet(struct xdp_md *ctx) {
     bpf_printk("Right Port");
 
     if (eth_type == bpf_htons(ETH_P_IP)) {
-        bpf_printk("v4 %x %d %d", tcphdr->window, hdrlen, tcphdr->doff);
+        // bpf_printk("v4 %x %d %d", tcphdr->window, hdrlen, tcphdr->doff);
         xdp_load_bytes(ctx, hdrlen, buf, static_offset4);
     }
     else {
         bpf_printk("v6");
         xdp_load_bytes(ctx, static_offset6, buf, static_offset6);
     }
-    bpf_printk("Buf");
     int i;
     for (i = 0; i < static_offset4; i++) {
         bpf_printk("= %d", buf[i]);
