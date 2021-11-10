@@ -16,7 +16,7 @@ static __always_inline __maybe_unused int
 parse_http1_1_req_hdr(struct http1_1_req_hdr_t *hdr, const __u8 *buf, int len) {
     char h_buf[3];
     int lower, i;
-    char *sb;
+    char *sb, *sb_sep;
 
     if(__bpf_memcmp(&HTTP, h_buf, sizeof(HTTP)-1))
         return 0;
@@ -33,6 +33,7 @@ parse_http1_1_req_hdr(struct http1_1_req_hdr_t *hdr, const __u8 *buf, int len) {
     
     for (i = 13; i < len; i++) {
         sb = strchr(sb, 13) + 1;
+        sb_sep = strchr(sb, ':');
     }
 
     return 1;
