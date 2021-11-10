@@ -25,23 +25,6 @@ ExternalProject_Add(libbpf
         STEP_TARGETS build
         )
 
-ExternalProject_Add(xdp-tools
-        PREFIX xdp-tools
-        SOURCE_DIR ${CMAKE_SOURCE_DIR}/xdp-tools
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND make libxdp
-        BUILD_STATIC_ONLY=1
-        OBJDIR=${CMAKE_CURRENT_BINARY_DIR}/xdp-tools/lib/libxdp
-        DESTDIR=${CMAKE_CURRENT_BINARY_DIR}/libxdp
-        INCLUDEDIR=
-        LIBDIR=
-        UAPIDIR=
-        install
-        BUILD_IN_SOURCE TRUE
-        INSTALL_COMMAND ""
-        STEP_TARGETS build
-        )
-
 # Set BpfObject input parameters -- note this is usually not necessary unless
 # you're in a highly vendored environment (like libbpf-bootstrap)
 set(BPFOBJECT_BPFTOOL_EXE ${CMAKE_SOURCE_DIR}/tools/bpftool)

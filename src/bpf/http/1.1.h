@@ -14,7 +14,7 @@ parse_http1_1_req_hdr(struct http1_1_req_hdr_t *hdr, const __u8 *buf, int len) {
     int lower;
 
     bpf_printk("bf %d", version[0]);
-    __bpf_memcpy(buf+4, &version, sizeof(version));
+    __bpf_memcpy_builtin(&version, buf+4, sizeof(version));
     bpf_printk("af %d", version[0]);
     hdr->version = version[0]-ascii_offset;
 
