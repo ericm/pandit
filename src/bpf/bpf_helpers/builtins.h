@@ -401,7 +401,7 @@ static __always_inline __u64 __bpf_memcmp(const void *x, const void *y,
 		break;
 
 	default:
-		__throw_build_bug();
+		break;
 	}
 
 	return r;

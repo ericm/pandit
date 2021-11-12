@@ -7,8 +7,6 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-const char HTTP[] = "HTTP/1.1";
-
 struct tuple_t {
     uint32_t ip;
     uint16_t port;
@@ -66,34 +64,31 @@ int handle_egress_packet(struct xdp_md *ctx) {
         return XDP_PASS;
     }
 
-    hdrlen += parse_tcphdr(&cursor, data_end, &tcphdr);
+    parse_tcphdr(&cursor, data_end, &tcphdr);
     if ((void *)(tcphdr + 1) > data_end) {
         return XDP_PASS;
     }
 
-    switch (tcphdr->dest) {
-        case bpf_htons(8000):
-            bpf_printk("Right Port");
-            break;
-        default:
-            return XDP_PASS;
+    hdrlen += tcphdr->doff * 4;
+
+    if (tcphdr->dest != bpf_htons(8000) && tcphdr->source != bpf_htons(8000)) {
+        return XDP_PASS;
     }
+    bpf_printk("Right Port");
 
     if (eth_type == bpf_htons(ETH_P_IP)) {
-        bpf_printk("v4 %x", tcphdr->seq);
+        // bpf_printk("v4 %x %d %d", tcphdr->window, hdrlen, tcphdr->doff);
         xdp_load_bytes(ctx, hdrlen, buf, static_offset4);
     }
     else {
         bpf_printk("v6");
         xdp_load_bytes(ctx, static_offset6, buf, static_offset6);
     }
-    bpf_printk("Buf");
     int i;
     for (i = 0; i < static_offset4; i++) {
         bpf_printk("= %d", buf[i]);
     }
 
     parse_http1_1_req_hdr(&req_hdr, buf, sizeof(buf));
-    bpf_printk("version: %d.%d", req_hdr.version, req_hdr.version&0xffff);
     return XDP_PASS;
 }
