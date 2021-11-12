@@ -55,7 +55,7 @@ Vagrant.configure("2") do |config|
 
     # Customize the amount of memory on the VM:
     vb.memory = "4096"
-    vb.cpus = 2
+    vb.cpus = 1
   end
 
   #
@@ -80,11 +80,11 @@ Vagrant.configure("2") do |config|
       gcc-multilib \
       libpcap-dev \
       linux-tools-$(uname -r)
-    sudo apt install apt-transport-https curl gnupg
+    sudo apt install -y apt-transport-https curl gnupg
     curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel.gpg
     mv bazel.gpg /etc/apt/trusted.gpg.d/
     echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/sources.list.d/bazel.list
-    apt update && apt install -y bazel-4.0.0
+    apt update -y && apt install -y bazel-4.0.0
     bpftool btf dump file \
       /sys/kernel/btf/vmlinux \
       format c > /vagrant/src/bpf/vmlinux.h

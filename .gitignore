@@ -3,3 +3,4 @@ cmake-build-debug
 .vagrant
 build/**
 ubuntu-xenial-16.04-cloudimg-console.log
+*.log
