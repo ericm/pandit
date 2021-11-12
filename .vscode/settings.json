@@ -1,5 +1,6 @@
 {
 	"files.associations": {
-		"builtins.h": "c"
+		"builtins.h": "c",
+		"vmlinux.h": "c"
 	}
 }
