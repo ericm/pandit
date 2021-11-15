@@ -7,20 +7,6 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-struct tuple_t
-{
-    uint32_t ip;
-    uint16_t port;
-};
-
-struct
-{
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 8192);
-    u32 *key;
-    char *value;
-} lookups SEC(".maps");
-
 #define static_offset4 \
     sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr)
 
@@ -46,7 +32,7 @@ int handle_egress_packet(struct xdp_md *ctx)
     struct ipv6hdr *ipv6hdr;
     struct tcphdr *tcphdr;
 
-    pdt_http1_req_hdr_t *req_hdr;
+    pdt_http1_req_hdr_t req_hdr = {};
 
     cursor.pos = data;
     hdrlen = sizeof(struct ethhdr);

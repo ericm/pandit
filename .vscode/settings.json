@@ -1,6 +1,7 @@
 {
 	"files.associations": {
 		"builtins.h": "c",
-		"vmlinux.h": "c"
+		"vmlinux.h": "c",
+		"parsing_helpers.h": "c"
 	}
 }
