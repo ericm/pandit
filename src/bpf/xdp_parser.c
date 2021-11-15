@@ -7,28 +7,31 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-struct tuple_t {
+struct tuple_t
+{
     uint32_t ip;
     uint16_t port;
 };
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 8192);
     u32 *key;
     char *value;
 } lookups SEC(".maps");
 
-#define static_offset4                                                      \
-        sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr)
+#define static_offset4 \
+    sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr)
 
-#define static_offset6                                                      \
-        sizeof(struct ethhdr) + sizeof(struct ipv6hdr) + sizeof(struct tcphdr)
+#define static_offset6 \
+    sizeof(struct ethhdr) + sizeof(struct ipv6hdr) + sizeof(struct tcphdr)
 
 static __u8 buf[static_offset4 + 1500];
 
 SEC("xdp")
-int handle_egress_packet(struct xdp_md *ctx) {
+int handle_egress_packet(struct xdp_md *ctx)
+{
     bpf_printk("Packet received");
 
     void *data_end = (void *)(unsigned long long)ctx->data_end;
@@ -49,43 +52,52 @@ int handle_egress_packet(struct xdp_md *ctx) {
     hdrlen = sizeof(struct ethhdr);
 
     eth_type = parse_ethhdr(&cursor, data_end, &eth);
-    if (eth_type == bpf_htons(ETH_P_IP)) {
+    if (eth_type == bpf_htons(ETH_P_IP))
+    {
         ip_type = parse_iphdr(&cursor, data_end, &iphdr);
         if (ip_type != IPPROTO_TCP)
             return XDP_PASS;
         hdrlen += sizeof(struct iphdr);
     }
-    else if (eth_type == bpf_htons(ETH_P_IPV6)) {
+    else if (eth_type == bpf_htons(ETH_P_IPV6))
+    {
         ip_type = parse_ip6hdr(&cursor, data_end, &ipv6hdr);
         if (ip_type != IPPROTO_TCP)
             return XDP_PASS;
         hdrlen += sizeof(struct ipv6hdr);
-    } else {
+    }
+    else
+    {
         return XDP_PASS;
     }
 
     parse_tcphdr(&cursor, data_end, &tcphdr);
-    if ((void *)(tcphdr + 1) > data_end) {
+    if ((void *)(tcphdr + 1) > data_end)
+    {
         return XDP_PASS;
     }
 
     hdrlen += tcphdr->doff * 4;
 
-    if (tcphdr->dest != bpf_htons(8000) && tcphdr->source != bpf_htons(8000)) {
+    if (tcphdr->dest != bpf_htons(8000) && tcphdr->source != bpf_htons(8000))
+    {
         return XDP_PASS;
     }
     bpf_printk("Right Port");
 
-    if (eth_type == bpf_htons(ETH_P_IP)) {
+    if (eth_type == bpf_htons(ETH_P_IP))
+    {
         // bpf_printk("v4 %x %d %d", tcphdr->window, hdrlen, tcphdr->doff);
         xdp_load_bytes(ctx, hdrlen, buf, static_offset4);
     }
-    else {
+    else
+    {
         bpf_printk("v6");
         xdp_load_bytes(ctx, static_offset6, buf, static_offset6);
     }
     int i;
-    for (i = 0; i < static_offset4; i++) {
+    for (i = 0; i < static_offset4; i++)
+    {
         bpf_printk("= %d", buf[i]);
     }
 
