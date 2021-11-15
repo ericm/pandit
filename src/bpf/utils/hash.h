@@ -18,7 +18,7 @@ typedef struct
 {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 8192);
-    __type(key, char *);
+    __type(key, pdt_buff_t);
     __type(value, pdt_hash_t);
 } pdt_hash_t;
 
