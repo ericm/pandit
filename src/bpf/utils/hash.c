@@ -1,6 +1,7 @@
 #include "hash.h"
 
-__u64 pdt_buff_find(pdt_buff_t a, pdt_buff_t b)
+static __always_inline __u64
+pdt_buff_find(pdt_buff_t a, pdt_buff_t b)
 {
     __u64 i, j;
     for (i = a.offset; i < a.size; i++)

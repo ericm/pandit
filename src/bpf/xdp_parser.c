@@ -3,7 +3,7 @@
 #include "xdp/context_helpers.h"
 #include "bpf_helpers/builtins.h"
 #include <bpf/bpf_helpers.h>
-#include "http/1.1.h"
+#include "http/1.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -46,7 +46,7 @@ int handle_egress_packet(struct xdp_md *ctx)
     struct ipv6hdr *ipv6hdr;
     struct tcphdr *tcphdr;
 
-    struct http1_1_req_hdr_t req_hdr;
+    pdt_http1_req_hdr_t *req_hdr;
 
     cursor.pos = data;
     hdrlen = sizeof(struct ethhdr);
@@ -101,6 +101,6 @@ int handle_egress_packet(struct xdp_md *ctx)
         bpf_printk("= %d", buf[i]);
     }
 
-    parse_http1_1_req_hdr(&req_hdr, buf, sizeof(buf));
+    pdt_parse_http1_req_hdr(&req_hdr, buf, sizeof(buf));
     return XDP_PASS;
 }
