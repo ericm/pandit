@@ -31,9 +31,6 @@ pdt_parse_http1_req_hdr(pdt_http1_req_hdr_t *hdr, __u8 *buf, __u16 len)
     char *sb, *sb_sep;
     int lower, i;
 
-    if (len > MTU)
-        return 0;
-
     if (__bpf_memcmp(&HTTP, buf, sizeof(HTTP) - 1))
         return 0;
 

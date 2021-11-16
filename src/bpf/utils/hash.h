@@ -22,19 +22,21 @@ typedef struct
     __type(value, pdt_buff_t *);
 } pdt_hash_t;
 
-static __always_inline int
+static __always_inline __u16
 pdt_buff_find(pdt_buff_t *a, pdt_buff_t *b)
 {
-    int i, j;
-    char *a_buf, *b_buf;
-    char *a_cmp, *b_cmp;
+    __u16 i = 0, j, t_j;
+    __u8 *a_buf, *b_buf;
+    __u8 *a_cmp, *b_cmp;
     if (!a || !b)
         return -1;
     if (a->size < b->size)
         return -1;
-    a_buf = (char *)a->buf;
-    b_buf = (char *)b->buf;
+    a_buf = a->buf;
+    b_buf = b->buf;
     if (!a_buf || !b_buf)
+        return -1;
+    if (b->size == 0)
         return -1;
 
     for (i = a->offset; i < a->size; i++)
@@ -45,8 +47,9 @@ pdt_buff_find(pdt_buff_t *a, pdt_buff_t *b)
             b_cmp = b_buf + j;
             if (!a_cmp || !b_cmp)
                 return -1;
-            if (*a_cmp != *b_cmp)
+            if (__bpf_memcmp(a_cmp, b_cmp, 1))
                 break;
+
             if (j == b->size - 1)
                 return i;
         }
@@ -54,7 +57,8 @@ pdt_buff_find(pdt_buff_t *a, pdt_buff_t *b)
     return -1;
 }
 
-int pdt_hash_find(pdt_hash_t *hash, char *key, pdt_hash_el_t **elem)
+static __always_inline int
+pdt_hash_find(pdt_hash_t *hash, char *key, pdt_hash_el_t **elem)
 {
     *elem = (pdt_hash_el_t *)bpf_map_lookup_elem(hash, key);
     if (!(*elem))
@@ -62,10 +66,11 @@ int pdt_hash_find(pdt_hash_t *hash, char *key, pdt_hash_el_t **elem)
     return 1;
 }
 
-int pdt_hash_populate(pdt_hash_t *hash, pdt_buff_t *buf, pdt_buff_t *kv_sep, pdt_buff_t *el_sep)
+static __always_inline int
+pdt_hash_populate(pdt_hash_t *hash, pdt_buff_t *buf, pdt_buff_t *kv_sep, pdt_buff_t *el_sep)
 {
     __u8 i;
-    int i_kv, i_el;
+    __u16 i_kv, i_el;
 
     if (!buf)
         return -1;
@@ -74,7 +79,7 @@ int pdt_hash_populate(pdt_hash_t *hash, pdt_buff_t *buf, pdt_buff_t *kv_sep, pdt
 
     for (i = 0; i < buf->size; i++)
     {
-        if (buf->offset >= buf->size)
+        if (buf->offset > buf->size - 1)
             return 1;
         i_kv = pdt_buff_find(buf, kv_sep);
         if (i_kv == -1)
@@ -83,13 +88,13 @@ int pdt_hash_populate(pdt_hash_t *hash, pdt_buff_t *buf, pdt_buff_t *kv_sep, pdt
         if (i_el == -1)
             return 1;
 
-        pdt_buff_t key = {.buf = buf->buf + buf->offset, .size = i_kv, .offset = 0};
-        pdt_buff_t value = {.buf = buf->buf + buf->offset + i_kv + 1, .size = i_el - i_kv, .offset = 0};
-        // create an ebpf map
+        // pdt_buff_t key = {.buf = buf->buf + buf->offset, .size = i_kv, .offset = 0};
+        // pdt_buff_t value = {.buf = buf->buf + buf->offset + i_kv + 1, .size = i_el - i_kv, .offset = 0};
+        // // create an ebpf map
 
-        bpf_map_update_elem(hash, &key, &value, BPF_ANY);
+        // bpf_map_update_elem(hash, &key, &value, BPF_ANY);
 
-        buf->offset += i_el + el_sep->size;
+        buf->offset = i_el + el_sep->size;
     }
     return 1;
 }
