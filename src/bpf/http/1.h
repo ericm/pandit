@@ -9,14 +9,6 @@
 #define http_offset_version 5
 #define http_offset_code 9
 
-typedef struct pdt_http1_req_hdr_t
-{
-    __u8 maj_version;
-    __u8 min_version;
-    __u8 code;
-    pdt_hash_t *hdr_map;
-} pdt_http1_req_hdr_t;
-
 __u8 HTTP[] = "HTTP";
 
 pdt_hash_t pdt_http1_req_hdr_map SEC(".maps");

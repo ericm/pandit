@@ -2,6 +2,15 @@
 	"files.associations": {
 		"builtins.h": "c",
 		"vmlinux.h": "c",
-		"parsing_helpers.h": "c"
+		"parsing_helpers.h": "c",
+		"array": "c",
+		"chrono": "c",
+		"istream": "c",
+		"ostream": "c",
+		"ratio": "c",
+		"tuple": "c",
+		"type_traits": "c",
+		"utility": "c",
+		"system_error": "cpp"
 	}
 }

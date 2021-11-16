@@ -8,19 +8,30 @@ typedef struct
     size_t size;
 } pdt_buff_t;
 
-typedef struct
+typedef enum pdt_val_type
 {
-    void *value;
-    __u16 len;
-} pdt_hash_el_t;
+    PDT_VAL_TYPE_STR,
+    PDT_VAL_TYPE_INT
+} pdt_val_type_t;
 
 typedef struct
 {
+    void *value;
+    size_t len;
+    pdt_val_type_t type;
+} pdt_hash_el_t;
+
+#define pdt_hash_base                        \
+    __uint(type, BPF_MAP_TYPE_HASH_OF_MAPS); \
+    __uint(max_entries, 8192);               \
+    __array(values, pdt_hash_el_t);
+
+struct pdt_hash_tps_pld_t
+{
     __uint(type, BPF_MAP_TYPE_HASH_OF_MAPS);
     __uint(max_entries, 8192);
-    __type(key, pdt_buff_t *);
-    __type(value, pdt_buff_t *);
-} pdt_hash_t;
+    __array(values, pdt_hash_el_t);
+} pdt_hash_tps_pld SEC(".maps");
 
 static __always_inline int
 pdt_buff_find(pdt_buff_t *a, pdt_buff_t *b)
@@ -68,7 +79,6 @@ int pdt_hash_populate(pdt_hash_t *hash, pdt_buff_t *buf, pdt_buff_t *kv_sep, pdt
 
         pdt_buff_t key = {.buf = buf->buf + buf->offset, .size = i_kv, .offset = 0};
         pdt_buff_t value = {.buf = buf->buf + buf->offset + i_kv + 1, .size = i_el - i_kv, .offset = 0};
-        // create an ebpf map
 
         bpf_map_update_elem(hash, &key, &value, BPF_ANY);
 
