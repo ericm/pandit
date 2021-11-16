@@ -15,7 +15,6 @@ typedef struct pdt_http1_req_hdr_t
     __u8 maj_version;
     __u8 min_version;
     __u8 code;
-    pdt_hash_t *hdr_map;
 } pdt_http1_req_hdr_t;
 
 static __u8 HTTP[] = "HTTP";
@@ -51,6 +50,5 @@ pdt_parse_http1_req_hdr(pdt_http1_req_hdr_t *hdr, __u8 *buf, __u16 len)
     pdt_buff_t el_sep = {.buf = el, .size = 2, .offset = 0};
     pdt_hash_populate(&pdt_http1_req_hdr_map, &pdt_buff, &kv_sep, &el_sep);
 
-    hdr->hdr_map = &pdt_http1_req_hdr_map;
     return 1;
 }
