@@ -52,6 +52,7 @@ pdt_buff_find(pdt_buff_t *a, pdt_buff_t *b)
             b_cmp = b_buf + j;
             if (!a_cmp || !b_cmp)
                 return 0;
+            bpf_printk("a: %d b: %d", *a_cmp, *b_cmp);
             if (__bpf_memcmp(a_cmp, b_cmp, 1))
                 break;
 

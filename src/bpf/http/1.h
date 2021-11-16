@@ -28,7 +28,7 @@ pdt_parse_http1_req_hdr(pdt_http1_req_hdr_t *hdr, __u8 *buf, __u16 len)
 {
     char h_buf[3];
     char *sb, *sb_sep;
-    int lower, i;
+    int lower, i, hdr_start;
 
     if (__bpf_memcmp(&HTTP, buf, sizeof(HTTP) - 1))
         return 0;
@@ -48,6 +48,8 @@ pdt_parse_http1_req_hdr(pdt_http1_req_hdr_t *hdr, __u8 *buf, __u16 len)
                            .offset = http_offset_code + sizeof(h_buf)};
     pdt_buff_t kv_sep = {.buf = kv, .size = 1, .offset = 0};
     pdt_buff_t el_sep = {.buf = el, .size = 2, .offset = 0};
+
+    pdt_buff.offset += pdt_buff_find(&pdt_buff, &el_sep);
     pdt_hash_populate(&pdt_http1_req_hdr_map, &pdt_buff, &kv_sep, &el_sep);
 
     return 1;
