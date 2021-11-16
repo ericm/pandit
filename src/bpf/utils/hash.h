@@ -4,8 +4,8 @@
 typedef struct
 {
     __u8 *buf;
-    __u16 offset;
-    __u16 size;
+    __u8 offset;
+    __u8 size;
 } pdt_buff_t;
 
 typedef struct
@@ -22,10 +22,10 @@ typedef struct
     __type(value, pdt_buff_t *);
 } pdt_hash_t;
 
-static __always_inline __u16
+static __always_inline __u8
 pdt_buff_find(pdt_buff_t *a, pdt_buff_t *b)
 {
-    __u16 i = 0, j, t_j;
+    __u8 i = 0, j, t_j;
     __u8 *a_buf, *b_buf;
     __u8 *a_cmp, *b_cmp;
     if (!a || !b)
@@ -35,18 +35,20 @@ pdt_buff_find(pdt_buff_t *a, pdt_buff_t *b)
     a_buf = a->buf;
     b_buf = b->buf;
     if (!a_buf || !b_buf)
-        return -1;
+        return 0;
     if (b->size == 0)
-        return -1;
+        return 0;
 
     for (i = a->offset; i < a->size; i++)
     {
         for (j = b->offset; j < b->size; j++)
         {
+            if (i + j > a->size - 1)
+                return 0;
             a_cmp = a_buf + i + j;
             b_cmp = b_buf + j;
             if (!a_cmp || !b_cmp)
-                return -1;
+                return 0;
             if (__bpf_memcmp(a_cmp, b_cmp, 1))
                 break;
 
@@ -54,7 +56,7 @@ pdt_buff_find(pdt_buff_t *a, pdt_buff_t *b)
                 return i;
         }
     }
-    return -1;
+    return 0;
 }
 
 static __always_inline int
@@ -70,7 +72,7 @@ static __always_inline int
 pdt_hash_populate(pdt_hash_t *hash, pdt_buff_t *buf, pdt_buff_t *kv_sep, pdt_buff_t *el_sep)
 {
     __u8 i;
-    __u16 i_kv, i_el;
+    __u8 i_kv, i_el;
 
     if (!buf)
         return -1;
@@ -82,10 +84,10 @@ pdt_hash_populate(pdt_hash_t *hash, pdt_buff_t *buf, pdt_buff_t *kv_sep, pdt_buf
         if (buf->offset > buf->size - 1)
             return 1;
         i_kv = pdt_buff_find(buf, kv_sep);
-        if (i_kv == -1)
+        if (i_kv == 0)
             return 1;
         i_el = pdt_buff_find(buf, el_sep);
-        if (i_el == -1)
+        if (i_el == 0)
             return 1;
 
         // pdt_buff_t key = {.buf = buf->buf + buf->offset, .size = i_kv, .offset = 0};
