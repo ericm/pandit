@@ -88,5 +88,23 @@ int handle_egress_packet(struct xdp_md *ctx)
     }
 
     pdt_parse_http1_req_hdr(&req_hdr, buf, sizeof(buf));
+    // __u8 key[32] = "Content-Length";
+    char k_char[14] = "Content-Length";
+    pdt_buff_t key = {.offset = 0};
+    key.buf = (__u8 **)&k_char;
+    key.size = 14;
+    pdt_buff_t *value = bpf_map_lookup_elem(&pdt_http1_req_hdr_map, &key);
+    if (!value)
+    {
+        bpf_printk("!value");
+        return XDP_PASS;
+    }
+    if (!value->buf)
+    {
+        bpf_printk("!value->buf");
+        return XDP_PASS;
+    }
+    bpf_printk("value %p", value->buf);
+
     return XDP_PASS;
 }

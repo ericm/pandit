@@ -1,7 +1,10 @@
 #include "../vmlinux.h"
 #include <bpf/bpf_helpers.h>
 
-typedef struct
+#define KEY_SIZE 32
+
+#pragma pack(16)
+typedef struct pdt_buff
 {
     __u8 *buf;
     __u8 offset;
@@ -18,8 +21,8 @@ typedef struct
 {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 8192);
-    __type(key, pdt_buff_t *);
-    __type(value, pdt_buff_t *);
+    __type(key, pdt_buff_t);
+    __type(value, pdt_buff_t);
 } pdt_hash_t;
 
 static __always_inline __u8
@@ -71,8 +74,9 @@ pdt_hash_find(pdt_hash_t *hash, char *key, pdt_hash_el_t **elem)
 static __always_inline int
 pdt_hash_populate(pdt_hash_t *hash, pdt_buff_t *buf, pdt_buff_t *kv_sep, pdt_buff_t *el_sep)
 {
-    __u8 i, offset;
+    __u8 i, j, offset;
     __u8 i_kv, i_el;
+    pdt_buff_t key = {.offset = 0}, value = {.offset = 0};
 
     if (!buf)
         return -1;
@@ -82,6 +86,7 @@ pdt_hash_populate(pdt_hash_t *hash, pdt_buff_t *buf, pdt_buff_t *kv_sep, pdt_buf
 
     for (i = 0; i < buf->size; i++)
     {
+        bpf_printk("parse buff");
         if (buf->offset > buf->size - 1)
             return 1;
         i_kv = pdt_buff_find(buf, kv_sep);
@@ -91,11 +96,26 @@ pdt_hash_populate(pdt_hash_t *hash, pdt_buff_t *buf, pdt_buff_t *kv_sep, pdt_buf
         if (i_el == 0)
             return 1;
 
-        pdt_buff_t key = {.buf = buf->buf + buf->offset, .size = i_kv, .offset = 0};
-        pdt_buff_t value = {.buf = buf->buf + buf->offset + i_kv + 1, .size = i_el - i_kv, .offset = 0};
-        // create an ebpf map
+        // __u8 key[KEY_SIZE];
+        // __bpf_memcpy(&key, buf->buf + buf->offset, KEY_SIZE);
+        // __bpf_memzero(&key[buf->offset], 1);
+        // // for (j = buf->offset; j < KEY_SIZE; j++)
+        // // {
+        // // }
+
+        bpf_printk("i_kv %d i_el %d", i_kv, i_el);
+
+        key.buf = buf->buf + buf->offset;
+        key.size = i_kv;
+        value.buf = buf->buf + buf->offset + i_kv + 1;
+        value.size = i_el;
+        // pdt_buff_t key = {.buf = buf->buf + buf->offset, .size = i_kv, .offset = 0};
+        // pdt_buff_t value = {.buf = buf->buf + buf->offset + i_kv + 1, .size = i_el - i_kv, .offset = 0};
+        // __bpf_memzero(&key, sizeof(pdt_buff_t));
+        // __bpf_memzero(&value, sizeof(pdt_buff_t));
 
         bpf_map_update_elem(hash, &key, &value, BPF_ANY);
+        bpf_printk("buff %d", *buf->buf);
 
         buf->offset = offset + i_el + el_sep->size;
     }
