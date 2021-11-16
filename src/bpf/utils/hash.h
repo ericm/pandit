@@ -4,44 +4,48 @@
 typedef struct
 {
     __u8 *buf;
-    size_t offset;
-    size_t size;
+    __u16 offset;
+    __u16 size;
 } pdt_buff_t;
-
-typedef enum pdt_val_type
-{
-    PDT_VAL_TYPE_STR,
-    PDT_VAL_TYPE_INT
-} pdt_val_type_t;
 
 typedef struct
 {
     void *value;
-    size_t len;
-    pdt_val_type_t type;
+    __u16 len;
 } pdt_hash_el_t;
 
-#define pdt_hash_base                        \
-    __uint(type, BPF_MAP_TYPE_HASH_OF_MAPS); \
-    __uint(max_entries, 8192);               \
-    __array(values, pdt_hash_el_t);
-
-struct pdt_hash_tps_pld_t
+typedef struct
 {
-    __uint(type, BPF_MAP_TYPE_HASH_OF_MAPS);
+    __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 8192);
-    __array(values, pdt_hash_el_t);
-} pdt_hash_tps_pld SEC(".maps");
+    __type(key, pdt_buff_t *);
+    __type(value, pdt_buff_t *);
+} pdt_hash_t;
 
 static __always_inline int
 pdt_buff_find(pdt_buff_t *a, pdt_buff_t *b)
 {
     int i, j;
+    char *a_buf, *b_buf;
+    char *a_cmp, *b_cmp;
+    if (!a || !b)
+        return -1;
+    if (a->size < b->size)
+        return -1;
+    a_buf = (char *)a->buf;
+    b_buf = (char *)b->buf;
+    if (!a_buf || !b_buf)
+        return -1;
+
     for (i = a->offset; i < a->size; i++)
     {
         for (j = b->offset; j < b->size; j++)
         {
-            if (a->buf[i + j] != b->buf[j])
+            a_cmp = a_buf + i + j;
+            b_cmp = b_buf + j;
+            if (!a_cmp || !b_cmp)
+                return -1;
+            if (*a_cmp != *b_cmp)
                 break;
             if (j == b->size - 1)
                 return i;
@@ -65,6 +69,8 @@ int pdt_hash_populate(pdt_hash_t *hash, pdt_buff_t *buf, pdt_buff_t *kv_sep, pdt
 
     if (!buf)
         return -1;
+    if (!hash)
+        return -1;
 
     for (i = 0; i < buf->size; i++)
     {
@@ -79,9 +85,11 @@ int pdt_hash_populate(pdt_hash_t *hash, pdt_buff_t *buf, pdt_buff_t *kv_sep, pdt
 
         pdt_buff_t key = {.buf = buf->buf + buf->offset, .size = i_kv, .offset = 0};
         pdt_buff_t value = {.buf = buf->buf + buf->offset + i_kv + 1, .size = i_el - i_kv, .offset = 0};
+        // create an ebpf map
 
         bpf_map_update_elem(hash, &key, &value, BPF_ANY);
 
         buf->offset += i_el + el_sep->size;
     }
+    return 1;
 }
