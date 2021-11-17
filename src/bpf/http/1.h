@@ -5,7 +5,6 @@
 #include "../utils/hash.h"
 
 #define ascii_offset 48
-#define MTU 1500
 
 #define http_offset_version 5
 #define http_offset_code 9
