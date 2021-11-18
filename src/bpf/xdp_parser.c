@@ -37,7 +37,7 @@ int handle_egress_packet(struct xdp_md *ctx)
     int eth_type;
     int ip_type;
     int hdrlen;
-    int pld_len, i;
+    int pld_len, i, body_loc = 0;
     struct iphdr *iphdr;
     struct ipv6hdr *ipv6hdr;
     struct tcphdr *tcphdr;
@@ -98,15 +98,17 @@ int handle_egress_packet(struct xdp_md *ctx)
     }
     for (i = 0; i < sizeof(buf) - 4; i++)
     {
-        if (__bpf_memcmp(&buf[i], hdr_split, 4))
+        if (__bpf_memcmp(&buf[i], hdr_split, 4) == 0)
         {
-            bpf_printk("Split");
+            body_loc = i + 4;
             break;
         }
     }
-    // if (i < pld_len) {
-    //     xdp_load_bytes(ctx, hdrlen + i, buf + i, static_read4);
-    // }
-
+    bpf_printk("Body loc: %d", body_loc);
+    if (body_loc >= sizeof(buf) - 1)
+    {
+        return XDP_PASS;
+    }
+    bpf_xdp_adjust_meta(ctx, body_loc);
     return XDP_PASS;
 }
