@@ -3,7 +3,13 @@
 #include "xdp/context_helpers.h"
 #include "bpf_helpers/builtins.h"
 #include <bpf/bpf_helpers.h>
-#include "http/1.h"
+
+// typedef struct
+// {
+//     __uint(type, BPF_MAP_TYPE_STACK);
+//     __uint(max_entries, 8192);
+//     __type(value, struct );
+// } pdt_stack_map_t;
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -21,7 +27,7 @@ int handle_egress_packet(struct xdp_md *ctx)
     bpf_printk("Packet received");
 
     void *data_end = (void *)(unsigned long long)ctx->data_end;
-    void *data = (void *)(unsigned long long)ctx->data;
+    __u8 *data = (__u8 *)(unsigned long long)ctx->data;
 
     struct hdr_cursor cursor;
     struct ethhdr *eth;
@@ -32,9 +38,9 @@ int handle_egress_packet(struct xdp_md *ctx)
     struct ipv6hdr *ipv6hdr;
     struct tcphdr *tcphdr;
 
-    pdt_http1_req_hdr_t req_hdr = {};
-
     cursor.pos = data;
+    cursor.end = data_end;
+
     hdrlen = sizeof(struct ethhdr);
 
     eth_type = parse_ethhdr(&cursor, data_end, &eth);
@@ -64,47 +70,42 @@ int handle_egress_packet(struct xdp_md *ctx)
     }
 
     hdrlen += tcphdr->doff * 4;
-
+    cursor.pos += tcphdr->doff * 4;
     if (tcphdr->dest != bpf_htons(8000) && tcphdr->source != bpf_htons(8000))
     {
         return XDP_PASS;
     }
     bpf_printk("Right Port");
 
-    if (eth_type == bpf_htons(ETH_P_IP))
-    {
-        // bpf_printk("v4 %x %d %d", tcphdr->window, hdrlen, tcphdr->doff);
-        xdp_load_bytes(ctx, hdrlen, buf, static_offset4);
-    }
-    else
-    {
-        bpf_printk("v6");
-        xdp_load_bytes(ctx, static_offset6, buf, static_offset6);
-    }
+    // if (eth_type == bpf_htons(ETH_P_IP))
+    // {
+    //     // bpf_printk("v4 %x %d %d", tcphdr->window, hdrlen, tcphdr->doff);
+    //     xdp_load_bytes(ctx, hdrlen, buf, static_offset4);
+    // }
+    // else
+    // {
+    //     bpf_printk("v6");
+    //     xdp_load_bytes(ctx, static_offset6, buf, static_offset6);
+    // }
     int i;
-    for (i = 0; i < static_offset4; i++)
-    {
-        bpf_printk("= %d", buf[i]);
-    }
+    // for (i = 0; i < static_offset4; i++)
+    // {
+    //     bpf_printk("= %d", buf[i]);
+    // }
+    // https://github.com/xdp-project/xdp-tools/blob/892e23248b0275f2d9defaddc8350469febca486/headers/linux/bpf.h#L2563
 
-    pdt_parse_http1_req_hdr(&req_hdr, buf, sizeof(buf));
-    // __u8 key[32] = "Content-Length";
-    char k_char[14] = "Content-Length";
-    pdt_buff_t key = {.offset = 0};
-    key.buf = (__u8 **)&k_char;
-    key.size = 14;
-    pdt_buff_t *value = bpf_map_lookup_elem(&pdt_http1_req_hdr_map, &key);
-    if (!value)
+    __u8 *d = data;
+    d += hdrlen;
+    if (d + 1 > data_end)
     {
-        bpf_printk("!value");
         return XDP_PASS;
     }
-    if (!value->buf)
+    bpf_printk("== %d", *d);
+
+    for (; d < data_end; d++)
     {
-        bpf_printk("!value->buf");
-        return XDP_PASS;
+        bpf_printk("== %d", *d);
     }
-    bpf_printk("value %p", value->buf);
 
     return XDP_PASS;
 }
