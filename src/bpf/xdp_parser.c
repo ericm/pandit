@@ -82,33 +82,17 @@ int handle_egress_packet(struct xdp_md *ctx)
     }
     bpf_printk("Right Port");
 
-    if (eth_type == bpf_htons(ETH_P_IP))
-    {
-    }
-    else
-    {
-        bpf_printk("v6");
-        xdp_load_bytes(ctx, static_offset6, buf, static_offset6);
-    }
     // https://github.com/xdp-project/xdp-tools/blob/892e23248b0275f2d9defaddc8350469febca486/headers/linux/bpf.h#L2563
-    pld_len = iphdr->tot_len - hdrlen;
-    for (i = 0; i + static_read4 + 1 < pld_len && i + static_read4 + 1 < (data_end - data) && i + static_read4 < sizeof(buf); i += static_read4)
+    // pld_len = iphdr->tot_len - hdrlen;
+    for (i = 0; i + 1 < (data_end - data) && i < 150; i++)
     {
-        xdp_load_bytes(ctx, hdrlen + i, &buf[i], static_read4);
-    }
-    for (i = 0; i < sizeof(buf) - 4; i++)
-    {
-        if (__bpf_memcmp(&buf[i], hdr_split, 4) == 0)
+        if (data + hdrlen + i + 5 < data_end && __bpf_memcmp(data + i + hdrlen, hdr_split, 4) == 0)
         {
             body_loc = i + 4;
             break;
         }
+        // bpf_printk("%d", *(data + i));
     }
     bpf_printk("Body loc: %d", body_loc);
-    if (body_loc >= sizeof(buf) - 1)
-    {
-        return XDP_PASS;
-    }
-    bpf_xdp_adjust_meta(ctx, body_loc);
     return XDP_PASS;
 }
