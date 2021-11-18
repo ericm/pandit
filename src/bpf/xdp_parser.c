@@ -19,14 +19,17 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 #define static_offset6 \
     sizeof(struct ethhdr) + sizeof(struct ipv6hdr) + sizeof(struct tcphdr)
 
-static __u8 buf[static_offset4 + 1500];
+#define static_mtu4 1500
+#define static_read4 288
+
+static __u8 buf[static_mtu4];
 
 SEC("xdp")
 int handle_egress_packet(struct xdp_md *ctx)
 {
     bpf_printk("Packet received");
 
-    void *data_end = (void *)(unsigned long long)ctx->data_end;
+    __u8 *data_end = (__u8 *)(unsigned long long)ctx->data_end;
     __u8 *data = (__u8 *)(unsigned long long)ctx->data;
 
     struct hdr_cursor cursor;
@@ -34,9 +37,11 @@ int handle_egress_packet(struct xdp_md *ctx)
     int eth_type;
     int ip_type;
     int hdrlen;
+    int pld_len, i;
     struct iphdr *iphdr;
     struct ipv6hdr *ipv6hdr;
     struct tcphdr *tcphdr;
+    char hdr_split[4] = "\r\n\r\n";
 
     cursor.pos = data;
     cursor.end = data_end;
@@ -77,35 +82,31 @@ int handle_egress_packet(struct xdp_md *ctx)
     }
     bpf_printk("Right Port");
 
-    // if (eth_type == bpf_htons(ETH_P_IP))
-    // {
-    //     // bpf_printk("v4 %x %d %d", tcphdr->window, hdrlen, tcphdr->doff);
-    //     xdp_load_bytes(ctx, hdrlen, buf, static_offset4);
-    // }
-    // else
-    // {
-    //     bpf_printk("v6");
-    //     xdp_load_bytes(ctx, static_offset6, buf, static_offset6);
-    // }
-    int i;
-    // for (i = 0; i < static_offset4; i++)
-    // {
-    //     bpf_printk("= %d", buf[i]);
-    // }
+    if (eth_type == bpf_htons(ETH_P_IP))
+    {
+    }
+    else
+    {
+        bpf_printk("v6");
+        xdp_load_bytes(ctx, static_offset6, buf, static_offset6);
+    }
     // https://github.com/xdp-project/xdp-tools/blob/892e23248b0275f2d9defaddc8350469febca486/headers/linux/bpf.h#L2563
-
-    __u8 *d = data;
-    d += hdrlen;
-    if (d + 1 > data_end)
+    pld_len = iphdr->tot_len - hdrlen;
+    for (i = 0; i + static_read4 + 1 < pld_len && i + static_read4 + 1 < (data_end - data) && i + static_read4 < sizeof(buf); i += static_read4)
     {
-        return XDP_PASS;
+        xdp_load_bytes(ctx, hdrlen + i, &buf[i], static_read4);
     }
-    bpf_printk("== %d", *d);
-
-    for (; d < data_end; d++)
+    for (i = 0; i < sizeof(buf) - 4; i++)
     {
-        bpf_printk("== %d", *d);
+        if (__bpf_memcmp(&buf[i], hdr_split, 4))
+        {
+            bpf_printk("Split");
+            break;
+        }
     }
+    // if (i < pld_len) {
+    //     xdp_load_bytes(ctx, hdrlen + i, buf + i, static_read4);
+    // }
 
     return XDP_PASS;
 }
