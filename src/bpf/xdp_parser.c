@@ -21,8 +21,11 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 #define static_mtu4 1500
 #define static_read4 288
+#define ascii_offset 48
 
 static __u8 buf[static_mtu4];
+static const __u8 HTTP[] = "HTTP";
+static __u8 HDR_SPLIT[] = {13, 10, 13, 10};
 
 SEC("xdp")
 int handle_egress_packet(struct xdp_md *ctx)
@@ -41,7 +44,7 @@ int handle_egress_packet(struct xdp_md *ctx)
     struct iphdr *iphdr;
     struct ipv6hdr *ipv6hdr;
     struct tcphdr *tcphdr;
-    char hdr_split[4] = "\r\n\r\n";
+    __u8 maj_ver, min_ver, code;
 
     cursor.pos = data;
     cursor.end = data_end;
@@ -82,16 +85,32 @@ int handle_egress_packet(struct xdp_md *ctx)
     }
     bpf_printk("Right Port");
 
+    if (data + hdrlen + sizeof(HTTP) + 7 > data_end)
+    {
+        return XDP_PASS;
+    }
+    if (__bpf_memcmp(&HTTP, data + hdrlen, sizeof(HTTP) - 1))
+        return XDP_PASS;
+    maj_ver = *(data + hdrlen + sizeof(HTTP)) - ascii_offset, min_ver = *(data + hdrlen + sizeof(HTTP) + 2) - ascii_offset;
+    code = (*(data + hdrlen + sizeof(HTTP) + 4) - ascii_offset) * 100;
+    code += (*(data + hdrlen + sizeof(HTTP) + 5) - ascii_offset) * 10;
+    code += (*(data + hdrlen + sizeof(HTTP) + 6) - ascii_offset);
+    bpf_printk("ver %d.%d status %d", maj_ver, min_ver, code);
+
     // https://github.com/xdp-project/xdp-tools/blob/892e23248b0275f2d9defaddc8350469febca486/headers/linux/bpf.h#L2563
     // pld_len = iphdr->tot_len - hdrlen;
     for (i = 0; i + 1 < (data_end - data) && i < 150; i++)
     {
-        if (data + hdrlen + i + 5 < data_end && __bpf_memcmp(data + i + hdrlen, hdr_split, 4) == 0)
+        if (data + hdrlen + i + 5 > data_end)
+        {
+            break;
+        }
+        if (__bpf_memcmp(&HDR_SPLIT, data + i + hdrlen, sizeof(HDR_SPLIT)) == 0)
         {
             body_loc = i + 4;
             break;
         }
-        // bpf_printk("%d", *(data + i));
+        bpf_printk("%d", *(data + hdrlen + i));
     }
     bpf_printk("Body loc: %d", body_loc);
     return XDP_PASS;
