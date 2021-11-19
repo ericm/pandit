@@ -25,7 +25,7 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 static __u8 buf[static_mtu4];
 static const __u8 HTTP[] = "HTTP";
-static __u8 HDR_SPLIT[] = {13, 10, 13, 10};
+static const __u8 HDR_SPLIT[] = "Content-Length";
 
 SEC("xdp")
 int handle_egress_packet(struct xdp_md *ctx)
@@ -99,19 +99,21 @@ int handle_egress_packet(struct xdp_md *ctx)
 
     // https://github.com/xdp-project/xdp-tools/blob/892e23248b0275f2d9defaddc8350469febca486/headers/linux/bpf.h#L2563
     // pld_len = iphdr->tot_len - hdrlen;
-    for (i = 0; i + 1 < (data_end - data) && i < 150; i++)
+    for (i = 0; i + 1 < (data_end - data) && i < 200; i++)
     {
-        if (data + hdrlen + i + 5 > data_end)
+        if (data + hdrlen + i + sizeof(HDR_SPLIT) > data_end)
         {
             break;
         }
-        if (__bpf_memcmp(&HDR_SPLIT, data + i + hdrlen, sizeof(HDR_SPLIT)) == 0)
+        if (__bpf_memcmp(&HDR_SPLIT, data + i + hdrlen, sizeof(HDR_SPLIT) - 1) == 0)
         {
+            bpf_printk("Found split");
             body_loc = i + 4;
             break;
         }
-        bpf_printk("%d", *(data + hdrlen + i));
     }
+    bpf_printk("%s", (data + hdrlen));
     bpf_printk("Body loc: %d", body_loc);
+    bpf_printk("Body loc: %s", data + hdrlen + body_loc + 25);
     return XDP_PASS;
 }
