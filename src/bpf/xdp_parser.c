@@ -23,6 +23,45 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 #define static_read4 288
 #define ascii_offset 48
 
+typedef struct
+{
+    __u32 body_loc;
+} pdt_http_resp_t;
+
+struct
+{
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 8192);
+    __type(key, __u64);
+    __type(value, pdt_http_resp_t);
+} pdt_ip_hash_map SEC(".maps");
+
+typedef struct
+{
+    __u8 value[50];
+    __u8 len;
+    union
+    {
+        __u8 token;
+        enum
+        {
+            PDT_TOKEN_KEY,
+            PDT_TOKEN_STRING,
+            PDT_TOKEN_NUMBER,
+            PDT_TOKEN_BOOLEAN
+        } type;
+    } scope;
+} pdt_parse_sym_t;
+
+struct pdt_parse_map_t
+{
+    __uint(type, BPF_MAP_TYPE_STACK);
+    __uint(max_entries, 32);
+    __uint(map_flags, 0);
+    __uint(key_size, 0);
+    __uint(value_size, sizeof(pdt_parse_sym_t));
+} pdt_parse_map SEC(".maps");
+
 static __u8 buf[static_mtu4];
 static const __u8 HTTP[] = "HTTP";
 static const __u8 HDR_SPLIT[] = "Content-Length";
@@ -30,12 +69,13 @@ static const __u8 HDR_SPLIT[] = "Content-Length";
 SEC("xdp")
 int handle_egress_packet(struct xdp_md *ctx)
 {
-    bpf_printk("Packet received");
 
     __u8 *data_end = (__u8 *)(unsigned long long)ctx->data_end;
     __u8 *data = (__u8 *)(unsigned long long)ctx->data;
+    bpf_printk("Packet received %d", data_end - data);
 
     struct hdr_cursor cursor;
+    pdt_http_resp_t *resp;
     struct ethhdr *eth;
     int eth_type;
     int ip_type;
@@ -44,6 +84,7 @@ int handle_egress_packet(struct xdp_md *ctx)
     struct iphdr *iphdr;
     struct ipv6hdr *ipv6hdr;
     struct tcphdr *tcphdr;
+    __u64 key;
     __u8 maj_ver, min_ver, code;
 
     cursor.pos = data;
@@ -79,11 +120,66 @@ int handle_egress_packet(struct xdp_md *ctx)
 
     hdrlen += tcphdr->doff * 4;
     cursor.pos += tcphdr->doff * 4;
+
+    bpf_printk("%u %u %u", tcphdr->seq, tcphdr->ack_seq, tcphdr->ack);
+    bpf_printk("%s", (data + hdrlen));
     if (tcphdr->dest != bpf_htons(8000) && tcphdr->source != bpf_htons(8000))
     {
         return XDP_PASS;
     }
     bpf_printk("Right Port");
+    key = ((__u64)iphdr->daddr << 32) | tcphdr->ack_seq;
+    resp = bpf_map_lookup_elem(&pdt_ip_hash_map, &key);
+    // replace solid tokens with maps
+    if (resp)
+    {
+        bpf_printk("Found");
+        for (i = 0; i < static_mtu4 - hdrlen; i++)
+        {
+            if (data + hdrlen + i + 1 > data_end)
+            {
+                break;
+            }
+            pdt_parse_sym_t sym = {.len = 0, .value = {}};
+            switch (*(data + hdrlen + i))
+            {
+            case '{':
+                sym.scope.token = '{';
+                bpf_map_push_elem(&pdt_parse_map, &sym, 0);
+                bpf_printk("Found {");
+                break;
+            case '}':
+                bpf_map_pop_elem(&pdt_parse_map, &sym);
+                bpf_printk("Found }");
+                break;
+            case '"':
+                bpf_printk("Found \"");
+                break;
+            case ':':
+                sym.scope.token = ':';
+                bpf_printk("Found :");
+                break;
+            case ' ':
+                bpf_map_pop_elem(&pdt_parse_map, &sym);
+                if ((sym.scope.type == PDT_TOKEN_STRING ||
+                     sym.scope.type == PDT_TOKEN_KEY) &&
+                    sym.len < sizeof(sym.value))
+                {
+                    sym.value[sym.len++] = ' ';
+                }
+                break;
+            default:
+                bpf_map_pop_elem(&pdt_parse_map, &sym);
+                if (sym.len < sizeof(sym.value))
+                {
+                    sym.value[sym.len++] = *(data + hdrlen + i);
+                }
+                bpf_map_push_elem(&pdt_parse_map, &sym, 0);
+                break;
+            }
+        }
+        return XDP_PASS;
+    }
 
     if (data + hdrlen + sizeof(HTTP) + 7 > data_end)
     {
@@ -108,12 +204,12 @@ int handle_egress_packet(struct xdp_md *ctx)
         if (__bpf_memcmp(&HDR_SPLIT, data + i + hdrlen, sizeof(HDR_SPLIT) - 1) == 0)
         {
             bpf_printk("Found split");
+            pdt_http_resp_t n_resp = {};
+            bpf_map_update_elem(&pdt_ip_hash_map, &key, &n_resp, BPF_ANY);
             body_loc = i + 4;
             break;
         }
     }
-    bpf_printk("%s", (data + hdrlen));
-    bpf_printk("Body loc: %d", body_loc);
-    bpf_printk("Body loc: %s", data + hdrlen + body_loc + 25);
+    bpf_printk("Body loc: %d %d", body_loc, data_end - data);
     return XDP_PASS;
 }
