@@ -38,14 +38,15 @@ struct
 
 typedef struct
 {
-    __u8 value[50];
-    __u8 len;
+    __u32 value_ptr;
+    __u32 len;
     union
     {
         __u8 token;
         enum
         {
             PDT_TOKEN_KEY,
+            PDT_TOKEN_VALUE,
             PDT_TOKEN_STRING,
             PDT_TOKEN_NUMBER,
             PDT_TOKEN_BOOLEAN
@@ -86,6 +87,7 @@ int handle_egress_packet(struct xdp_md *ctx)
     struct tcphdr *tcphdr;
     __u64 key;
     __u8 maj_ver, min_ver, code;
+    pdt_parse_sym_t sym = {.len = 0, .value_ptr = 0};
 
     cursor.pos = data;
     cursor.end = data_end;
@@ -134,13 +136,12 @@ int handle_egress_packet(struct xdp_md *ctx)
     if (resp)
     {
         bpf_printk("Found");
-        for (i = 0; i < static_mtu4 - hdrlen; i++)
+        for (i = 0; i < static_mtu4 / 2 - hdrlen; i++)
         {
             if (data + hdrlen + i + 1 > data_end)
             {
-                break;
+                return XDP_PASS;
             }
-            pdt_parse_sym_t sym = {.len = 0, .value = {}};
             switch (*(data + hdrlen + i))
             {
             case '{':
@@ -156,24 +157,30 @@ int handle_egress_packet(struct xdp_md *ctx)
                 bpf_printk("Found \"");
                 break;
             case ':':
-                sym.scope.token = ':';
+                sym.value_ptr = 0;
+                sym.len = 0;
+                sym.scope.type = PDT_TOKEN_VALUE;
+                bpf_map_push_elem(&pdt_parse_map, &sym, 0);
                 bpf_printk("Found :");
                 break;
             case ' ':
+            case '\t':
                 bpf_map_pop_elem(&pdt_parse_map, &sym);
                 if ((sym.scope.type == PDT_TOKEN_STRING ||
-                     sym.scope.type == PDT_TOKEN_KEY) &&
-                    sym.len < sizeof(sym.value))
+                     sym.scope.type == PDT_TOKEN_KEY))
                 {
-                    sym.value[sym.len++] = ' ';
+                    sym.len++;
                 }
                 break;
             default:
                 bpf_map_pop_elem(&pdt_parse_map, &sym);
-                if (sym.len < sizeof(sym.value))
+                if (sym.value_ptr == 0)
                 {
-                    sym.value[sym.len++] = *(data + hdrlen + i);
+                    // sym.value_ptr = data + hdrlen + i;
+                    sym.len = 1;
+                    break;
                 }
+                sym.len++;
                 bpf_map_push_elem(&pdt_parse_map, &sym, 0);
                 break;
             }
