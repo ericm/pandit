@@ -47,6 +47,8 @@ struct
 typedef struct
 {
     __u32 value_ptr;
+    char path[8][32];
+    __u8 path_level;
     __u32 len;
     union
     {
@@ -95,7 +97,7 @@ int handle_egress_packet(struct xdp_md *ctx)
     struct tcphdr *tcphdr;
     __u64 key;
     __u8 maj_ver, min_ver, code;
-    pdt_parse_sym_t sym = {.len = 0, .value_ptr = 0};
+    pdt_parse_sym_t sym = {.len = 0, .value_ptr = 0, .path_level = 0, .path = {}};
 
     cursor.pos = data;
     cursor.end = data_end;
@@ -145,7 +147,7 @@ int handle_egress_packet(struct xdp_md *ctx)
     {
         bpf_printk("Found");
         bool parsing = false;
-        for (i = 0; i < static_mtu4 / 2 - hdrlen; i++)
+        for (i = 0; i < static_mtu4 / 4 - hdrlen; i++)
         {
             if (data + hdrlen + i + 1 > data_end)
             {
@@ -171,7 +173,7 @@ int handle_egress_packet(struct xdp_md *ctx)
                     parsing = false;
                     break;
                 }
-                sym.value_ptr = data + hdrlen + i + 1;
+                // sym.value_ptr = data + hdrlen + i + 1;
                 sym.len = 0;
                 parsing = true;
                 break;
