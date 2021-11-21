@@ -36,6 +36,14 @@ struct
     __type(value, pdt_http_resp_t);
 } pdt_ip_hash_map SEC(".maps");
 
+struct
+{
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 8192);
+    __type(key, char[32]);
+    __type(value, char[32]);
+} pdt_parse_output_map SEC(".maps");
+
 typedef struct
 {
     __u32 value_ptr;
@@ -136,6 +144,7 @@ int handle_egress_packet(struct xdp_md *ctx)
     if (resp)
     {
         bpf_printk("Found");
+        bool parsing = false;
         for (i = 0; i < static_mtu4 / 2 - hdrlen; i++)
         {
             if (data + hdrlen + i + 1 > data_end)
@@ -154,18 +163,28 @@ int handle_egress_packet(struct xdp_md *ctx)
                 bpf_printk("Found }");
                 break;
             case '"':
-                bpf_printk("Found \"");
+                if (parsing)
+                {
+                    bpf_map_push_elem(&pdt_parse_map, &sym, 0);
+                    sym.value_ptr = 0;
+                    sym.len = 0;
+                    parsing = false;
+                    break;
+                }
+                sym.value_ptr = data + hdrlen + i + 1;
+                sym.len = 0;
+                parsing = true;
                 break;
             case ':':
+                sym.scope.type = PDT_TOKEN_KEY;
+                bpf_map_push_elem(&pdt_parse_map, &sym, 0);
+                sym.scope.type = PDT_TOKEN_VALUE;
                 sym.value_ptr = 0;
                 sym.len = 0;
-                sym.scope.type = PDT_TOKEN_VALUE;
-                bpf_map_push_elem(&pdt_parse_map, &sym, 0);
                 bpf_printk("Found :");
                 break;
             case ' ':
             case '\t':
-                bpf_map_pop_elem(&pdt_parse_map, &sym);
                 if ((sym.scope.type == PDT_TOKEN_STRING ||
                      sym.scope.type == PDT_TOKEN_KEY))
                 {
@@ -173,7 +192,6 @@ int handle_egress_packet(struct xdp_md *ctx)
                 }
                 break;
             default:
-                bpf_map_pop_elem(&pdt_parse_map, &sym);
                 if (sym.value_ptr == 0)
                 {
                     // sym.value_ptr = data + hdrlen + i;
