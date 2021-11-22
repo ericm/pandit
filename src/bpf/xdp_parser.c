@@ -23,6 +23,23 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 #define static_read4 288
 #define ascii_offset 48
 
+SEC("xdp/json")
+int handle_json(struct xdp_md *ctx)
+{
+}
+
+struct
+{
+    __uint(type, BPF_MAP_TYPE_PROG_ARRAY);
+    __uint(max_entries, 1);
+    __uint(pinning, LIBBPF_PIN_BY_NAME);
+    __array(values, int());
+} pdt_prog_map SEC(".maps") = {
+    .values = {
+        [0] = &handle_json,
+    },
+};
+
 typedef struct
 {
     __u32 body_loc;
@@ -143,11 +160,12 @@ int handle_egress_packet(struct xdp_md *ctx)
     key = ((__u64)iphdr->daddr << 32) | tcphdr->ack_seq;
     resp = bpf_map_lookup_elem(&pdt_ip_hash_map, &key);
     // replace solid tokens with maps
+    bpf_tail_call(ctx, &pdt_prog_map, 0);
     if (resp)
     {
         bpf_printk("Found");
         bool parsing = false;
-        for (i = 0; i < static_mtu4 / 4 - hdrlen; i++)
+        for (i = 0; i < static_mtu4 / 2 - hdrlen; i++)
         {
             if (data + hdrlen + i + 1 > data_end)
             {
@@ -171,11 +189,13 @@ int handle_egress_packet(struct xdp_md *ctx)
                     sym.value_ptr = 0;
                     sym.len = 0;
                     parsing = false;
-                    break;
                 }
-                // sym.value_ptr = data + hdrlen + i + 1;
-                sym.len = 0;
-                parsing = true;
+                else
+                {
+                    // sym.value_ptr = data + hdrlen + i + 1;
+                    sym.len = 0;
+                    parsing = true;
+                }
                 break;
             case ':':
                 sym.scope.type = PDT_TOKEN_KEY;
