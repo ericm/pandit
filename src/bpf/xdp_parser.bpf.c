@@ -155,76 +155,76 @@ int handle_egress_packet(struct xdp_md *ctx)
         return XDP_PASS;
     }
     bpf_printk("Right Port");
-    key = ((__u64)iphdr->daddr << 32) | tcphdr->ack_seq;
-    resp = bpf_map_lookup_elem(&pdt_ip_hash_map, &key);
-    // replace solid tokens with maps
-    // bpf_tail_call(ctx, &pdt_prog_map, 0);
-    if (resp)
-    {
-        bpf_printk("Found");
-        bool parsing = false;
-        for (i = 0; i < static_mtu4 / 4 - hdrlen; i++)
-        {
-            if (data + hdrlen + i + 1 > data_end)
-            {
-                return XDP_PASS;
-            }
-            switch (*(data + hdrlen + i))
-            {
-            // case '{':
-            //     sym.scope.token = '{';
-            //     bpf_map_push_elem(&pdt_parse_map, &sym, 0);
-            //     bpf_printk("Found {");
-            //     break;
-            // case '}':
-            //     bpf_map_pop_elem(&pdt_parse_map, &sym);
-            //     bpf_printk("Found }");
-            //     break;
-            case '"':
-                if (parsing)
-                {
-                    bpf_map_push_elem(&pdt_parse_map, &sym, 0);
-                    sym.value_ptr = 0;
-                    sym.len = 0;
-                    parsing = false;
-                }
-                else
-                {
-                    // sym.value_ptr = data + hdrlen + i + 1;
-                    sym.len = 0;
-                    parsing = true;
-                }
-                break;
-            case ':':
-                sym.scope.type = PDT_TOKEN_KEY;
-                bpf_map_push_elem(&pdt_parse_map, &sym, 0);
-                sym.scope.type = PDT_TOKEN_VALUE;
-                sym.value_ptr = 0;
-                sym.len = 0;
-                bpf_printk("Found :");
-                break;
-            case ' ':
-            case '\t':
-                if ((sym.scope.type == PDT_TOKEN_STRING ||
-                     sym.scope.type == PDT_TOKEN_KEY))
-                {
-                    sym.len++;
-                }
-                break;
-            default:
-                if (sym.value_ptr == 0)
-                {
-                    // sym.value_ptr = data + hdrlen + i;
-                    sym.len = 1;
-                    break;
-                }
-                sym.len++;
-                bpf_map_push_elem(&pdt_parse_map, &sym, 0);
-                break;
-            }
-        }
-        return XDP_PASS;
-    }
+    // key = ((__u64)iphdr->daddr << 32) | tcphdr->ack_seq;
+    // resp = bpf_map_lookup_elem(&pdt_ip_hash_map, &key);
+    // // replace solid tokens with maps
+    // // bpf_tail_call(ctx, &pdt_prog_map, 0);
+    // if (resp)
+    // {
+    //     bpf_printk("Found");
+    //     bool parsing = false;
+    //     for (i = 0; i < static_mtu4 / 4 - hdrlen; i++)
+    //     {
+    //         if (data + hdrlen + i + 1 > data_end)
+    //         {
+    //             return XDP_PASS;
+    //         }
+    //         switch (*(data + hdrlen + i))
+    //         {
+    //         // case '{':
+    //         //     sym.scope.token = '{';
+    //         //     bpf_map_push_elem(&pdt_parse_map, &sym, 0);
+    //         //     bpf_printk("Found {");
+    //         //     break;
+    //         // case '}':
+    //         //     bpf_map_pop_elem(&pdt_parse_map, &sym);
+    //         //     bpf_printk("Found }");
+    //         //     break;
+    //         case '"':
+    //             if (parsing)
+    //             {
+    //                 // bpf_map_push_elem(&pdt_parse_map, &sym, 0);
+    //                 // sym.value_ptr = 0;
+    //                 // sym.len = 0;
+    //                 // parsing = false;
+    //             }
+    //             else
+    //             {
+    //                 // sym.value_ptr = data + hdrlen + i + 1;
+    //                 sym.len = 0;
+    //                 parsing = true;
+    //             }
+    //             break;
+    //         case ':':
+    //             // sym.scope.type = PDT_TOKEN_KEY;
+    //             // bpf_map_push_elem(&pdt_parse_map, &sym, 0);
+    //             // sym.scope.type = PDT_TOKEN_VALUE;
+    //             // sym.value_ptr = 0;
+    //             // sym.len = 0;
+    //             // bpf_printk("Found :");
+    //             // break;
+    //         case ' ':
+    //         case '\t':
+    //             if ((sym.scope.type == PDT_TOKEN_STRING ||
+    //                  sym.scope.type == PDT_TOKEN_KEY))
+    //             {
+    //                 sym.len++;
+    //             }
+    //             break;
+    //         default:
+    //             if (sym.value_ptr == 0)
+    //             {
+    //                 // sym.value_ptr = data + hdrlen + i;
+    //                 sym.len = 1;
+    //                 break;
+    //             }
+    //             sym.len++;
+    //             bpf_map_push_elem(&pdt_parse_map, &sym, 0);
+    //             break;
+    //         }
+    //     }
+    //     return XDP_PASS;
+    // }
 
     if (data + hdrlen + sizeof(HTTP) + 7 > data_end)
     {
@@ -250,7 +250,7 @@ int handle_egress_packet(struct xdp_md *ctx)
         {
             bpf_printk("Found split");
             pdt_http_resp_t n_resp = {};
-            bpf_map_update_elem(&pdt_ip_hash_map, &key, &n_resp, BPF_ANY);
+            // bpf_map_update_elem(&pdt_ip_hash_map, &key, &n_resp, BPF_ANY);
             body_loc = i + 4;
             break;
         }

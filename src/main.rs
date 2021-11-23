@@ -39,19 +39,22 @@ fn main() -> Result<()> {
     let skel_builder = XdpParserSkelBuilder::default();
     let open_skel = skel_builder.open()?;
     let mut skel = open_skel.load()?;
-    let handle_egress_packet = skel
+    let egress_packet_link = skel
         .progs_mut()
         .handle_egress_packet()
         .attach_xdp(opts.ifindex)?;
-    let handle_json = skel.progs_mut().handle_json().attach_xdp(opts.ifindex)?;
+    let json_fd = skel.progs_mut().handle_json().fd();
     skel.maps_mut().pdt_prog_map().update(
-        &vec![0],
-        unsafe { as_bytes(&handle_json.get_fd()) },
+        &vec![0; 4],
+        unsafe { as_bytes(&json_fd) },
         MapFlags::empty(),
     )?;
+    skel.maps_mut()
+        .pdt_ip_hash_map()
+        .pin("/sys/fs/bpf/xdp/ip_hash_map")?;
     skel.links = XdpParserLinks {
-        handle_json: Some(handle_json),
-        handle_egress_packet: Some(handle_egress_packet),
+        handle_json: Some(skel.progs_mut().handle_json().attach()?),
+        handle_egress_packet: Some(egress_packet_link),
     };
 
     let running = Arc::new(AtomicBool::new(true));
