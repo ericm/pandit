@@ -26,19 +26,17 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 SEC("xdp/json")
 int handle_json(struct xdp_md *ctx)
 {
+    bpf_printk("test");
+    return XDP_PASS;
 }
 
 struct
 {
     __uint(type, BPF_MAP_TYPE_PROG_ARRAY);
-    __uint(max_entries, 1);
-    __uint(pinning, LIBBPF_PIN_BY_NAME);
-    __array(values, int());
-} pdt_prog_map SEC(".maps") = {
-    .values = {
-        [0] = &handle_json,
-    },
-};
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, 8);
+} pdt_prog_map SEC(".maps");
 
 typedef struct
 {
@@ -160,12 +158,12 @@ int handle_egress_packet(struct xdp_md *ctx)
     key = ((__u64)iphdr->daddr << 32) | tcphdr->ack_seq;
     resp = bpf_map_lookup_elem(&pdt_ip_hash_map, &key);
     // replace solid tokens with maps
-    bpf_tail_call(ctx, &pdt_prog_map, 0);
+    // bpf_tail_call(ctx, &pdt_prog_map, 0);
     if (resp)
     {
         bpf_printk("Found");
         bool parsing = false;
-        for (i = 0; i < static_mtu4 / 2 - hdrlen; i++)
+        for (i = 0; i < static_mtu4 / 4 - hdrlen; i++)
         {
             if (data + hdrlen + i + 1 > data_end)
             {
@@ -173,15 +171,15 @@ int handle_egress_packet(struct xdp_md *ctx)
             }
             switch (*(data + hdrlen + i))
             {
-            case '{':
-                sym.scope.token = '{';
-                bpf_map_push_elem(&pdt_parse_map, &sym, 0);
-                bpf_printk("Found {");
-                break;
-            case '}':
-                bpf_map_pop_elem(&pdt_parse_map, &sym);
-                bpf_printk("Found }");
-                break;
+            // case '{':
+            //     sym.scope.token = '{';
+            //     bpf_map_push_elem(&pdt_parse_map, &sym, 0);
+            //     bpf_printk("Found {");
+            //     break;
+            // case '}':
+            //     bpf_map_pop_elem(&pdt_parse_map, &sym);
+            //     bpf_printk("Found }");
+            //     break;
             case '"':
                 if (parsing)
                 {
