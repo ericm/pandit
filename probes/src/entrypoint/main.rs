@@ -1,8 +1,10 @@
-
 #![no_std]
 #![no_main]
 use cty::*;
 
+use probes::gen_bindings::*;
+
+use probes::entrypoint::Response;
 use redbpf_probes::xdp::prelude::*;
 
 // Use the types you're going to share with userspace, eg:
@@ -12,17 +14,18 @@ program!(0xFFFFFFFE, "GPL");
 
 // The maps and probe functions go here, eg:
 //
-// #[map("syscall_events")]
-// static mut syscall_events: PerfMap<SomeEvent> = PerfMap::with_max_entries(1024);
-//
-// #[kprobe("__x64_sys_open")]
-// fn syscall_enter(regs: Registers) {
-//   let pid_tgid = bpf_get_current_pid_tgid();
-//   ...
-//
-//   let event = SomeEvent {
-//     pid: pid_tgid >> 32,
-//     ...
-//   };
-//   unsafe { syscall_events.insert(regs.ctx, &event) };
-// }
+#[map(link_section = "maps/conns")]
+static mut CONN_MAP: HashMap<u64, Response> = HashMap::with_max_entries(8192);
+
+#[xdp]
+pub extern "C" fn entrypoint(ctx: XdpContext) -> XdpResult {
+    let ip = ctx.ip()? as *const iphdr;
+    let resp = Response::default();
+    // let s: &[u32] = "sdsa";
+    unsafe {
+        let key = u64::from((*ip).daddr);
+        CONN_MAP.set(&key, &resp);
+        bpf_trace_printk(b"asdas");
+    }
+    Ok(XdpAction::Pass)
+}

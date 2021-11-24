@@ -107,6 +107,7 @@ dependencies = [
  "cfg-if",
  "glob",
  "lazy_static",
+ "llvm-sys",
  "proc-macro2",
  "quote",
  "rustversion",
@@ -322,6 +323,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "llvm-sys"
+version = "130.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a0de69eac0257a2f6c0da27b42e6a8dd21bae7b39c37caf87aee6021d79d61f"
+dependencies = [
+ "cc",
+ "lazy_static",
+ "libc",
+ "regex",
+ "semver",
+]
+
+[[package]]
 name = "log"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -469,10 +483,13 @@ checksum = "ed0cfbc8191465bed66e1718596ee0b0b35d5ee1f41c5df2189d0fe8bde535ba"
 name = "probes"
 version = "0.1.0"
 dependencies = [
+ "bpf-sys",
  "cargo-bpf",
  "cty",
  "redbpf-macros",
  "redbpf-probes",
+ "tracing",
+ "tracing-subscriber 0.3.2",
 ]
 
 [[package]]
