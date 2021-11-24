@@ -9,14 +9,11 @@ license = "MIT OR Apache-2.0"
 keywords = ["bpf", "ebpf", "build", "bindgen", "redbpf"]
 publish = false
 
-[build-dependencies]
-cargo-bpf = { version = "2.2.0", default-features = false, features = ["build"] }
-
 [dependencies]
-probes = { path = "./bpf", package = "pandit-bpf" }
+probes = { path = "./probes", package = "probes" }
 libc = "0.2"
 tokio = { version = "^1.0.1", features = ["rt", "signal", "time", "io-util", "net", "sync"] }
-redbpf = "2.2.0"
+redbpf = { version = "2.2.0", features = ["load"] }
 futures = "0.3"
 tracing = "0.1.26"
 tracing-subscriber = "0.3.2"
@@ -28,5 +25,3 @@ required-features = ["kernel5_8"]  # bpf iterator has been supported since kerne
 
 [features]
 kernel5_8 = []
-default = ["llvm13"]
-llvm13 = ["cargo-bpf/llvm13"]
