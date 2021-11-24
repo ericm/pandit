@@ -1,0 +1,32 @@
+[package]
+name = "pandit-bpf"
+version = "0.1.0"
+edition = '2018'
+repository = "https://github.com/foniod/redbpf"
+authors = ["Peter Parkanyi <p@symmetree.dev>", "Junyeong Jeong <rhdxmr@gmail.com>"]
+description = "Example probes for redBPF"
+license = "MIT OR Apache-2.0"
+keywords = ["bpf", "ebpf", "build", "bindgen", "redbpf"]
+publish = false
+
+[build-dependencies]
+cargo-bpf = { version = "2.2.0", default-features = false, features = ["build"] }
+bpf-sys = "2.2.0"
+tracing = "0.1.26"
+tracing-subscriber = "0.3.2"
+
+[dependencies]
+cty = "0.2"
+redbpf-macros = "2.2.0"
+redbpf-probes = "2.2.0"
+memoffset = "0.6.1"
+
+[features]
+default = []
+probes = []
+kernel5_8 = []
+
+[[bin]]
+name = "entrypoint"
+path = "src/entrypoint.rs"
+required-features = ["probes", "kernel5_8"]
