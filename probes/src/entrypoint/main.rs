@@ -2,8 +2,6 @@
 #![no_main]
 use cty::*;
 
-use probes::gen_bindings::*;
-
 use probes::entrypoint::Response;
 use redbpf_probes::xdp::prelude::*;
 
@@ -20,12 +18,15 @@ static mut CONN_MAP: HashMap<u64, Response> = HashMap::with_max_entries(8192);
 #[xdp]
 pub extern "C" fn entrypoint(ctx: XdpContext) -> XdpResult {
     let ip = ctx.ip()? as *const iphdr;
+    let transport = match ctx.transport()? {
+        Transport::TCP(hdr) => hdr as *const tcphdr,
+        _ => return Ok(XdpAction::Pass),
+    };
     let resp = Response::default();
-    // let s: &[u32] = "sdsa";
     unsafe {
-        let key = u64::from((*ip).daddr);
+        let key = u64::from((*ip).daddr) << 32 | u64::from((*transport).dest) << 16;
         CONN_MAP.set(&key, &resp);
-        bpf_trace_printk(b"asdas");
     }
+
     Ok(XdpAction::Pass)
 }
