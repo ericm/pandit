@@ -53,6 +53,7 @@ fn main() {
         .with_max_level(Level::TRACE)
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
+    println!("cargo:rerun-if-changed=/vagrant/vmlinux/vmlinux.h");
 
     // Compilation of example-probes is executed twice.
     // - Once for building probes by a build-script of example-userspace
