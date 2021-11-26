@@ -5,11 +5,11 @@ edition = '2018'
 
 [dependencies]
 cty = "0.2"
-redbpf-macros = "2.1.0"
-redbpf-probes = "2.1.0"
+redbpf-macros = "2.2.0"
+redbpf-probes = "2.2.0"
 
 [build-dependencies]
-cargo-bpf = { version = "2.1.0", default-features = false, features = ["llvm13", "bindings"] }
+cargo-bpf = { version = "2.2.0", default-features = false, features = ["llvm13", "bindings"] }
 tracing = "0.1.26"
 tracing-subscriber = "0.3.2"
 bpf-sys = "2.2.0"

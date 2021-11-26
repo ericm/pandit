@@ -64,15 +64,39 @@ fn main() {
     let out_dir = PathBuf::from("/vagrant/vmlinux/vmlinux.h");
     let mut builder = bpf_bindgen::get_builder_vmlinux(out_dir).unwrap();
     // specify kernel headers in include/bindings.h, not here.
-    builder = builder.header("include/bindings.h");
+    builder = builder.header("/vagrant/vmlinux/vmlinux.h");
     // designate whitelist types
-    let types = ["request"];
+    let xdp_types = [
+        "xdp_md",
+        "ethhdr",
+        "iphdr",
+        "ipv6hdr",
+        "tcphdr",
+        "udphdr",
+        "xdp_action",
+        "__sk_.*",
+        "sk_.*",
+        "inet_sock",
+        "sockaddr",
+        "sockaddr_in",
+        "in_addr",
+        "tcp.*_sock",
+        "udp.*_sock",
+        "btf_ptr",
+        "linux_binprm",
+        "^sock_type$",  // for enum of SOCK_*
+        "^sock_flags$", // for enum of SOCK_*
+    ];
+    let xdp_vars = ["ETH_.*", "IPPROTO_.*", "SOCK_.*", "SK_FL_.*", "AF_.*"];
     // allowing variables
-    let variables = ["NSEC_PER_MSEC", "NSEC_PER_USEC"];
-    for &ty in types.iter() {
+    let types = ["pt_regs", "s32", "bpf_.*"];
+    let vars = ["BPF_.*"];
+
+    for ty in types.iter().chain(xdp_types.iter()) {
         builder = builder.allowlist_type(ty);
     }
-    for &var in variables.iter() {
+
+    for var in vars.iter().chain(xdp_vars.iter()) {
         builder = builder.allowlist_var(var);
     }
 
