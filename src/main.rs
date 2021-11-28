@@ -4,15 +4,18 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use redbpf::load::Loader;
+use redbpf::xdp;
 
-use probes::openmonitor::OpenPath;
+use probes::entrypoint::Response;
 
 fn probe_code() -> &'static [u8] {
     include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/target/bpf/programs/openmonitor/openmonitor.elf"
+        "/target/bpf/programs/entrypoint/entrypoint.elf"
     ))
 }
+
+const PIN_FILE: &str = "/sys/fs/bpf/requests";
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -22,21 +25,23 @@ async fn main() {
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
     let mut loaded = Loader::load(probe_code()).expect("error on Loader::load");
+    loaded
+        .map_mut("REQUESTS")
+        .expect("map not found")
+        .pin(PIN_FILE)
+        .expect("error on pinning");
 
     loaded
-        .kprobe_mut("do_sys_openat2")
-        .expect("error on Loaded::kprobe_mut")
-        .attach_kprobe("do_sys_openat2", 0)
-        .expect("error on KProbe::attach_kprobe");
+        .xdp_mut("entrypoint")
+        .expect("error on Loaded::entrypoint")
+        .attach_xdp("lo", xdp::Flags::default())
+        .expect("error on XDP::attach_xdp");
 
     while let Some((map_name, events)) = loaded.events.next().await {
-        if map_name == "OPEN_PATHS" {
+        if map_name == "REQUESTS" {
             for event in events {
-                let open_path = unsafe { ptr::read(event.as_ptr() as *const OpenPath) };
-                unsafe {
-                    let cfilename = CStr::from_ptr(open_path.filename.as_ptr() as *const _);
-                    println!("{}", cfilename.to_string_lossy());
-                };
+                let resp = unsafe { ptr::read(event.as_ptr() as *const Response) };
+                println!("{}", resp.tuple);
             }
         }
     }

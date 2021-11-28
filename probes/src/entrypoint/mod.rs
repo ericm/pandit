@@ -4,7 +4,7 @@ use cty::*;
 // space, eg:
 //
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Response {
     pub tuple: u64,
 }

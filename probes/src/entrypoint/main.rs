@@ -3,7 +3,7 @@
 use cty::*;
 
 use probes::entrypoint::Response;
-use probes::gen_bindings::{iphdr, tcphdr};
+use redbpf_probes::bpf_iter::prelude::*;
 use redbpf_probes::xdp::prelude::*;
 
 // Use the types you're going to share with userspace, eg:
@@ -13,21 +13,22 @@ program!(0xFFFFFFFE, "GPL");
 
 // The maps and probe functions go here, eg:
 //
-#[map]
-static mut requests: HashMap<u64, Response> = HashMap::with_max_entries(1024);
+// #[map]
+// static mut REQUESTS: HashMap<u32, Response> = HashMap::with_max_entries(1024);
 
 #[xdp]
-pub extern "C" fn entrypoint(ctx: XdpContext) -> XdpResult {
-    let ip = ctx.ip()? as *const iphdr;
+fn entrypoint(ctx: XdpContext) -> XdpResult {
+    let ip = ctx.ip()?;
     let transport = match ctx.transport()? {
-        Transport::TCP(hdr) => hdr as *const tcphdr,
+        Transport::TCP(hdr) => hdr,
         _ => return Ok(XdpAction::Pass),
     };
     let data = ctx.data()?;
     let resp = Response::default();
     unsafe {
-        let key = u64::from((*ip).daddr) << 32 | u64::from((*transport).dest) << 16;
-        requests.set(&key, &resp);
+        // let key = u64::from((*ip).daddr) << 32 | u64::from((*transport).dest) << 16;
+        let key = (*ip).daddr;
+        // REQUESTS.set(&key, &resp);
     }
     let buf: [u8; 8] = match data.read() {
         Ok(b) => b,
@@ -40,6 +41,12 @@ pub extern "C" fn entrypoint(ctx: XdpContext) -> XdpResult {
     };
 
     bpf_trace_printk(&buf);
-
+    let http_pld: [u8; 12] = match data.read() {
+        Ok(r) => r,
+        Err(_) => return Ok(XdpAction::Pass),
+    };
+    // for b in http_pld {
+    //     bpf_trace_printk(&[*b]);
+    // }
     Ok(XdpAction::Pass)
 }

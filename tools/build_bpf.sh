@@ -1,2 +1,2 @@
 cd /vagrant/probes
-cargo bpf build --target-dir=../target
+cargo bpf build --target-dir=../target 
