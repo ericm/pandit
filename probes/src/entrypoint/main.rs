@@ -18,6 +18,7 @@ program!(0xFFFFFFFE, "GPL");
 
 #[xdp]
 fn entrypoint(ctx: XdpContext) -> XdpResult {
+    bpf_trace_printk(b"packet received");
     let ip = ctx.ip()?;
     let transport = match ctx.transport()? {
         Transport::TCP(hdr) => hdr,
@@ -40,13 +41,16 @@ fn entrypoint(ctx: XdpContext) -> XdpResult {
         _ => return Ok(XdpAction::Pass),
     };
 
-    bpf_trace_printk(&buf);
-    let http_pld: [u8; 12] = match data.read() {
-        Ok(r) => r,
+    let http_pld = match data.slice(1500 - data.offset()) {
+        Ok(b) => b,
         Err(_) => return Ok(XdpAction::Pass),
     };
-    // for b in http_pld {
-    //     bpf_trace_printk(&[*b]);
-    // }
+
+    let bf: &mut [u8] = &mut [];
+    bf.copy_from_slice(http_pld);
+
+    for b in bf {
+        bpf_trace_printk(&[*b]);
+    }
     Ok(XdpAction::Pass)
 }
