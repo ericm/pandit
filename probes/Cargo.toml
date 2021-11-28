@@ -7,6 +7,7 @@ edition = '2018'
 cty = "0.2"
 redbpf-macros = "2.2.0"
 redbpf-probes = "2.2.0"
+memoffset = "0.6.4"
 
 [build-dependencies]
 cargo-bpf = { version = "2.2.0", default-features = false, features = ["llvm13", "bindings"] }

@@ -1,16 +1,17 @@
-use cty::*;
-
-// This is where you should define the types shared by the kernel and user
-// space, eg:
-//
+#[derive(Copy, Clone)]
 #[repr(C)]
-#[derive(Debug, Clone)]
-pub struct Response {
-    pub tuple: u64,
+pub struct SocketAddr {
+    pub addr: u32,
+    pub port: u16,
+    _padding: u16,
 }
 
-impl Default for Response {
-    fn default() -> Self {
-        Response { tuple: 0 }
+impl SocketAddr {
+    pub fn new(addr: u32, port: u16) -> Self {
+        SocketAddr {
+            addr,
+            port,
+            _padding: 0,
+        }
     }
 }

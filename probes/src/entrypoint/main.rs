@@ -1,56 +1,71 @@
+// This program can be executed by
+// # cargo run --example tcp-lifetime [interface]
 #![no_std]
 #![no_main]
-use cty::*;
+use core::mem::{self, MaybeUninit};
+use memoffset::offset_of;
 
-use probes::entrypoint::Response;
-use redbpf_probes::bpf_iter::prelude::*;
-use redbpf_probes::xdp::prelude::*;
+use redbpf_probes::socket_filter::prelude::*;
 
-// Use the types you're going to share with userspace, eg:
-// use probes::entrypoint::SomeEvent;
+use probes::entrypoint::SocketAddr;
+
+#[map(link_section = "maps/established")]
+static mut ESTABLISHED: HashMap<(SocketAddr, SocketAddr), u64> = HashMap::with_max_entries(10240);
 
 program!(0xFFFFFFFE, "GPL");
-
-// The maps and probe functions go here, eg:
-//
-// #[map]
-// static mut REQUESTS: HashMap<u32, Response> = HashMap::with_max_entries(1024);
-
-#[xdp]
-fn entrypoint(ctx: XdpContext) -> XdpResult {
-    bpf_trace_printk(b"packet received");
-    let ip = ctx.ip()?;
-    let transport = match ctx.transport()? {
-        Transport::TCP(hdr) => hdr,
-        _ => return Ok(XdpAction::Pass),
-    };
-    let data = ctx.data()?;
-    let resp = Response::default();
-    unsafe {
-        // let key = u64::from((*ip).daddr) << 32 | u64::from((*transport).dest) << 16;
-        let key = (*ip).daddr;
-        // REQUESTS.set(&key, &resp);
+#[socket_filter]
+fn measure_tcp_lifetime(skb: SkBuff) -> SkBuffResult {
+    let eth_len = mem::size_of::<ethhdr>();
+    let eth_proto = skb.load::<__be16>(offset_of!(ethhdr, h_proto))? as u32;
+    if eth_proto != ETH_P_IP {
+        return Ok(SkBuffAction::Ignore);
     }
-    let buf: [u8; 8] = match data.read() {
-        Ok(b) => b,
-        Err(_) => return Ok(XdpAction::Pass),
-    };
 
-    match &buf {
+    let ip_proto = skb.load::<__u8>(eth_len + offset_of!(iphdr, protocol))? as u32;
+    if ip_proto != IPPROTO_TCP {
+        return Ok(SkBuffAction::Ignore);
+    }
+
+    let mut ip_hdr = unsafe { MaybeUninit::<iphdr>::zeroed().assume_init() };
+    ip_hdr._bitfield_1 = __BindgenBitfieldUnit::new([skb.load::<u8>(eth_len)?]);
+    if ip_hdr.version() != 4 {
+        return Ok(SkBuffAction::Ignore);
+    }
+
+    let ihl = ip_hdr.ihl() as usize;
+    let src = SocketAddr::new(
+        skb.load::<__be32>(eth_len + offset_of!(iphdr, saddr))?,
+        skb.load::<__be16>(eth_len + ihl * 4 + offset_of!(tcphdr, source))?,
+    );
+    let dst = SocketAddr::new(
+        skb.load::<__be32>(eth_len + offset_of!(iphdr, daddr))?,
+        skb.load::<__be16>(eth_len + ihl * 4 + offset_of!(tcphdr, dest))?,
+    );
+    let pair = (src, dst);
+    let mut tcp_hdr = unsafe { MaybeUninit::<tcphdr>::zeroed().assume_init() };
+    tcp_hdr._bitfield_1 = __BindgenBitfieldUnit::new([
+        skb.load::<u8>(eth_len + ihl * 4 + offset_of!(tcphdr, _bitfield_1))?,
+        skb.load::<u8>(eth_len + ihl * 4 + offset_of!(tcphdr, _bitfield_1) + 1)?,
+    ]);
+
+    let doff: usize = (tcp_hdr.doff() * 4).into();
+
+    let mut http_hdr = unsafe { MaybeUninit::<[u8; 8]>::zeroed().assume_init() };
+    http_hdr = [
+        skb.load::<u8>(eth_len + ihl * 4 + doff)?,
+        skb.load::<u8>(eth_len + ihl * 4 + doff + 1)?,
+        skb.load::<u8>(eth_len + ihl * 4 + doff + 2)?,
+        skb.load::<u8>(eth_len + ihl * 4 + doff + 3)?,
+        skb.load::<u8>(eth_len + ihl * 4 + doff + 4)?,
+        skb.load::<u8>(eth_len + ihl * 4 + doff + 5)?,
+        skb.load::<u8>(eth_len + ihl * 4 + doff + 6)?,
+        skb.load::<u8>(eth_len + ihl * 4 + doff + 7)?,
+    ];
+
+    match &http_hdr {
         b"HTTP/1.0" => (),
-        _ => return Ok(XdpAction::Pass),
+        _ => return Ok(SkBuffAction::Ignore),
     };
 
-    let http_pld = match data.slice(1500 - data.offset()) {
-        Ok(b) => b,
-        Err(_) => return Ok(XdpAction::Pass),
-    };
-
-    let bf: &mut [u8] = &mut [];
-    bf.copy_from_slice(http_pld);
-
-    for b in bf {
-        bpf_trace_printk(&[*b]);
-    }
-    Ok(XdpAction::Pass)
+    Ok(SkBuffAction::SendToUserspace)
 }
