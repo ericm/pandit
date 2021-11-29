@@ -15,3 +15,15 @@ impl SocketAddr {
         }
     }
 }
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct Conn {
+    pub pld_loc: u32,
+}
+
+impl Conn {
+    pub fn new(pld_loc: u32) -> Self {
+        Conn { pld_loc }
+    }
+}

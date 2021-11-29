@@ -48,6 +48,7 @@ async fn main() {
     let mut loaded = Loader::load(probe_code()).expect("error loading BPF program");
     for sf in loaded.socket_filters_mut() {
         if let Ok(sock_raw_fd) = sf.attach_socket_filter(iface) {
+            println!("sock fd: {}", sock_raw_fd);
             let stream = unsafe { StdStream::from_raw_fd(sock_raw_fd) };
             streams.push(TcpStream::from_std(stream).unwrap());
         }
@@ -77,7 +78,11 @@ async fn main() {
 }
 
 fn process_packet(buf: &[u8]) {
-    println!("{}", str::from_utf8(buf).unwrap());
+    // let skb = buf as *const __sk_buff;
+    for b in buf {
+        print!("{} ", b);
+    }
+    println!("----");
 }
 
 fn probe_code() -> &'static [u8] {
