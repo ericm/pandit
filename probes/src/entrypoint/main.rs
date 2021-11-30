@@ -3,19 +3,17 @@
 #![no_std]
 #![no_main]
 use core::{
-    borrow::BorrowMut,
     convert::TryInto,
     mem::{self, MaybeUninit},
 };
 use memoffset::offset_of;
 
-use redbpf_macros;
 use redbpf_probes::socket_filter::prelude::*;
 
 use probes::entrypoint::*;
 
 #[map(link_section = "maps/established")]
-static mut ESTABLISHED: HashMap<SocketAddr, Conn> = HashMap::with_max_entries(10240);
+static mut ESTABLISHED: PerfMap<Conn> = PerfMap::with_max_entries(10240);
 
 program!(0xFFFFFFFE, "GPL");
 #[socket_filter]
@@ -68,8 +66,8 @@ fn measure_tcp_lifetime(skb: SkBuff) -> SkBuffResult {
         b"HTTP/1.0" => (),
         _ => return Ok(SkBuffAction::Ignore),
     };
-    let conn = Conn::new(off);
-    unsafe { ESTABLISHED.set(&dest, &conn) };
+    let conn = Conn::new(off.try_into().unwrap());
+    unsafe { ESTABLISHED.insert(skb.skb as *mut __sk_buff, &conn) };
 
     Ok(SkBuffAction::SendToUserspace)
 }

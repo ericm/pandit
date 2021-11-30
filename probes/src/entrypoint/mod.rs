@@ -16,7 +16,7 @@ impl SocketAddr {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(C)]
 pub struct Conn {
     pub pld_loc: u32,

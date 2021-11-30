@@ -12,19 +12,22 @@
 //  8 . 8 . 8 . 8 :53     →  192.168. 0 . 9 :36940 |     1304 ms
 
 use futures::stream::StreamExt;
+use std::convert::TryInto;
 use std::env;
 use std::net::TcpStream as StdStream;
 use std::os::unix::prelude::FromRawFd;
 use std::process;
+use std::ptr;
 use std::str;
 use tokio;
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 use tokio::signal::ctrl_c;
+use tokio::sync::mpsc;
 use tracing::{error, Level};
 use tracing_subscriber::FmtSubscriber;
 
-use probes::entrypoint::SocketAddr;
+use probes::entrypoint::{Conn, SocketAddr};
 use redbpf::load::Loader;
 
 #[tokio::main(flavor = "current_thread")]
@@ -47,6 +50,9 @@ async fn main() {
     let mut streams = Vec::new();
     let mut loaded = Loader::load(probe_code()).expect("error loading BPF program");
     for sf in loaded.socket_filters_mut() {
+        if sf.name() != "measure_tcp_lifetime" {
+            continue;
+        }
         if let Ok(sock_raw_fd) = sf.attach_socket_filter(iface) {
             println!("sock fd: {}", sock_raw_fd);
             let stream = unsafe { StdStream::from_raw_fd(sock_raw_fd) };
@@ -54,32 +60,52 @@ async fn main() {
         }
     }
     for mut stream in streams {
+        let (tx, mut rx) = mpsc::channel(32);
         tokio::spawn(async move {
             loop {
                 let mut buf = vec![0; 1500];
-                let n = stream.read(&mut buf).await.unwrap();
+                let (conn, n) = tokio::join!(rx.recv(), stream.read(&mut buf));
+                let n = n.unwrap();
                 if n == 0 {
                     return;
                 }
                 tokio::spawn(async move {
-                    process_packet(&buf[0..n]);
+                    process_packet(&buf[0..n], &conn.unwrap());
                 });
             }
         });
+        tokio::spawn(async move {
+            while let Some((name, events)) = loaded.events.next().await {
+                match name.as_str() {
+                    "established" => {
+                        println!("found established");
+                        for event in events {
+                            let conn = unsafe { ptr::read(event.as_ptr() as *const Conn) };
+                            println!("conn {}", conn.pld_loc);
+                            tx.send(conn).await.expect("problem sending");
+                        }
+                    }
+                    _ => {
+                        error!("unknown event = {}", name);
+                    }
+                }
+                println!("{}", name);
+            }
+        });
+        break;
     }
     let ctrlc_fut = async {
         ctrl_c().await.unwrap();
     };
     println!("Hit Ctrl-C to quit");
     ctrlc_fut.await;
-    while let Some((name, events)) = loaded.events.next().await {
-        println!("{}", name);
-    }
 }
 
-fn process_packet(buf: &[u8]) {
+fn process_packet(buf: &[u8], conn: &Conn) {
     // let skb = buf as *const __sk_buff;
-    for b in buf {
+    let loc: usize = conn.pld_loc.try_into().unwrap();
+    let pld = &buf[loc..];
+    for b in pld {
         print!("{} ", b);
     }
     println!("----");
