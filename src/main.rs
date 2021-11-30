@@ -12,6 +12,11 @@
 //  8 . 8 . 8 . 8 :53     →  192.168. 0 . 9 :36940 |     1304 ms
 
 use futures::stream::StreamExt;
+use httparse::Response;
+use httparse::EMPTY_HEADER;
+use probes::entrypoint::Conn;
+use redbpf::load::Loader;
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::env;
 use std::net::TcpStream as StdStream;
@@ -28,13 +33,8 @@ use tokio::sync::mpsc;
 use tracing::{error, Level};
 use tracing_subscriber::FmtSubscriber;
 
-use httparse::Response;
-use httparse::EMPTY_HEADER;
-use probes::entrypoint::Conn;
-use redbpf::load::Loader;
-use std::collections::HashMap;
-
-type ConnMap = Arc<Mutex<HashMap<Conn, (Option<usize>, Vec<u8>)>>>;
+type ConnInnerMap = HashMap<Conn, (Option<usize>, Vec<u8>)>;
+type ConnMap = Arc<Mutex<ConnInnerMap>>;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -77,8 +77,8 @@ async fn main() {
                 if n == 0 {
                     return;
                 }
+                let resp_pool = resp_pool.clone();
                 tokio::spawn(async move {
-                    let resp_pool = resp_pool.clone();
                     process_packet(resp_pool, &buf[0..n], &conn.unwrap()).await;
                 });
             }
