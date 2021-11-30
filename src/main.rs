@@ -19,6 +19,7 @@ use std::os::unix::prelude::FromRawFd;
 use std::process;
 use std::ptr;
 use std::str;
+use std::sync::{Arc, Mutex};
 use tokio;
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
@@ -33,7 +34,7 @@ use probes::entrypoint::Conn;
 use redbpf::load::Loader;
 use std::collections::HashMap;
 
-type ConnMap = HashMap<Conn, Vec<u8>>;
+type ConnMap = Arc<Mutex<HashMap<Conn, (Option<usize>, Vec<u8>)>>>;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -66,12 +67,10 @@ async fn main() {
     }
     for mut stream in streams {
         let (tx, mut rx) = mpsc::channel(32);
-        let mut resp_pool: ConnMap = HashMap::new();
-        let (hash_tx, mut hash_rx) = mpsc::channel(32);
+        let resp_pool: ConnMap = Arc::new(Mutex::new(HashMap::new()));
 
         tokio::spawn(async move {
             loop {
-                let hash_tx = hash_tx.clone();
                 let mut buf = vec![0; 1500];
                 let (conn, n) = tokio::join!(rx.recv(), stream.read(&mut buf));
                 let n = n.unwrap();
@@ -79,7 +78,8 @@ async fn main() {
                     return;
                 }
                 tokio::spawn(async move {
-                    process_packet(&hash_tx, &buf[0..n], &conn.unwrap()).await;
+                    let resp_pool = resp_pool.clone();
+                    process_packet(resp_pool, &buf[0..n], &conn.unwrap()).await;
                 });
             }
         });
@@ -101,9 +101,6 @@ async fn main() {
                 println!("{}", name);
             }
         });
-        while let Some((conn, buf)) = hash_rx.recv().await {
-            resp_pool.insert(conn, buf);
-        }
         break;
     }
     let ctrlc_fut = async {
@@ -113,17 +110,52 @@ async fn main() {
     ctrlc_fut.await;
 }
 
-async fn process_packet<'a>(tx: &'a mpsc::Sender<(Conn, Vec<u8>)>, buf: &'a [u8], conn: &'a Conn) {
+async fn process_packet<'a>(resp_pool: ConnMap, buf: &'a [u8], conn: &'a Conn) {
     let mut headers = [EMPTY_HEADER; 64];
     let mut resp = Response::new(&mut headers);
     let loc: usize = conn.pld_loc.try_into().unwrap();
-    let pld = buf[loc..].to_vec();
-    if resp.parse(pld.as_slice()).unwrap().is_partial() {
-        println!("partial");
-        tx.send((*conn, pld)).await.expect("problem sending");
-    } else {
-        println!("version: {}", resp.version.unwrap());
+    let mut pld = buf[loc..].to_vec();
+    // resp_pool.inse
+    let mut resp_pool = resp_pool.lock().unwrap();
+    let mut body_loc: Option<usize> = None;
+    if let Some((prev_body_loc, part_pld)) = resp_pool.get_mut(conn) {
+        part_pld.append(&mut pld);
+        pld = part_pld.clone();
+        body_loc = *prev_body_loc;
     }
+    if body_loc.is_none() {
+        let status = resp.parse(pld.as_slice()).unwrap();
+        if status.is_complete() {
+            body_loc = Some(status.unwrap());
+        }
+    }
+    if let (Some(loc), Some(hdr_loc)) = (body_loc, get_header::<usize>(&headers, "Content-Length"))
+    {
+        if loc == hdr_loc {
+            println!("complete pld");
+        } else {
+            resp_pool.insert(*conn, (body_loc, pld));
+        }
+    } else {
+        resp_pool.insert(*conn, (body_loc, pld));
+    }
+}
+
+fn get_header<T: str::FromStr>(headers: &[httparse::Header; 64], key: &str) -> Option<T>
+where
+    <T as str::FromStr>::Err: std::fmt::Debug,
+{
+    for hdr in headers {
+        if hdr == &EMPTY_HEADER {
+            break;
+        }
+        if hdr.name.to_lowercase() == key {
+            let val = str::from_utf8(hdr.value).unwrap();
+            let val: T = val.parse().unwrap();
+            return Some(val);
+        }
+    }
+    None
 }
 
 fn probe_code() -> &'static [u8] {
