@@ -27,6 +27,8 @@ use tokio::sync::mpsc;
 use tracing::{error, Level};
 use tracing_subscriber::FmtSubscriber;
 
+use httparse::Response;
+use httparse::EMPTY_HEADER;
 use probes::entrypoint::{Conn, SocketAddr};
 use redbpf::load::Loader;
 
@@ -102,13 +104,15 @@ async fn main() {
 }
 
 fn process_packet(buf: &[u8], conn: &Conn) {
-    // let skb = buf as *const __sk_buff;
+    let mut headers = [EMPTY_HEADER; 64];
+    let mut resp = Response::new(&mut headers);
     let loc: usize = conn.pld_loc.try_into().unwrap();
     let pld = &buf[loc..];
-    for b in pld {
-        print!("{} ", b);
+    if resp.parse(pld).unwrap().is_partial() {
+        println!("partial");
+    } else {
+        println!("version: {}", resp.version.unwrap());
     }
-    println!("----");
 }
 
 fn probe_code() -> &'static [u8] {

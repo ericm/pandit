@@ -17,6 +17,7 @@ redbpf = { version = "2.2.0", features = ["load"] }
 futures = "0.3"
 tracing = "0.1.26"
 tracing-subscriber = "0.3.2"
+httparse = "1.5.1"
 
 [[bin]]
 name = "pandit"
