@@ -29,8 +29,11 @@ use tracing_subscriber::FmtSubscriber;
 
 use httparse::Response;
 use httparse::EMPTY_HEADER;
-use probes::entrypoint::{Conn, SocketAddr};
+use probes::entrypoint::Conn;
 use redbpf::load::Loader;
+use std::collections::HashMap;
+
+type ConnMap = HashMap<Conn, Vec<u8>>;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -63,8 +66,12 @@ async fn main() {
     }
     for mut stream in streams {
         let (tx, mut rx) = mpsc::channel(32);
+        let mut resp_pool: ConnMap = HashMap::new();
+        let (hash_tx, mut hash_rx) = mpsc::channel(32);
+
         tokio::spawn(async move {
             loop {
+                let hash_tx = hash_tx.clone();
                 let mut buf = vec![0; 1500];
                 let (conn, n) = tokio::join!(rx.recv(), stream.read(&mut buf));
                 let n = n.unwrap();
@@ -72,7 +79,7 @@ async fn main() {
                     return;
                 }
                 tokio::spawn(async move {
-                    process_packet(&buf[0..n], &conn.unwrap());
+                    process_packet(&hash_tx, &buf[0..n], &conn.unwrap()).await;
                 });
             }
         });
@@ -94,6 +101,9 @@ async fn main() {
                 println!("{}", name);
             }
         });
+        while let Some((conn, buf)) = hash_rx.recv().await {
+            resp_pool.insert(conn, buf);
+        }
         break;
     }
     let ctrlc_fut = async {
@@ -103,13 +113,14 @@ async fn main() {
     ctrlc_fut.await;
 }
 
-fn process_packet(buf: &[u8], conn: &Conn) {
+async fn process_packet<'a>(tx: &'a mpsc::Sender<(Conn, Vec<u8>)>, buf: &'a [u8], conn: &'a Conn) {
     let mut headers = [EMPTY_HEADER; 64];
     let mut resp = Response::new(&mut headers);
     let loc: usize = conn.pld_loc.try_into().unwrap();
-    let pld = &buf[loc..];
-    if resp.parse(pld).unwrap().is_partial() {
+    let pld = buf[loc..].to_vec();
+    if resp.parse(pld.as_slice()).unwrap().is_partial() {
         println!("partial");
+        tx.send((*conn, pld)).await.expect("problem sending");
     } else {
         println!("version: {}", resp.version.unwrap());
     }

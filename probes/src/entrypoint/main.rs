@@ -37,10 +37,6 @@ fn measure_tcp_lifetime(skb: SkBuff) -> SkBuffResult {
     }
 
     let ihl = ip_hdr.ihl() as usize;
-    let dst = SocketAddr::new(
-        skb.load::<__be32>(eth_len + offset_of!(iphdr, daddr))?,
-        skb.load::<__be16>(eth_len + ihl * 4 + offset_of!(tcphdr, dest))?,
-    );
     let mut tcp_hdr = unsafe { MaybeUninit::<tcphdr>::zeroed().assume_init() };
     tcp_hdr._bitfield_1 = __BindgenBitfieldUnit::new([
         skb.load::<u8>(eth_len + ihl * 4 + offset_of!(tcphdr, _bitfield_1))?,
@@ -66,7 +62,13 @@ fn measure_tcp_lifetime(skb: SkBuff) -> SkBuffResult {
         b"HTTP/1.0" => (),
         _ => return Ok(SkBuffAction::Ignore),
     };
-    let conn = Conn::new(off.try_into().unwrap());
+    let conn = Conn {
+        pld_loc: off.try_into().unwrap(),
+        addr: skb.load::<__be32>(eth_len + offset_of!(iphdr, daddr))?,
+        port: skb.load::<__be16>(eth_len + ihl * 4 + offset_of!(tcphdr, dest))?,
+        ack_seq: tcp_hdr.ack_seq,
+        padding: 0,
+    };
     unsafe { ESTABLISHED.insert(skb.skb as *mut __sk_buff, &conn) };
 
     Ok(SkBuffAction::SendToUserspace)
