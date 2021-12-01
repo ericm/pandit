@@ -66,8 +66,8 @@ fn measure_tcp_lifetime(skb: SkBuff) -> SkBuffResult {
         pld_loc: off.try_into().unwrap(),
         addr: skb.load::<__be32>(eth_len + offset_of!(iphdr, daddr))?,
         port: skb.load::<__be16>(eth_len + ihl * 4 + offset_of!(tcphdr, dest))?,
-        ack_seq: tcp_hdr.ack_seq,
         padding: 0,
+        ack_seq: tcp_hdr.ack_seq,
     };
     unsafe { ESTABLISHED.insert(skb.skb as *mut __sk_buff, &conn) };
 

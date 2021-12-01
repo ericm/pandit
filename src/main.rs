@@ -79,6 +79,7 @@ async fn main() {
                 }
                 let resp_pool = resp_pool.clone();
                 tokio::spawn(async move {
+                    println!("runn");
                     process_packet(resp_pool, &buf[0..n], &conn.unwrap()).await;
                 });
             }
@@ -119,26 +120,33 @@ async fn process_packet<'a>(resp_pool: ConnMap, buf: &'a [u8], conn: &'a Conn) {
     let mut resp_pool = resp_pool.lock().unwrap();
     let mut body_loc: Option<usize> = None;
     if let Some((prev_body_loc, part_pld)) = resp_pool.get_mut(conn) {
+        println!("prev");
         part_pld.append(&mut pld);
         pld = part_pld.clone();
         body_loc = *prev_body_loc;
     }
     if body_loc.is_none() {
+        println!("none");
         let status = resp.parse(pld.as_slice()).unwrap();
         if status.is_complete() {
+            println!("complete");
             body_loc = Some(status.unwrap());
         }
     }
-    if let (Some(loc), Some(hdr_loc)) = (body_loc, get_header::<usize>(&headers, "Content-Length"))
+    if let (Some(loc), Some(body_size)) =
+        (body_loc, get_header::<usize>(&headers, "content-length"))
     {
-        if loc == hdr_loc {
+        println!("loc {} {} {}", loc, body_size, pld.len());
+        if pld.len() - loc == body_size {
             println!("complete pld");
         } else {
+            println!("incomplete pld");
             resp_pool.insert(*conn, (body_loc, pld));
         }
     } else {
         resp_pool.insert(*conn, (body_loc, pld));
     }
+    println!("done");
 }
 
 fn get_header<T: str::FromStr>(headers: &[httparse::Header; 64], key: &str) -> Option<T>
