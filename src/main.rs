@@ -11,6 +11,7 @@
 // 192.168. 0 . 9 :36940  →   8 . 8 . 8 . 8 :53    |     1303 ms
 //  8 . 8 . 8 . 8 :53     →  192.168. 0 . 9 :36940 |     1304 ms
 
+use dashmap::DashMap;
 use futures::stream::StreamExt;
 use httparse::Response;
 use httparse::EMPTY_HEADER;
@@ -33,8 +34,7 @@ use tokio::sync::mpsc;
 use tracing::{error, Level};
 use tracing_subscriber::FmtSubscriber;
 
-type ConnInnerMap = HashMap<Conn, (Option<usize>, Vec<u8>)>;
-type ConnMap = Arc<Mutex<ConnInnerMap>>;
+type ConnMap = Arc<DashMap<Conn, (Option<usize>, Vec<u8>)>>;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -67,7 +67,7 @@ async fn main() {
     }
     for mut stream in streams {
         let (tx, mut rx) = mpsc::channel(32);
-        let resp_pool: ConnMap = Arc::new(Mutex::new(HashMap::new()));
+        let resp_pool: ConnMap = Arc::new(DashMap::new());
 
         tokio::spawn(async move {
             loop {
@@ -116,15 +116,19 @@ async fn process_packet<'a>(resp_pool: ConnMap, buf: &'a [u8], conn: &'a Conn) {
     let mut resp = Response::new(&mut headers);
     let loc: usize = conn.pld_loc.try_into().unwrap();
     let mut pld = buf[loc..].to_vec();
-    // resp_pool.inse
-    let mut resp_pool = resp_pool.lock().unwrap();
     let mut body_loc: Option<usize> = None;
-    if let Some((prev_body_loc, part_pld)) = resp_pool.get_mut(conn) {
-        println!("prev");
-        part_pld.append(&mut pld);
-        pld = part_pld.clone();
-        body_loc = *prev_body_loc;
+    match resp_pool.get_mut(conn) {
+        Some(mut conn) => {
+            let (prev_body_loc, part_pld) = conn.value_mut();
+            println!("prev");
+            part_pld.append(&mut pld);
+            pld = part_pld.clone();
+            body_loc = *prev_body_loc;
+        }
+        _ => (),
     }
+    let pld_str = pld.clone();
+    println!("httpld: {}", String::from_utf8(pld_str).unwrap());
     if body_loc.is_none() {
         println!("none");
         let status = resp.parse(pld.as_slice()).unwrap();

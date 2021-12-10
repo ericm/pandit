@@ -58,10 +58,10 @@ fn measure_tcp_lifetime(skb: SkBuff) -> SkBuffResult {
         skb.load::<u8>(eth_len + ihl * 4 + doff + 7)?,
     ];
 
-    match &http_hdr {
-        b"HTTP/1.0" => (),
-        _ => return Ok(SkBuffAction::Ignore),
-    };
+    // match &http_hdr {
+    //     b"HTTP/1.0" => (),
+    //     _ => return Ok(SkBuffAction::Ignore),
+    // };
     let conn = Conn {
         pld_loc: off.try_into().unwrap(),
         addr: skb.load::<__be32>(eth_len + offset_of!(iphdr, daddr))?,

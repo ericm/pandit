@@ -18,6 +18,7 @@ futures = "0.3"
 tracing = "0.1.26"
 tracing-subscriber = "0.3.2"
 httparse = "1.5.1"
+dashmap = "4.0.2"
 
 [[bin]]
 name = "pandit"
