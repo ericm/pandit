@@ -502,6 +502,7 @@ dependencies = [
  "libc",
  "probes",
  "redbpf",
+ "serde_json",
  "tokio",
  "tokio-test",
  "tracing",

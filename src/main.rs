@@ -17,6 +17,7 @@ use httparse::Response;
 use httparse::EMPTY_HEADER;
 use probes::entrypoint::Conn;
 use redbpf::load::Loader;
+use serde_json;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::env;
@@ -148,6 +149,9 @@ async fn process_packet<'a>(resp_pool: ConnMap, buf: &'a [u8], conn: &'a Conn) {
         println!("loc {} {} {}", loc, body_size, pld.len());
         if pld.len() - loc == body_size {
             println!("complete pld");
+            let parsed: serde_json::Value = serde_json::from_slice(&pld[loc..]).unwrap();
+            let parsed = parsed.get("test").unwrap();
+            println!("val: {}", parsed.to_string());
         } else {
             println!("incomplete pld");
             resp_pool.insert(*conn, (body_loc, content_size, pld));
@@ -188,30 +192,12 @@ fn process_packet_http_single() {
     let s = "HTTP/1.0 200 OK
 Server: SimpleHTTP/0.6 Python/3.9.7
 Date: Sat, 11 Dec 2021 00:47:31 GMT
-Content-type: text/html; charset=utf-8
-Content-Length: 612
+Content-type: application/json; charset=utf-8
+Content-Length: 24
 
-<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">
-<html>
-<head>
-<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">
-<title>Directory listing for /</title>
-</head>
-<body>
-<h1>Directory listing for /</h1>
-<hr>
-<ul>
-<li><a href=\".bash_history\">.bash_history</a></li>
-<li><a href=\".bash_logout\">.bash_logout</a></li>
-<li><a href=\".bashrc\">.bashrc</a></li>
-<li><a href=\".cache/\">.cache/</a></li>
-<li><a href=\".cargo/\">.cargo/</a></li>
-<li><a href=\".config/\">.config/</a></li>
-<li><a href=\".local\">.local/</a></li>
-</ul>
-<hr>
-</body>
-</html>";
+{
+    \"test\":\"test2\"
+}";
     let s = s.replace("\n", "\r\n");
     let buf = s.as_bytes();
     let conn = Conn {
