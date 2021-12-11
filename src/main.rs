@@ -20,6 +20,8 @@ use redbpf::load::Loader;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::env;
+use std::fs::OpenOptions;
+use std::net::Ipv4Addr;
 use std::net::TcpStream as StdStream;
 use std::os::unix::prelude::FromRawFd;
 use std::process;
@@ -31,10 +33,11 @@ use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 use tokio::signal::ctrl_c;
 use tokio::sync::mpsc;
+use tokio_test;
 use tracing::{error, Level};
 use tracing_subscriber::FmtSubscriber;
 
-type ConnMap = Arc<DashMap<Conn, (Option<usize>, Vec<u8>)>>;
+type ConnMap = Arc<DashMap<Conn, (Option<usize>, Option<usize>, Vec<u8>)>>;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -117,16 +120,19 @@ async fn process_packet<'a>(resp_pool: ConnMap, buf: &'a [u8], conn: &'a Conn) {
     let loc: usize = conn.pld_loc.try_into().unwrap();
     let mut pld = buf[loc..].to_vec();
     let mut body_loc: Option<usize> = None;
+    let mut content_size: Option<usize> = None;
     match resp_pool.get_mut(conn) {
         Some(mut conn) => {
-            let (prev_body_loc, part_pld) = conn.value_mut();
+            let (prev_body_loc, prev_content_size, part_pld) = conn.value_mut();
             println!("prev");
             part_pld.append(&mut pld);
             pld = part_pld.clone();
             body_loc = *prev_body_loc;
+            content_size = *prev_content_size;
         }
         _ => (),
     }
+    println!("{}", Ipv4Addr::from(conn.addr));
     let pld_str = pld.clone();
     println!("httpld: {}", String::from_utf8(pld_str).unwrap());
     if body_loc.is_none() {
@@ -137,18 +143,17 @@ async fn process_packet<'a>(resp_pool: ConnMap, buf: &'a [u8], conn: &'a Conn) {
             body_loc = Some(status.unwrap());
         }
     }
-    if let (Some(loc), Some(body_size)) =
-        (body_loc, get_header::<usize>(&headers, "content-length"))
-    {
+    content_size = get_header::<usize>(&headers, "content-length").or(content_size);
+    if let (Some(loc), Some(body_size)) = (body_loc, content_size) {
         println!("loc {} {} {}", loc, body_size, pld.len());
         if pld.len() - loc == body_size {
             println!("complete pld");
         } else {
             println!("incomplete pld");
-            resp_pool.insert(*conn, (body_loc, pld));
+            resp_pool.insert(*conn, (body_loc, content_size, pld));
         }
     } else {
-        resp_pool.insert(*conn, (body_loc, pld));
+        resp_pool.insert(*conn, (body_loc, content_size, pld));
     }
     println!("done");
 }
@@ -175,4 +180,80 @@ fn probe_code() -> &'static [u8] {
         env!("CARGO_MANIFEST_DIR"),
         "/target/bpf/programs/entrypoint/entrypoint.elf"
     ))
+}
+
+#[test]
+fn process_packet_http_single() {
+    let resp_pool: ConnMap = Arc::new(DashMap::new());
+    let s = "HTTP/1.0 200 OK
+Server: SimpleHTTP/0.6 Python/3.9.7
+Date: Sat, 11 Dec 2021 00:47:31 GMT
+Content-type: text/html; charset=utf-8
+Content-Length: 612
+
+<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">
+<html>
+<head>
+<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">
+<title>Directory listing for /</title>
+</head>
+<body>
+<h1>Directory listing for /</h1>
+<hr>
+<ul>
+<li><a href=\".bash_history\">.bash_history</a></li>
+<li><a href=\".bash_logout\">.bash_logout</a></li>
+<li><a href=\".bashrc\">.bashrc</a></li>
+<li><a href=\".cache/\">.cache/</a></li>
+<li><a href=\".cargo/\">.cargo/</a></li>
+<li><a href=\".config/\">.config/</a></li>
+<li><a href=\".local\">.local/</a></li>
+</ul>
+<hr>
+</body>
+</html>";
+    let s = s.replace("\n", "\r\n");
+    let buf = s.as_bytes();
+    let conn = Conn {
+        pld_loc: 0,
+        addr: 0,
+        port: 0,
+        padding: 0,
+        ack_seq: 0,
+    };
+    tokio_test::block_on(process_packet(resp_pool, buf, &conn));
+}
+
+#[test]
+fn process_packet_http_multi_json() {
+    let resp_pool: ConnMap = Arc::new(DashMap::new());
+    let s = "HTTP/1.0 200 OK
+Server: SimpleHTTP/0.6 Python/3.9.7
+Date: Sat, 11 Dec 2021 00:47:31 GMT
+Content-type: application/json; charset=utf-8
+Content-Length: 24
+
+";
+    let s = s.replace("\n", "\r\n");
+    let buf = s.as_bytes();
+    let conn = Conn {
+        pld_loc: 0,
+        addr: 0,
+        port: 0,
+        padding: 0,
+        ack_seq: 0,
+    };
+    {
+        let resp_pool = resp_pool.clone();
+        tokio_test::block_on(process_packet(resp_pool, buf, &conn));
+    }
+    let s = "{
+    \"test\":\"test2\"
+}";
+    let s = s.replace("\n", "\r\n");
+    let buf = s.as_bytes();
+    {
+        let resp_pool = resp_pool.clone();
+        tokio_test::block_on(process_packet(resp_pool, buf, &conn));
+    }
 }

@@ -15,6 +15,9 @@ use probes::entrypoint::*;
 #[map(link_section = "maps/established")]
 static mut ESTABLISHED: PerfMap<Conn> = PerfMap::with_max_entries(10240);
 
+#[map(link_section = "maps/streams")]
+static mut STREAMS: HashMap<Conn, bool> = HashMap::with_max_entries(10240);
+
 program!(0xFFFFFFFE, "GPL");
 #[socket_filter]
 fn measure_tcp_lifetime(skb: SkBuff) -> SkBuffResult {
@@ -57,11 +60,6 @@ fn measure_tcp_lifetime(skb: SkBuff) -> SkBuffResult {
         skb.load::<u8>(eth_len + ihl * 4 + doff + 6)?,
         skb.load::<u8>(eth_len + ihl * 4 + doff + 7)?,
     ];
-
-    // match &http_hdr {
-    //     b"HTTP/1.0" => (),
-    //     _ => return Ok(SkBuffAction::Ignore),
-    // };
     let conn = Conn {
         pld_loc: off.try_into().unwrap(),
         addr: skb.load::<__be32>(eth_len + offset_of!(iphdr, daddr))?,
@@ -69,6 +67,19 @@ fn measure_tcp_lifetime(skb: SkBuff) -> SkBuffResult {
         padding: 0,
         ack_seq: tcp_hdr.ack_seq,
     };
+
+    match &http_hdr {
+        b"HTTP/1.0" => {
+            unsafe { STREAMS.set(&conn, &true) };
+        }
+        _ => {
+            match unsafe { STREAMS.get(&conn) } {
+                Some(_) => (),
+                None => return Ok(SkBuffAction::Ignore),
+            };
+        }
+    };
+
     unsafe { ESTABLISHED.insert(skb.skb as *mut __sk_buff, &conn) };
 
     Ok(SkBuffAction::SendToUserspace)
