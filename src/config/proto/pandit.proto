@@ -1,0 +1,24 @@
+syntax = "proto3";
+import "google/protobuf/descriptor.proto";
+
+// Extend FieldOption with custom option.
+// 
+// Imported into a proto, it allows for the following:
+// 
+// message MyMessage {
+//   optional string foo = 1 [pandit_field_path = ".obj.foo"];
+// }
+extend google.protobuf.FieldOption {
+    optional string pandit_field_path = 50000;
+}
+
+// Extend MessageOption with custom option.
+// 
+// Imported into a proto, it allows for the following:
+// 
+// message MyMessage {
+//   option (pandit_field_path) = ".path.to.message";
+// }
+extend google.protobuf.MessageOptions {
+  optional string pandit_message_path = 50001;
+}
