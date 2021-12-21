@@ -22,6 +22,8 @@ tracing-subscriber = "0.3.2"
 httparse = "1.5.1"
 dashmap = "4.0.2"
 protobuf = { version = "2", features = ["with-bytes"] }
+protoc-rust = "2.25.2"
+protobuf-parse = { git = "https://github.com/stepancheg/rust-protobuf.git", branch = "master" }
 
 
 [lib]
