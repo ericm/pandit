@@ -1,24 +1,86 @@
 syntax = "proto3";
 import "google/protobuf/descriptor.proto";
 
-// Extend FieldOption with custom option.
-// 
-// Imported into a proto, it allows for the following:
-// 
-// message MyMessage {
-//   optional string foo = 1 [pandit_field_path = ".obj.foo"];
-// }
-extend google.protobuf.FieldOption {
-    optional string pandit_field_path = 50000;
+package pandit;
+
+message PanditMessage {
+  optional string local_path = 1;
+  optional string relative_path = 2;
 }
 
-// Extend MessageOption with custom option.
-// 
-// Imported into a proto, it allows for the following:
-// 
-// message MyMessage {
-//   option (pandit_field_path) = ".path.to.message";
-// }
+extend google.protobuf.FieldOptions {
+  optional PanditMessage pandit = 1;
+}
+
 extend google.protobuf.MessageOptions {
-  optional string pandit_message_path = 50001;
+  optional PanditMessage pandit = 1;
+}
+
+message ServiceRule {
+  optional string name = 1;
+}
+
+extend google.protobuf.ServiceOptions {
+  oneof pattern {
+    ServiceRule http = 1;
+  }
+}
+
+enum HttpContentType {
+  UNDEFINED = 0;
+  ANY = 1;
+  JSON = 2;
+  FORM_URLENCODED = 3;
+  MULTIPART_FORM_DATA = 4;
+  XML = 5;
+  TEXT = 6;
+  HTML = 7;
+  BINARY = 8;
+  IMAGE = 9;
+  AUDIO = 10;
+  VIDEO = 11;
+  APPLICATION = 12;
+  MESSAGE = 13;
+  MODEL = 14;
+  PDF = 15;
+  WOFF = 16;
+  WOFF2 = 17;
+  EOT = 18;
+  TTF = 19;
+  OTF = 20;
+  SVG = 21;
+  CSS = 22;
+  CSV = 23;
+  TSV = 24;
+  JS = 25;
+  JS_BUNDLE = 26;
+  CSS_BUNDLE = 27;
+  HTML_BUNDLE = 28;
+}
+
+message HttpMethodRule {
+  required HttpContentType content_type = 1;
+  oneof pattern {
+    // Maps to HTTP GET. Used for listing and getting information about
+    // resources.
+    string get = 2;
+
+    // Maps to HTTP PUT. Used for replacing a resource.
+    string put = 3;
+
+    // Maps to HTTP POST. Used for creating a resource or performing an action.
+    string post = 4;
+
+    // Maps to HTTP DELETE. Used for deleting a resource.
+    string delete = 5;
+
+    // Maps to HTTP PATCH. Used for updating a resource.
+    string patch = 6;
+  }
+}
+
+extend google.protobuf.MethodOptions  {
+  oneof pattern {
+    HttpMethodRule http = 1;
+  }
 }

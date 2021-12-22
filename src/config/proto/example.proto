@@ -1,0 +1,9 @@
+syntax = "proto3";
+import "./pandit.proto";
+
+service ExampleService {
+    option (pandit.service_name) = "my_service";
+    rpc GetExample(ExampleRequest) returns (ExampleResponse) {
+        option (pandit.endpoint) = "/example";
+    }
+}
