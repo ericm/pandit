@@ -3,63 +3,28 @@ import "google/protobuf/descriptor.proto";
 
 package pandit;
 
-message PanditMessage {
-  optional string local_path = 1;
-  optional string relative_path = 2;
-}
-
 extend google.protobuf.FieldOptions {
-  optional PanditMessage pandit = 1;
+  string absolute_path = 1;
+  string relative_path = 2;
+
 }
 
 extend google.protobuf.MessageOptions {
-  optional PanditMessage pandit = 1;
+  string absolute_path = 1;
+  string relative_path = 2;
 }
 
-message ServiceRule {
-  optional string name = 1;
+message HttpServiceRule {
+  string name = 1;
 }
+
 
 extend google.protobuf.ServiceOptions {
-  oneof pattern {
-    ServiceRule http = 1;
-  }
-}
-
-enum HttpContentType {
-  UNDEFINED = 0;
-  ANY = 1;
-  JSON = 2;
-  FORM_URLENCODED = 3;
-  MULTIPART_FORM_DATA = 4;
-  XML = 5;
-  TEXT = 6;
-  HTML = 7;
-  BINARY = 8;
-  IMAGE = 9;
-  AUDIO = 10;
-  VIDEO = 11;
-  APPLICATION = 12;
-  MESSAGE = 13;
-  MODEL = 14;
-  PDF = 15;
-  WOFF = 16;
-  WOFF2 = 17;
-  EOT = 18;
-  TTF = 19;
-  OTF = 20;
-  SVG = 21;
-  CSS = 22;
-  CSV = 23;
-  TSV = 24;
-  JS = 25;
-  JS_BUNDLE = 26;
-  CSS_BUNDLE = 27;
-  HTML_BUNDLE = 28;
+  HttpServiceRule http = 1;
 }
 
 message HttpMethodRule {
-  required HttpContentType content_type = 1;
+  string content_type = 1;
   oneof pattern {
     // Maps to HTTP GET. Used for listing and getting information about
     // resources.
@@ -80,7 +45,5 @@ message HttpMethodRule {
 }
 
 extend google.protobuf.MethodOptions  {
-  oneof pattern {
-    HttpMethodRule http = 1;
-  }
+  HttpMethodRule http = 1;
 }

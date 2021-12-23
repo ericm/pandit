@@ -1,9 +1,29 @@
 syntax = "proto3";
-import "./pandit.proto";
+
+import "pandit.proto";
+
+package demo;
+
+message ExampleRequest {
+  option (message.absolute_path) = ".0";
+  string name = 1;
+  int32 id = 2;
+  repeated int32 numbers = 3;
+}
+
+message ExampleResponse {
+  option (message.absolute_path) = ".0";
+  string name = 1;
+  int32 id = 2;
+  repeated int32 numbers = 3;
+}
 
 service ExampleService {
-    option (pandit.service_name) = "my_service";
+    option (service.http.name) = "my_service";
     rpc GetExample(ExampleRequest) returns (ExampleResponse) {
-        option (pandit.endpoint) = "/example";
+        option (method.http) = {
+            content_type: "application/json",
+            get: "/example"
+        };
     }
 }
