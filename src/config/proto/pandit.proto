@@ -1,49 +1,15 @@
 syntax = "proto3";
 import "google/protobuf/descriptor.proto";
+import "http.proto";
 
 package pandit;
 
-extend google.protobuf.FieldOptions {
-  string absolute_path = 1;
-  string relative_path = 2;
 
+extend google.protobuf.FieldOptions {
+  string absolute_path = 50020;
+  string relative_path = 50021;
 }
 
 extend google.protobuf.MessageOptions {
-  string absolute_path = 1;
-  string relative_path = 2;
-}
-
-message HttpServiceRule {
-  string name = 1;
-}
-
-
-extend google.protobuf.ServiceOptions {
-  HttpServiceRule http = 1;
-}
-
-message HttpMethodRule {
-  string content_type = 1;
-  oneof pattern {
-    // Maps to HTTP GET. Used for listing and getting information about
-    // resources.
-    string get = 2;
-
-    // Maps to HTTP PUT. Used for replacing a resource.
-    string put = 3;
-
-    // Maps to HTTP POST. Used for creating a resource or performing an action.
-    string post = 4;
-
-    // Maps to HTTP DELETE. Used for deleting a resource.
-    string delete = 5;
-
-    // Maps to HTTP PATCH. Used for updating a resource.
-    string patch = 6;
-  }
-}
-
-extend google.protobuf.MethodOptions  {
-  HttpMethodRule http = 1;
+  string path = 50030;
 }

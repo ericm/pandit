@@ -1,0 +1,33 @@
+syntax = "proto3";
+import "google/protobuf/descriptor.proto";
+
+package pandit.http;
+
+message API {
+  string content_type = 50000;
+  oneof pattern {
+    // Maps to HTTP GET. Used for listing and getting information about
+    // resources.
+    string get = 50001;
+
+    // Maps to HTTP PUT. Used for replacing a resource.
+    string put = 50002;
+
+    // Maps to HTTP POST. Used for creating a resource or performing an action.
+    string post = 50003;
+
+    // Maps to HTTP DELETE. Used for deleting a resource.
+    string delete = 50004;
+
+    // Maps to HTTP PATCH. Used for updating a resource.
+    string patch = 50005;
+  }
+}
+
+extend google.protobuf.ServiceOptions {
+  string name = 50010;
+}
+
+extend google.protobuf.MethodOptions  {
+  API api = 50011;
+}
