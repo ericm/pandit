@@ -1,6 +1,9 @@
-use protobuf;
+use crate::proto;
+use protobuf::wire_format::WireType::WireTypeLengthDelimited;
+use protobuf::{self, Message};
 use protobuf_parse;
 use std::collections::HashSet;
+use std::str;
 use std::str::FromStr;
 use std::{fmt::Display, path::PathBuf};
 
@@ -41,24 +44,52 @@ impl Service {
     pub fn new() -> Self {
         Service {}
     }
+
     pub fn from_file(path: &str) -> Result<Self, ConfigError> {
-        let path = PathBuf::from(path);
-        let include = PathBuf::from("./src/config/proto");
-        let parsed = match protobuf_parse::pure::parse_and_typecheck(&[include], &[path]) {
-            Ok(p) => p,
-            Err(err) => return Err(ConfigError::new(err.to_string())),
-        };
-        let file = parsed.file_descriptors.first().unwrap();
+        let path_buf = &PathBuf::from(path);
+        let include = PathBuf::from("./src/proto");
+        let parsed =
+            match protobuf_parse::pure::parse_and_typecheck(&[include], &[path_buf.clone()]) {
+                Ok(p) => p,
+                Err(err) => return Err(ConfigError::new(err.to_string())),
+            };
+        let filename = path_buf.file_name().unwrap();
+        let file = parsed
+            .file_descriptors
+            .iter()
+            .find(|&x| x.get_name() == filename)
+            .unwrap();
         let service = file.service.first().unwrap();
-        let opts = service.options.as_ref().unwrap();
-        for opt in opts.uninterpreted_option.iter() {
-            println!("a{}", opt.name.first().unwrap().get_name_part());
+        let opts = service.options.get_ref();
+        let opts = Service::from_service_options(opts);
+        println!("{:?}", opts);
+
+        let methods = &service.method;
+        for method in methods {
+            let opt = method.options.0.as_ref().unwrap();
+            println!("{:?}", opt);
+            println!("{:?}", opt.unknown_fields.get(50011).unwrap());
         }
         Ok(Service::new())
+    }
+
+    fn from_service_options(opts: &protobuf::descriptor::ServiceOptions) -> Vec<String> {
+        let p = proto::http::exts::name.get(opts).unwrap();
+        opts.get_unknown_fields()
+            .iter()
+            .map(|(_, val)| Service::from_unknown_value_ref(val).unwrap())
+            .collect()
+    }
+
+    fn from_unknown_value_ref(
+        val: &protobuf::UnknownValues,
+    ) -> Result<String, std::string::FromUtf8Error> {
+        let del_val = val.length_delimited.first().unwrap();
+        String::from_utf8(del_val.to_vec())
     }
 }
 
 #[test]
 fn test_service() {
-    Service::from_file("./src/config/proto/example.proto").unwrap();
+    Service::from_file("./src/proto/example.proto").unwrap();
 }
