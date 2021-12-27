@@ -2,13 +2,19 @@ use crate::proto;
 use protobuf::wire_format::WireType::WireTypeLengthDelimited;
 use protobuf::{self, Message};
 use protobuf_parse;
-use std::collections::HashSet;
+use std::collections::HashMap;
+use std::mem::ManuallyDrop;
 use std::str;
 use std::str::FromStr;
 use std::{fmt::Display, path::PathBuf};
 
 enum Protocols {
     HTTP,
+}
+
+mod http {
+    pub use crate::proto::http::api;
+    pub use crate::proto::http::API;
 }
 
 impl FromStr for Protocols {
@@ -38,13 +44,16 @@ impl Display for ConfigError {
     }
 }
 
-pub struct Service {}
+union MethodAPI {
+    http: ManuallyDrop<http::API>,
+}
+
+pub struct Service {
+    pub name: String,
+    pub methods: HashMap<String, MethodAPI>,
+}
 
 impl Service {
-    pub fn new() -> Self {
-        Service {}
-    }
-
     pub fn from_file(path: &str) -> Result<Self, ConfigError> {
         let path_buf = &PathBuf::from(path);
         let include = PathBuf::from("./src/proto");
@@ -60,32 +69,41 @@ impl Service {
             .find(|&x| x.get_name() == filename)
             .unwrap();
         let service = file.service.first().unwrap();
-        let opts = service.options.get_ref();
-        let opts = Service::from_service_options(opts);
-        println!("{:?}", opts);
-
-        let methods = &service.method;
-        for method in methods {
-            let opt = method.options.0.as_ref().unwrap();
-            println!("{:?}", opt);
-            println!("{:?}", opt.unknown_fields.get(50011).unwrap());
-        }
+        println!("{}", p);
         Ok(Service::new())
     }
+    fn get_service_attrs_http(
+        service: &protobuf::descriptor::ServiceDescriptorProto,
+    ) -> Result<Self, ConfigError> {
+        use proto::http::exts;
+        let config = Self::default();
 
-    fn from_service_options(opts: &protobuf::descriptor::ServiceOptions) -> Vec<String> {
-        let p = proto::http::exts::name.get(opts).unwrap();
-        opts.get_unknown_fields()
+        let opts = service.options.get_ref();
+        config.name = exts::name.get(opts).unwrap();
+
+        config.methods = service
+            .method
             .iter()
-            .map(|(_, val)| Service::from_unknown_value_ref(val).unwrap())
-            .collect()
-    }
+            .map(|method| {
+                (
+                    method.get_name().to_string(),
+                    MethodAPI {
+                        http: ManuallyDrop::new(exts::api.get(method.options.get_ref()).unwrap()),
+                    },
+                )
+            })
+            .collect();
 
-    fn from_unknown_value_ref(
-        val: &protobuf::UnknownValues,
-    ) -> Result<String, std::string::FromUtf8Error> {
-        let del_val = val.length_delimited.first().unwrap();
-        String::from_utf8(del_val.to_vec())
+        Ok(config)
+    }
+}
+
+impl Default for Service {
+    fn default() -> Self {
+        Self {
+            name: String::default(),
+            methods: HashMap::new(),
+        }
     }
 }
 
