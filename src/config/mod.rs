@@ -28,24 +28,24 @@ impl FromStr for Protocols {
 }
 
 #[derive(Debug, Clone)]
-pub struct ConfigError {
+pub struct ServiceError {
     err: String,
 }
 
-impl ConfigError {
+impl ServiceError {
     fn new(err: String) -> Self {
-        ConfigError { err }
+        ServiceError { err }
     }
 }
 
-impl Display for ConfigError {
+impl Display for ServiceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "unable to create config object: {}", self.err)
+        write!(f, "unable to create service object: {}", self.err)
     }
 }
 
 pub union MethodAPI {
-    http: ManuallyDrop<http::API>,
+    pub http: ManuallyDrop<http::API>,
 }
 
 pub struct MessageField {
@@ -78,9 +78,9 @@ impl Default for Message {
 }
 
 pub struct Method {
-    api: MethodAPI,
-    input_message: protobuf::descriptor::MethodDescriptorProto,
-    output_message: Message,
+    pub api: MethodAPI,
+    pub input_message: protobuf::descriptor::MethodDescriptorProto,
+    pub output_message: Message,
 }
 
 pub struct Service {
@@ -90,14 +90,11 @@ pub struct Service {
 }
 
 impl Service {
-    pub fn from_file(path: &str) -> Result<Self, ConfigError> {
+    pub fn from_file(path: &str) -> Result<Self, ServiceError> {
         let path_buf = &PathBuf::from(path);
         let include = PathBuf::from("./src/proto");
         let parsed =
-            match protobuf_parse::pure::parse_and_typecheck(&[include], &[path_buf.clone()]) {
-                Ok(p) => p,
-                Err(err) => return Err(ConfigError::new(err.to_string())),
-            };
+            protobuf_parse::pure::parse_and_typecheck(&[include], &[path_buf.clone()]).unwrap();
         let filename = path_buf.file_name().unwrap();
         let file = parsed
             .file_descriptors
@@ -105,20 +102,39 @@ impl Service {
             .find(|&x| x.get_name() == filename)
             .unwrap();
         let service = file.service.first().unwrap();
-        println!("{}", p);
-        Ok(Service::new())
+
+        let mut output = Self::default();
+        output.get_service_attrs_base(file).unwrap();
+        match Self::get_service_type(service).unwrap() {
+            Protocols::HTTP => output.get_service_attrs_http(service).unwrap(),
+        };
+
+        Ok(output)
+    }
+
+    fn get_service_type(
+        service: &protobuf::descriptor::ServiceDescriptorProto,
+    ) -> Option<Protocols> {
+        if proto::http::exts::name
+            .get(service.options.get_ref())
+            .is_some()
+        {
+            Some(Protocols::HTTP)
+        } else {
+            None
+        }
     }
 
     fn get_service_attrs_base(
-        &self,
+        &mut self,
         file: &protobuf::descriptor::FileDescriptorProto,
-    ) -> Result<(), ConfigError> {
+    ) -> Result<(), ServiceError> {
         use proto::pandit::exts;
-        let messages: HashMap<_, _> = file
+        self.messages = file
             .message_type
             .iter()
             .map(|message| {
-                let config = Message::default();
+                let mut config = Message::default();
                 let name = message.get_name().to_string();
                 let opts = message.options.get_ref();
                 config.path = exts::path.get(opts).unwrap();
@@ -137,9 +153,9 @@ impl Service {
             .field
             .iter()
             .map(|field| {
-                let config = MessageField::default();
+                let mut config = MessageField::default();
                 let name = field.get_name().to_string();
-                config.proto = Box::new(*field);
+                config.proto = Box::new(field.clone());
 
                 let opts = field.options.get_ref();
                 config.absolute_path = exts::absolute_path.get(opts).unwrap();
@@ -151,9 +167,9 @@ impl Service {
     }
 
     fn get_service_attrs_http(
-        &self,
+        &mut self,
         service: &protobuf::descriptor::ServiceDescriptorProto,
-    ) -> Result<(), ConfigError> {
+    ) -> Result<(), ServiceError> {
         use proto::http::exts;
 
         let opts = service.options.get_ref();
