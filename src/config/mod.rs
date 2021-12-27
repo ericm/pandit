@@ -1,6 +1,6 @@
 use crate::proto;
 use protobuf::wire_format::WireType::WireTypeLengthDelimited;
-use protobuf::{self, Message};
+use protobuf::{self};
 use protobuf_parse;
 use std::collections::HashMap;
 use std::mem::ManuallyDrop;
@@ -44,13 +44,49 @@ impl Display for ConfigError {
     }
 }
 
-union MethodAPI {
+pub union MethodAPI {
     http: ManuallyDrop<http::API>,
+}
+
+pub struct MessageField {
+    proto: Box<protobuf::descriptor::FieldDescriptorProto>,
+    absolute_path: String,
+    relative_path: String,
+}
+
+impl Default for MessageField {
+    fn default() -> Self {
+        Self {
+            proto: Default::default(),
+            absolute_path: Default::default(),
+            relative_path: Default::default(),
+        }
+    }
+}
+pub struct Message {
+    path: String,
+    fields: HashMap<String, MessageField>,
+}
+
+impl Default for Message {
+    fn default() -> Self {
+        Self {
+            path: Default::default(),
+            fields: Default::default(),
+        }
+    }
+}
+
+pub struct Method {
+    api: MethodAPI,
+    input_message: protobuf::descriptor::MethodDescriptorProto,
+    output_message: Message,
 }
 
 pub struct Service {
     pub name: String,
     pub methods: HashMap<String, MethodAPI>,
+    pub messages: HashMap<String, Message>,
 }
 
 impl Service {
@@ -72,16 +108,58 @@ impl Service {
         println!("{}", p);
         Ok(Service::new())
     }
+
+    fn get_service_attrs_base(
+        &self,
+        file: &protobuf::descriptor::FileDescriptorProto,
+    ) -> Result<(), ConfigError> {
+        use proto::pandit::exts;
+        let messages: HashMap<_, _> = file
+            .message_type
+            .iter()
+            .map(|message| {
+                let config = Message::default();
+                let name = message.get_name().to_string();
+                let opts = message.options.get_ref();
+                config.path = exts::path.get(opts).unwrap();
+                config.fields = Self::get_message_field_attrs(&message);
+                (name, config)
+            })
+            .collect();
+        Ok(())
+    }
+
+    fn get_message_field_attrs(
+        message: &protobuf::descriptor::DescriptorProto,
+    ) -> HashMap<String, MessageField> {
+        use proto::pandit::exts;
+        message
+            .field
+            .iter()
+            .map(|field| {
+                let config = MessageField::default();
+                let name = field.get_name().to_string();
+                config.proto = Box::new(*field);
+
+                let opts = field.options.get_ref();
+                config.absolute_path = exts::absolute_path.get(opts).unwrap();
+                config.relative_path = exts::relative_path.get(opts).unwrap();
+
+                (name, config)
+            })
+            .collect()
+    }
+
     fn get_service_attrs_http(
+        &self,
         service: &protobuf::descriptor::ServiceDescriptorProto,
-    ) -> Result<Self, ConfigError> {
+    ) -> Result<(), ConfigError> {
         use proto::http::exts;
-        let config = Self::default();
 
         let opts = service.options.get_ref();
-        config.name = exts::name.get(opts).unwrap();
+        self.name = exts::name.get(opts).unwrap();
 
-        config.methods = service
+        self.methods = service
             .method
             .iter()
             .map(|method| {
@@ -94,15 +172,16 @@ impl Service {
             })
             .collect();
 
-        Ok(config)
+        Ok(())
     }
 }
 
 impl Default for Service {
     fn default() -> Self {
         Self {
-            name: String::default(),
-            methods: HashMap::new(),
+            name: Default::default(),
+            methods: Default::default(),
+            messages: Default::default(),
         }
     }
 }
