@@ -8,11 +8,11 @@ use std::str;
 use std::str::FromStr;
 use std::{fmt::Display, path::PathBuf};
 
-enum Protocols {
+pub enum Protocols {
     HTTP,
 }
 
-mod http {
+pub mod http {
     pub use crate::proto::http::api;
     pub use crate::proto::http::API;
 }
@@ -104,9 +104,9 @@ impl Service {
         let service = file.service.first().unwrap();
 
         let mut output = Self::default();
-        output.get_service_attrs_base(file).unwrap();
+        output.get_service_attrs_base(file)?;
         match Self::get_service_type(service).unwrap() {
-            Protocols::HTTP => output.get_service_attrs_http(service).unwrap(),
+            Protocols::HTTP => output.get_service_attrs_http(service)?,
         };
 
         Ok(output)
