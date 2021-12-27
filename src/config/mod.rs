@@ -8,7 +8,8 @@ use std::str;
 use std::str::FromStr;
 use std::{fmt::Display, path::PathBuf};
 
-pub enum Protocols {
+pub enum Protocol {
+    None,
     HTTP,
 }
 
@@ -17,7 +18,7 @@ pub mod http {
     pub use crate::proto::http::API;
 }
 
-impl FromStr for Protocols {
+impl FromStr for Protocol {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -85,6 +86,7 @@ pub struct Method {
 
 pub struct Service {
     pub name: String,
+    pub protocol: Protocol,
     pub methods: HashMap<String, MethodAPI>,
     pub messages: HashMap<String, Message>,
 }
@@ -105,23 +107,22 @@ impl Service {
 
         let mut output = Self::default();
         output.get_service_attrs_base(file)?;
-        match Self::get_service_type(service).unwrap() {
-            Protocols::HTTP => output.get_service_attrs_http(service)?,
+        match Self::get_service_type(service) {
+            Protocol::HTTP => output.get_service_attrs_http(service)?,
+            _ => panic!("unknown protocol"),
         };
 
         Ok(output)
     }
 
-    fn get_service_type(
-        service: &protobuf::descriptor::ServiceDescriptorProto,
-    ) -> Option<Protocols> {
+    fn get_service_type(service: &protobuf::descriptor::ServiceDescriptorProto) -> Protocol {
         if proto::http::exts::name
             .get(service.options.get_ref())
             .is_some()
         {
-            Some(Protocols::HTTP)
+            Protocol::HTTP
         } else {
-            None
+            Protocol::None
         }
     }
 
@@ -174,6 +175,7 @@ impl Service {
 
         let opts = service.options.get_ref();
         self.name = exts::name.get(opts).unwrap();
+        self.protocol = Protocol::HTTP;
 
         self.methods = service
             .method
@@ -198,6 +200,7 @@ impl Default for Service {
             name: Default::default(),
             methods: Default::default(),
             messages: Default::default(),
+            protocol: Protocol::None,
         }
     }
 }
