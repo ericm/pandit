@@ -1,0 +1,3 @@
+services:
+  example:
+    proto: ./src/proto/example.proto

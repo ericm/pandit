@@ -31,3 +31,7 @@ extend google.protobuf.ServiceOptions {
 extend google.protobuf.MethodOptions  {
   API api = 50011;
 }
+
+extend google.protobuf.MessageOptions {
+  string format = 50012;
+}

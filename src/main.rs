@@ -11,6 +11,9 @@
 // 192.168. 0 . 9 :36940  →   8 . 8 . 8 . 8 :53    |     1303 ms
 //  8 . 8 . 8 . 8 :53     →  192.168. 0 . 9 :36940 |     1304 ms
 
+pub mod proto;
+pub mod services;
+use clap;
 use dashmap::DashMap;
 use futures::stream::StreamExt;
 use httparse::Response;
@@ -51,11 +54,11 @@ async fn main() {
         process::exit(1);
     }
 
-    let args: Vec<String> = env::args().collect();
-    let iface = match args.get(1) {
-        Some(val) => val,
-        None => "lo",
-    };
+    let app = new_app();
+
+    let cfg = services::new_config(app.get_matches().value_of("config").unwrap());
+
+    let iface = "lo";
     println!("Attaching socket to interface {}", iface);
     let mut streams = Vec::new();
     let mut loaded = Loader::load(probe_code()).expect("error loading BPF program");
@@ -113,6 +116,18 @@ async fn main() {
     };
     println!("Hit Ctrl-C to quit");
     ctrlc_fut.await;
+}
+
+fn new_app() -> clap::App<'static, 'static> {
+    clap::App::new("pandit")
+        .version("1.0")
+        .author("Eric Moynihan")
+        .about("Pandit CLI")
+        .arg(
+            clap::Arg::with_name("config")
+                .short("c")
+                .default_value("./.pandit.yml"),
+        )
 }
 
 async fn process_packet<'a>(resp_pool: ConnMap, buf: &'a [u8], conn: &'a Conn) {

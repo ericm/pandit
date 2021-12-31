@@ -1,13 +1,15 @@
 use crate::proto;
-use protobuf::wire_format::WireType::WireTypeLengthDelimited;
-use protobuf::{self};
+use config;
+use protobuf;
 use protobuf_parse;
 use std::collections::HashMap;
 use std::mem::ManuallyDrop;
+use std::path::Path;
 use std::str;
 use std::str::FromStr;
 use std::{fmt::Display, path::PathBuf};
 
+#[derive(Debug, PartialEq)]
 pub enum Protocol {
     None,
     HTTP,
@@ -31,12 +33,6 @@ impl FromStr for Protocol {
 #[derive(Debug, Clone)]
 pub struct ServiceError {
     err: String,
-}
-
-impl ServiceError {
-    fn new(err: String) -> Self {
-        ServiceError { err }
-    }
 }
 
 impl Display for ServiceError {
@@ -64,6 +60,7 @@ impl Default for MessageField {
         }
     }
 }
+
 pub struct Message {
     path: String,
     fields: HashMap<String, MessageField>,
@@ -159,8 +156,8 @@ impl Service {
                 config.proto = Box::new(field.clone());
 
                 let opts = field.options.get_ref();
-                config.absolute_path = exts::absolute_path.get(opts).unwrap();
-                config.relative_path = exts::relative_path.get(opts).unwrap();
+                config.absolute_path = exts::absolute_path.get(opts).unwrap_or_default();
+                config.relative_path = exts::relative_path.get(opts).unwrap_or_default();
 
                 (name, config)
             })
@@ -205,7 +202,17 @@ impl Default for Service {
     }
 }
 
+pub fn new_config(path: &str) -> config::Config {
+    let mut obj = config::Config::new();
+    let file = config::File::from(PathBuf::from(path)).format(config::FileFormat::Yaml);
+    obj.merge(file).unwrap();
+    obj
+}
+
 #[test]
 fn test_service() {
-    Service::from_file("./src/proto/example.proto").unwrap();
+    let s = Service::from_file("./src/proto/example.proto").unwrap();
+    assert_eq!(s.protocol, Protocol::HTTP);
+    assert_eq!(s.messages.len(), 2);
+    assert_eq!(s.methods.len(), 1);
 }
