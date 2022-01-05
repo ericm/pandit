@@ -1,8 +1,10 @@
 use crate::proto;
 use config;
+use jq_rs::{self, JqProgram};
 use protobuf;
 use protobuf_parse;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::mem::ManuallyDrop;
 use std::path::Path;
 use std::str;
@@ -41,6 +43,20 @@ impl Display for ServiceError {
     }
 }
 
+pub struct Value<T> {
+    pub value: T,
+}
+
+impl Value {
+    fn new<T>(val: T) -> Self {
+        Self { value: val }
+    }
+}
+
+pub trait Handler {
+    fn parse_payload<T: TryFrom>(&self, buf: Vec<u8>) -> Value<T>;
+}
+
 pub union MethodAPI {
     pub http: ManuallyDrop<http::API>,
 }
@@ -77,14 +93,15 @@ impl Default for Message {
 
 pub struct Method {
     pub api: MethodAPI,
-    pub input_message: protobuf::descriptor::MethodDescriptorProto,
-    pub output_message: Message,
+    pub handler: Box<dyn Handler>,
+    pub input_message: String,
+    pub output_message: String,
 }
 
 pub struct Service {
     pub name: String,
     pub protocol: Protocol,
-    pub methods: HashMap<String, MethodAPI>,
+    pub methods: HashMap<String, Method>,
     pub messages: HashMap<String, Message>,
 }
 
@@ -178,16 +195,56 @@ impl Service {
             .method
             .iter()
             .map(|method| {
+                let api = exts::api.get(method.options.get_ref()).unwrap();
                 (
                     method.get_name().to_string(),
-                    MethodAPI {
-                        http: ManuallyDrop::new(exts::api.get(method.options.get_ref()).unwrap()),
+                    Method {
+                        input_message: method.get_input_type().to_string(),
+                        output_message: method.get_output_type().to_string(),
+                        handler: Service::handler_from_http_api(api),
+                        api: MethodAPI {
+                            http: ManuallyDrop::new(api),
+                        },
                     },
                 )
             })
             .collect();
 
         Ok(())
+    }
+
+    fn handler_from_http_api(api: http::API) -> Box<dyn Handler + 'static> {
+        match api.content_type.as_str() {
+            "application/json" => Box::new(HttpJsonHandler::new(api.pattern)),
+        }
+    }
+}
+
+pub struct HttpJsonHandler {
+    pub method: http::api::Pattern,
+    prog: JqProgram,
+}
+
+impl HttpJsonHandler {
+    pub fn new(method: http::api::Pattern) -> Self {
+        let prog = match method {
+            http::api::Pattern::get(x) => x,
+            http::api::Pattern::put(x) => x,
+            http::api::Pattern::post(x) => x,
+            http::api::Pattern::delete(x) => x,
+            http::api::Pattern::patch(x) => x,
+        };
+        Self {
+            method,
+            prog: jq_rs::compile(prog).unwrap(),
+        }
+    }
+}
+
+impl Handler for HttpJsonHandler {
+    fn parse_payload<T: TryFrom<String>>(&self, buf: Vec<u8>) -> Value<T> {
+        let pr = self.prog.run(str::from_utf8(buf.into())).unwrap();
+        Value::new(T::try_from(pr).unwrap())
     }
 }
 
