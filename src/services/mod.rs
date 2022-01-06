@@ -129,6 +129,24 @@ impl Service {
         Ok(output)
     }
 
+    pub fn from_config(cfg: config::Config) -> Result<Vec<Self>, ServiceError> {
+        let services = cfg.get_table("service").unwrap();
+        Ok(services
+            .iter()
+            .map(|(name, value)| Self::service_from_config_value(name, value))
+            .collect())
+    }
+
+    fn service_from_config_value(name: &String, value: &config::Value) -> Self {
+        let service = value.into_table().unwrap();
+        let proto = {
+            let p = service.get("proto").unwrap();
+            let p = p.into_str().unwrap();
+            p
+        };
+        Self::from_file(proto.as_str())
+    }
+
     fn get_service_type(service: &protobuf::descriptor::ServiceDescriptorProto) -> Protocol {
         if proto::http::exts::name
             .get(service.options.get_ref())
