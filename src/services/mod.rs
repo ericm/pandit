@@ -43,18 +43,18 @@ impl Display for ServiceError {
     }
 }
 
-pub struct Value<T> {
-    pub value: T,
+pub struct Value {
+    pub value: String,
 }
 
 impl Value {
-    fn new<T>(val: T) -> Self {
+    fn new(val: String) -> Self {
         Self { value: val }
     }
 }
 
 pub trait Handler {
-    fn parse_payload<T: TryFrom>(&self, buf: Vec<u8>) -> Value<T>;
+    fn parse_payload(&self, buf: &[u8]) -> Value;
 }
 
 pub union MethodAPI {
@@ -144,7 +144,7 @@ impl Service {
             let p = p.into_str().unwrap();
             p
         };
-        Self::from_file(proto.as_str())
+        Self::from_file(proto.as_str()).unwrap()
     }
 
     fn get_service_type(service: &protobuf::descriptor::ServiceDescriptorProto) -> Protocol {
@@ -233,7 +233,7 @@ impl Service {
 
     fn handler_from_http_api(api: http::API) -> Box<dyn Handler + 'static> {
         match api.content_type.as_str() {
-            "application/json" => Box::new(HttpJsonHandler::new(api.pattern)),
+            "application/json" => Box::new(HttpJsonHandler::new(api.pattern.unwrap())),
         }
     }
 }
@@ -254,15 +254,15 @@ impl HttpJsonHandler {
         };
         Self {
             method,
-            prog: jq_rs::compile(prog).unwrap(),
+            prog: jq_rs::compile(prog.as_str()).unwrap(),
         }
     }
 }
 
 impl Handler for HttpJsonHandler {
-    fn parse_payload<T: TryFrom<String>>(&self, buf: Vec<u8>) -> Value<T> {
-        let pr = self.prog.run(str::from_utf8(buf.into())).unwrap();
-        Value::new(T::try_from(pr).unwrap())
+    fn parse_payload(&self, buf: &[u8]) -> Value {
+        let pr = self.prog.run(str::from_utf8(buf).unwrap()).unwrap();
+        Value::new(pr)
     }
 }
 
