@@ -11,8 +11,11 @@
 // 192.168. 0 . 9 :36940  →   8 . 8 . 8 . 8 :53    |     1303 ms
 //  8 . 8 . 8 . 8 :53     →  192.168. 0 . 9 :36940 |     1304 ms
 
+pub mod client;
 pub mod proto;
+pub mod server;
 pub mod services;
+
 use clap;
 use dashmap::DashMap;
 use futures::stream::StreamExt;
