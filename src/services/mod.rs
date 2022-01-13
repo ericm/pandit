@@ -1,7 +1,7 @@
 use crate::proto;
 use config;
 use jq_rs::{self, JqProgram};
-use protobuf;
+use protobuf::{self};
 use protobuf_parse;
 use std::collections::HashMap;
 use std::convert::TryFrom;
