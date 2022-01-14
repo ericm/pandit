@@ -79,7 +79,7 @@ impl Default for MessageField {
 
 pub struct Message {
     path: String,
-    fields: HashMap<String, MessageField>,
+    fields: protobuf::reflect::MessageRef,
 }
 
 impl Default for Message {
@@ -172,6 +172,7 @@ impl Service {
                 let opts = message.options.get_ref();
                 config.path = exts::path.get(opts).unwrap();
                 config.fields = Self::get_message_field_attrs(&message);
+                config.fields.
                 (name, config)
             })
             .collect();
@@ -180,23 +181,24 @@ impl Service {
 
     fn get_message_field_attrs(
         message: &protobuf::descriptor::DescriptorProto,
-    ) -> HashMap<String, MessageField> {
-        use proto::pandit::exts;
-        message
-            .field
-            .iter()
-            .map(|field| {
-                let mut config = MessageField::default();
-                let name = field.get_name().to_string();
-                config.proto = Box::new(field.clone());
+    ) -> protobuf::reflect::MessageRef {
+        // use proto::pandit::exts;
+        protobuf::reflect::MessageRef::new(message)
+        // message
+        //     .field
+        //     .iter()
+        //     .map(|field| {
+        //         let mut config = MessageField::default();
+        //         let name = field.get_name().to_string();
+        //         config.proto = Box::new(field.clone());
 
-                let opts = field.options.get_ref();
-                config.absolute_path = exts::absolute_path.get(opts).unwrap_or_default();
-                config.relative_path = exts::relative_path.get(opts).unwrap_or_default();
+        //         let opts = field.options.get_ref();
+        //         config.absolute_path = exts::absolute_path.get(opts).unwrap_or_default();
+        //         config.relative_path = exts::relative_path.get(opts).unwrap_or_default();
 
-                (name, config)
-            })
-            .collect()
+        //         (name, config)
+        //     })
+        //     .collect()
     }
 
     fn get_service_attrs_http(

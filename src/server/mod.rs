@@ -7,9 +7,11 @@ use h2::server::{self, SendResponse};
 use h2::RecvStream;
 use http::Request;
 use protobuf::Message;
+use protofish::context::MessageRef;
 use tokio;
 use tokio::net::{TcpListener, TcpStream};
 use tonic;
+
 pub struct Server {}
 
 pub async fn run(
@@ -40,13 +42,10 @@ async fn serve(socket: TcpStream) -> Result<(), Box<dyn Error + Send + Sync>> {
     Ok(())
 }
 
-struct Codec {}
-
-impl tonic::codec::ProstCodec for Codec {}
-
 async fn handle_request(
     mut request: Request<RecvStream>,
     mut respond: SendResponse<Bytes>,
+    ctx: &protofish::context::Context,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let body = request.body_mut();
     let data: Vec<u8> = body
@@ -60,9 +59,14 @@ async fn handle_request(
         })
         .flatten()
         .collect();
-    let mut request = protobuf::CodedInputStream::from_bytes(&data[..]);
-    let codec = tonic::codec::ProstCodec::default();
-    let (field_num, wire_type) = request.read_tag_unpack()?;
+    let path = request.uri().to_string();
+    let mut path = path.rsplit("/");
+    let service = path.next().unwrap();
+    let method = path.next().unwrap();
+    let service = ctx.get_service(service).unwrap();
+    let rpc = service.rpc_by_name(method).unwrap();
+
+    let message = ctx.decode(rpc.input.message, &data[..]);
     let response = http::Response::new(());
     let mut send = respond.send_response(response, false)?;
     Ok(())
