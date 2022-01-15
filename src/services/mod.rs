@@ -172,7 +172,6 @@ impl Service {
                 let opts = message.options.get_ref();
                 config.path = exts::path.get(opts).unwrap();
                 config.fields = Self::get_message_field_attrs(&message);
-                config.fields.
                 (name, config)
             })
             .collect();

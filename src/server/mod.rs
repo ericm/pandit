@@ -8,10 +8,10 @@ use h2::RecvStream;
 use http::Request;
 use protobuf::Message;
 use protofish::context::MessageRef;
+use redbpf::HashMap;
 use tokio;
 use tokio::net::{TcpListener, TcpStream};
 use tonic;
-
 pub struct Server {}
 
 pub async fn run(
@@ -45,7 +45,7 @@ async fn serve(socket: TcpStream) -> Result<(), Box<dyn Error + Send + Sync>> {
 async fn handle_request(
     mut request: Request<RecvStream>,
     mut respond: SendResponse<Bytes>,
-    ctx: &protofish::context::Context,
+    services: HashMap<String, services::Service>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let body = request.body_mut();
     let data: Vec<u8> = body
@@ -63,10 +63,12 @@ async fn handle_request(
     let mut path = path.rsplit("/");
     let service = path.next().unwrap();
     let method = path.next().unwrap();
-    let service = ctx.get_service(service).unwrap();
-    let rpc = service.rpc_by_name(method).unwrap();
 
-    let message = ctx.decode(rpc.input.message, &data[..]);
+    let service = services.get(service).unwrap();
+    let method = service.methods.get(method).unwrap();
+    let message = service.messages.get_mut(method.input_message).unwrap();
+    message.fields.merge_from_bytes(&data[..])?;
+
     let response = http::Response::new(());
     let mut send = respond.send_response(response, false)?;
     Ok(())
