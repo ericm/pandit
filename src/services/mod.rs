@@ -1,14 +1,16 @@
 use crate::proto;
 use config;
 use jq_rs::{self, JqProgram};
-use protobuf::{self};
+use protobuf::{self, MessageDyn};
 use protobuf_parse;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::mem::ManuallyDrop;
 use std::path::Path;
+use std::pin::Pin;
 use std::str;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 use std::{fmt::Display, path::PathBuf};
 
 #[derive(Debug, PartialEq)]
@@ -79,24 +81,45 @@ impl Default for MessageField {
 
 pub struct Message {
     path: String,
-    fields: protobuf::reflect::MessageRef,
+    message: protobuf::descriptor::DescriptorProto,
 }
 
-impl Default for Message {
-    fn default() -> Self {
+impl Message {
+    fn new(message: protobuf::descriptor::DescriptorProto, path: String) -> Self {
         Self {
             path: Default::default(),
-            fields: Default::default(),
+            message,
+        }
+    }
+
+    pub fn from_bytes(
+        &self,
+        buf: &[u8],
+    ) -> protobuf::ProtobufResult<protobuf::descriptor::DescriptorProto> {
+        let buf = protobuf::CodedInputStream::from_bytes(buf);
+        let mut message = self.message.clone();
+        message.merge_from_dyn(&mut buf)?;
+        Ok(message)
+    }
+}
+
+impl Clone for Message {
+    fn clone(&self) -> Self {
+        Self {
+            path: self.path.clone(),
+            message: self.message.clone(),
         }
     }
 }
 
 pub struct Method {
     pub api: MethodAPI,
-    pub handler: Box<dyn Handler>,
+    pub handler: Pin<Box<dyn Handler>>,
     pub input_message: String,
     pub output_message: String,
 }
+
+pub type Services = HashMap<String, Service>;
 
 pub struct Service {
     pub name: String,
@@ -129,11 +152,11 @@ impl Service {
         Ok(output)
     }
 
-    pub fn from_config(cfg: config::Config) -> Result<Vec<Self>, ServiceError> {
+    pub fn from_config(cfg: config::Config) -> Result<Services, ServiceError> {
         let services = cfg.get_table("service").unwrap();
         Ok(services
             .iter()
-            .map(|(name, value)| Self::service_from_config_value(name, value))
+            .map(|(name, value)| (name.clone(), Self::service_from_config_value(name, value)))
             .collect())
     }
 
@@ -167,37 +190,14 @@ impl Service {
             .message_type
             .iter()
             .map(|message| {
-                let mut config = Message::default();
                 let name = message.get_name().to_string();
                 let opts = message.options.get_ref();
-                config.path = exts::path.get(opts).unwrap();
-                config.fields = Self::get_message_field_attrs(&message);
+                let path = exts::path.get(opts).unwrap();
+                let mut config = Message::new(message.clone(), path);
                 (name, config)
             })
             .collect();
         Ok(())
-    }
-
-    fn get_message_field_attrs(
-        message: &protobuf::descriptor::DescriptorProto,
-    ) -> protobuf::reflect::MessageRef {
-        // use proto::pandit::exts;
-        protobuf::reflect::MessageRef::new(message)
-        // message
-        //     .field
-        //     .iter()
-        //     .map(|field| {
-        //         let mut config = MessageField::default();
-        //         let name = field.get_name().to_string();
-        //         config.proto = Box::new(field.clone());
-
-        //         let opts = field.options.get_ref();
-        //         config.absolute_path = exts::absolute_path.get(opts).unwrap_or_default();
-        //         config.relative_path = exts::relative_path.get(opts).unwrap_or_default();
-
-        //         (name, config)
-        //     })
-        //     .collect()
     }
 
     fn get_service_attrs_http(
@@ -232,9 +232,9 @@ impl Service {
         Ok(())
     }
 
-    fn handler_from_http_api(api: http::API) -> Box<dyn Handler + 'static> {
+    fn handler_from_http_api(api: http::API) -> Pin<Box<dyn Handler + 'static>> {
         match api.content_type.as_str() {
-            "application/json" => Box::new(HttpJsonHandler::new(api.pattern.unwrap())),
+            "application/json" => Box::pin(HttpJsonHandler::new(api.pattern.unwrap())),
         }
     }
 }
