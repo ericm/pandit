@@ -1,5 +1,7 @@
 use crate::proto;
+use access_json::JSONQuery;
 use config;
+use dashmap::DashMap;
 use jq_rs::{self, JqProgram};
 use protobuf::{self, MessageDyn};
 use protobuf_parse;
@@ -39,6 +41,16 @@ pub struct ServiceError {
     err: String,
 }
 
+impl ServiceError {
+    pub fn new(err: &str) -> Self {
+        ServiceError {
+            err: String::from_str(err).unwrap(),
+        }
+    }
+}
+
+pub type ServiceResult<T> = Result<T, ServiceError>;
+
 impl Display for ServiceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "unable to create service object: {}", self.err)
@@ -56,7 +68,7 @@ impl Value {
 }
 
 pub trait Handler {
-    fn parse_payload(&self, buf: &[u8]) -> Value;
+    fn parse_payload(&self, buf: &[u8]) -> ServiceResult<Value>;
 }
 
 pub union MethodAPI {
@@ -114,18 +126,18 @@ impl Clone for Message {
 
 pub struct Method {
     pub api: MethodAPI,
-    pub handler: Pin<Box<dyn Handler>>,
+    pub handler: Pin<Box<dyn Handler + Sync + Send + 'static>>,
     pub input_message: String,
     pub output_message: String,
 }
 
-pub type Services = HashMap<String, Service>;
+pub type Services = DashMap<String, Service>;
 
 pub struct Service {
     pub name: String,
     pub protocol: Protocol,
-    pub methods: HashMap<String, Method>,
-    pub messages: HashMap<String, Message>,
+    pub methods: DashMap<String, Method>,
+    pub messages: DashMap<String, Message>,
 }
 
 impl Service {
@@ -232,7 +244,7 @@ impl Service {
         Ok(())
     }
 
-    fn handler_from_http_api(api: http::API) -> Pin<Box<dyn Handler + 'static>> {
+    fn handler_from_http_api(api: http::API) -> Pin<Box<dyn Handler + Sync + Send + 'static>> {
         match api.content_type.as_str() {
             "application/json" => Box::pin(HttpJsonHandler::new(api.pattern.unwrap())),
         }
@@ -241,7 +253,7 @@ impl Service {
 
 pub struct HttpJsonHandler {
     pub method: http::api::Pattern,
-    prog: JqProgram,
+    prog: JSONQuery,
 }
 
 impl HttpJsonHandler {
@@ -255,15 +267,22 @@ impl HttpJsonHandler {
         };
         Self {
             method,
-            prog: jq_rs::compile(prog.as_str()).unwrap(),
+            prog: JSONQuery::parse(prog.as_str()).unwrap(),
         }
     }
 }
 
 impl Handler for HttpJsonHandler {
-    fn parse_payload(&self, buf: &[u8]) -> Value {
-        let pr = self.prog.run(str::from_utf8(buf).unwrap()).unwrap();
-        Value::new(pr)
+    fn parse_payload(&self, buf: &[u8]) -> ServiceResult<Value> {
+        let json: serde_json::Value = serde_json::from_slice(buf).unwrap();
+        let pr = self.prog.execute(&json).unwrap();
+        let result = pr.unwrap();
+        match result.as_str() {
+            Some(v) => Ok(Value::new(String::from_str(v).unwrap())),
+            None => Err(ServiceError::new(
+                "result was unable to be serialized into String",
+            )),
+        }
     }
 }
 

@@ -10,6 +10,7 @@ keywords = ["bpf", "ebpf", "build", "bindgen", "redbpf"]
 publish = false
 
 [dependencies]
+access-json = "0.1.0"
 probes = { path = "./probes", package = "probes" }
 clap = "2.34.0"
 config = "0.11.0"

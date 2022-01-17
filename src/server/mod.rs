@@ -14,7 +14,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tonic;
 
 pub struct Server {
-    services: services::Services,
+    services: Arc<services::Services>,
 }
 
 impl Server {
@@ -32,12 +32,13 @@ impl Server {
         Ok(())
     }
 
-    async fn serve(&self, socket: TcpStream) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn serve(&self, socket: TcpStream) -> Result<(), Box<dyn Error + Send + Sync + '_>> {
         let mut conn = server::handshake(socket).await?;
         while let Some(result) = conn.accept().await {
             let (req, resp) = result?;
+            let services = self.services.clone();
             tokio::spawn(async move {
-                if let Err(e) = self.handle_request(req, resp).await {
+                if let Err(e) = Server::handle_request(services, req, resp).await {
                     println!("error handling request: {}", e);
                 }
             });
@@ -46,7 +47,7 @@ impl Server {
     }
 
     async fn handle_request(
-        &self,
+        services: Arc<services::Services>,
         mut request: Request<RecvStream>,
         mut respond: SendResponse<Bytes>,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -67,7 +68,7 @@ impl Server {
         let service = path.next().unwrap();
         let method = path.next().unwrap();
 
-        let service = self.services.get(service).unwrap();
+        let service = services.get(service).unwrap();
         let method = service.methods.get(method).unwrap();
         let message = service.messages.get(&method.input_message).unwrap();
         let message = message.from_bytes(&data[..])?;
