@@ -975,11 +975,12 @@ dependencies = [
  "jq-rs",
  "libc",
  "probes",
- "protobuf 3.0.0-alpha.2",
+ "protobuf 2.25.2",
  "protobuf-parse",
  "protoc-rust",
  "protofish",
  "redbpf",
+ "serde-protobuf",
  "serde_json",
  "tokio",
  "tokio-test",
@@ -1243,9 +1244,6 @@ checksum = "47c327e191621a2158159df97cdbc2e7074bb4e940275e35abf38eb3d2595754"
 name = "protobuf"
 version = "3.0.0-alpha.2"
 source = "git+https://github.com/stepancheg/rust-protobuf.git?branch=master#aa516f28f26f964c0b5580bf74928d97489418f7"
-dependencies = [
- "bytes",
-]
 
 [[package]]
 name = "protobuf-codegen"
@@ -1572,6 +1570,19 @@ dependencies = [
  "num-traits 0.1.43",
  "regex",
  "serde 0.8.23",
+]
+
+[[package]]
+name = "serde-protobuf"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "386e6493f9a732832e6b595ac2757a3c8c9285f4ab0c27313b7696b1712c32e4"
+dependencies = [
+ "linked-hash-map",
+ "log",
+ "protobuf 2.25.2",
+ "serde 1.0.130",
+ "thiserror",
 ]
 
 [[package]]

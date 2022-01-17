@@ -3,8 +3,9 @@ use access_json::JSONQuery;
 use config;
 use dashmap::DashMap;
 use jq_rs::{self, JqProgram};
-use protobuf::{self, MessageDyn};
+use protobuf;
 use protobuf_parse;
+use serde_protobuf;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::mem::ManuallyDrop;
@@ -68,7 +69,8 @@ impl Value {
 }
 
 pub trait Handler {
-    fn parse_payload(&self, buf: &[u8]) -> ServiceResult<Value>;
+    fn from_payload(&self, buf: &[u8]) -> ServiceResult<Value>;
+    fn from_proto(&self, message: protobuf::descriptor::DescriptorProto) -> ServiceResult<Value>;
 }
 
 pub union MethodAPI {
@@ -254,6 +256,7 @@ impl Service {
 pub struct HttpJsonHandler {
     pub method: http::api::Pattern,
     prog: JSONQuery,
+    path: String,
 }
 
 impl HttpJsonHandler {
@@ -265,18 +268,33 @@ impl HttpJsonHandler {
             http::api::Pattern::delete(x) => x,
             http::api::Pattern::patch(x) => x,
         };
+        let path = prog.to_string();
         Self {
             method,
-            prog: JSONQuery::parse(prog.as_str()).unwrap(),
+            prog: JSONQuery::parse(path.as_str()).unwrap(),
+            path,
         }
     }
 }
 
 impl Handler for HttpJsonHandler {
-    fn parse_payload(&self, buf: &[u8]) -> ServiceResult<Value> {
+    fn from_payload(&self, buf: &[u8]) -> ServiceResult<Value> {
         let json: serde_json::Value = serde_json::from_slice(buf).unwrap();
         let pr = self.prog.execute(&json).unwrap();
         let result = pr.unwrap();
+        match result.as_str() {
+            Some(v) => Ok(Value::new(String::from_str(v).unwrap())),
+            None => Err(ServiceError::new(
+                "result was unable to be serialized into String",
+            )),
+        }
+    }
+
+    fn from_proto(&self, message: protobuf::descriptor::DescriptorProto) -> ServiceResult<Value> {
+        use serde_protobuf::descriptor::MessageDescriptor;
+        let message = MessageDescriptor::from_proto("", &message);
+        let value = self.prog.execute(&message).unwrap();
+        let result = value.unwrap();
         match result.as_str() {
             Some(v) => Ok(Value::new(String::from_str(v).unwrap())),
             None => Err(ServiceError::new(
