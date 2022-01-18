@@ -71,7 +71,7 @@ impl Server {
         let service = services.get(service).unwrap();
         let method = service.methods.get(method).unwrap();
         let message = service.messages.get(&method.input_message).unwrap();
-        let message = message.from_bytes(&data[..])?;
+        // let message = message.from_bytes(&data[..])?;
 
         let response = http::Response::new(());
         let mut send = respond.send_response(response, false)?;

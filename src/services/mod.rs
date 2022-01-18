@@ -59,6 +59,7 @@ impl Display for ServiceError {
     }
 }
 
+#[derive(Debug)]
 pub enum Value {
     String(Vec<String>),
     Int32(Vec<i32>),
@@ -91,7 +92,7 @@ impl Value {
             TYPE_INT64 => todo!(),
             TYPE_UINT64 => todo!(),
             TYPE_INT32 => {
-                let target = Vec::new();
+                let mut target = Vec::new();
                 protobuf::rt::read_repeated_int32_into(wire_type, input, &mut target)?;
                 Ok(Self::Int32(target))
             }
@@ -99,7 +100,7 @@ impl Value {
             TYPE_FIXED32 => todo!(),
             TYPE_BOOL => todo!(),
             TYPE_STRING => {
-                let target = Vec::new();
+                let mut target = Vec::new();
                 protobuf::rt::read_repeated_string_into(wire_type, input, &mut target)?;
                 Ok(Self::String(target))
             }
@@ -159,7 +160,7 @@ impl Message {
     pub fn fields_from_bytes(&self, buf: &[u8]) -> protobuf::ProtobufResult<Fields> {
         // let buf = protobuf::CodedInputStream::from_bytes(buf);
         // let buf = protobuf::well_known_types::Any::parse_from_bytes(buf).unwrap();
-        let input = protobuf::CodedInputStream::from_bytes(buf);
+        let mut input = protobuf::CodedInputStream::from_bytes(buf);
         // let target = protobuf::well_known_types::Any::default();
 
         Ok(self
@@ -188,13 +189,13 @@ mod message_tests {
         use super::*;
         use protobuf::descriptor::field_descriptor_proto::Type::*;
 
-        let d = protobuf::descriptor::DescriptorProto::new();
-        let field = protobuf::descriptor::FieldDescriptorProto::new();
-        field.set_name(String::from_str("a"));
+        let mut d = protobuf::descriptor::DescriptorProto::new();
+        let mut field = protobuf::descriptor::FieldDescriptorProto::new();
+        field.set_name("a".to_string());
         field.set_field_type(TYPE_INT32);
         d.field = vec![field];
 
-        let m = Message::new(d, "");
+        let m = Message::new(d, "".to_string());
         let buf: &[u8] = &[0x08, 0x96, 0x01];
         println!("{:?}", m.fields_from_bytes(buf));
     }
@@ -253,11 +254,16 @@ impl Service {
         let services = cfg.get_table("service").unwrap();
         Ok(services
             .iter()
-            .map(|(name, value)| (name.clone(), Self::service_from_config_value(name, value)))
+            .map(|(name, value)| {
+                (
+                    name.clone(),
+                    Self::service_from_config_value(name, value.clone()),
+                )
+            })
             .collect())
     }
 
-    fn service_from_config_value(name: &String, value: &config::Value) -> Self {
+    fn service_from_config_value(name: &String, value: config::Value) -> Self {
         let service = value.into_table().unwrap();
         let proto = {
             let p = service.get("proto").unwrap();
@@ -366,7 +372,7 @@ impl Handler for HttpJsonHandler {
         let pr = self.prog.execute(&json).unwrap();
         let result = pr.unwrap();
         match result.as_str() {
-            Some(v) => Ok(Value::new(String::from_str(v).unwrap())),
+            Some(v) => Ok(Value::from_string(String::from_str(v).unwrap())),
             None => Err(ServiceError::new(
                 "result was unable to be serialized into String",
             )),
@@ -377,7 +383,7 @@ impl Handler for HttpJsonHandler {
         let value = self.prog.execute(&message).unwrap();
         let result = value.unwrap();
         match result.as_str() {
-            Some(v) => Ok(Value::new(String::from_str(v).unwrap())),
+            Some(v) => Ok(Value::from_string(String::from_str(v).unwrap())),
             None => Err(ServiceError::new(
                 "result was unable to be serialized into String",
             )),
