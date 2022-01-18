@@ -44,20 +44,22 @@ pub struct ServiceError {
 }
 
 impl ServiceError {
-    pub fn new(err: &str) -> Self {
-        ServiceError {
+    pub fn new(err: &str) -> Box<Self> {
+        Box::new(ServiceError {
             err: String::from_str(err).unwrap(),
-        }
+        })
     }
 }
 
-pub type ServiceResult<T> = Result<T, ServiceError>;
+pub type ServiceResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 impl Display for ServiceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "unable to create service object: {}", self.err)
     }
 }
+
+impl std::error::Error for ServiceError {}
 
 #[derive(Debug)]
 pub enum Value {
@@ -266,7 +268,7 @@ impl Service {
     fn service_from_config_value(name: &String, value: config::Value) -> Self {
         let service = value.into_table().unwrap();
         let proto = {
-            let p = service.get("proto").unwrap();
+            let p = service.get("proto").unwrap().clone();
             let p = p.into_str().unwrap();
             p
         };
@@ -323,7 +325,7 @@ impl Service {
                     Method {
                         input_message: method.get_input_type().to_string(),
                         output_message: method.get_output_type().to_string(),
-                        handler: Service::handler_from_http_api(api),
+                        handler: Service::handler_from_http_api(api.clone()),
                         api: MethodAPI {
                             http: ManuallyDrop::new(api),
                         },
@@ -338,6 +340,7 @@ impl Service {
     fn handler_from_http_api(api: http::API) -> Pin<Box<dyn Handler + Sync + Send + 'static>> {
         match api.content_type.as_str() {
             "application/json" => Box::pin(HttpJsonHandler::new(api.pattern.unwrap())),
+            e => panic!("unknown http api content type: {}", e),
         }
     }
 }
@@ -350,12 +353,9 @@ pub struct HttpJsonHandler {
 
 impl HttpJsonHandler {
     pub fn new(method: http::api::Pattern) -> Self {
+        use proto::http::api::Pattern::*;
         let prog = match method {
-            http::api::Pattern::get(x) => x,
-            http::api::Pattern::put(x) => x,
-            http::api::Pattern::post(x) => x,
-            http::api::Pattern::delete(x) => x,
-            http::api::Pattern::patch(x) => x,
+            get(ref x) | put(ref x) | post(ref x) | delete(ref x) | patch(ref x) => x,
         };
         let path = prog.to_string();
         Self {
