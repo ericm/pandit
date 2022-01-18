@@ -9,7 +9,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ed51fb0cfa6f88331d4424a7aca87146b315a3b5bd2bbad298ec855718ef9df"
 dependencies = [
  "erased-serde",
- "serde 1.0.130",
+ "serde 1.0.133",
  "serde_derive",
  "serde_json",
 ]
@@ -323,7 +323,7 @@ dependencies = [
  "lazy_static",
  "nom 5.1.2",
  "rust-ini",
- "serde 1.0.130",
+ "serde 1.0.133",
  "serde-hjson",
  "serde_json",
  "toml",
@@ -373,7 +373,7 @@ version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44a5d80251b806a14cd3e4e1a582e912d5cbf6904ab19fdefbd7a56adca088e1"
 dependencies = [
- "serde 1.0.130",
+ "serde 1.0.133",
 ]
 
 [[package]]
@@ -975,12 +975,12 @@ dependencies = [
  "jq-rs",
  "libc",
  "probes",
- "protobuf 2.25.2",
+ "protobuf 3.0.0-alpha.2",
  "protobuf-parse",
  "protoc-rust",
  "protofish",
  "redbpf",
- "serde-protobuf",
+ "serde 1.0.133",
  "serde_json",
  "tokio",
  "tokio-test",
@@ -1244,6 +1244,10 @@ checksum = "47c327e191621a2158159df97cdbc2e7074bb4e940275e35abf38eb3d2595754"
 name = "protobuf"
 version = "3.0.0-alpha.2"
 source = "git+https://github.com/stepancheg/rust-protobuf.git?branch=master#aa516f28f26f964c0b5580bf74928d97489418f7"
+dependencies = [
+ "serde 1.0.133",
+ "serde_derive",
+]
 
 [[package]]
 name = "protobuf-codegen"
@@ -1556,9 +1560,12 @@ checksum = "9dad3f759919b92c3068c696c15c3d17238234498bbdcc80f2c469606f948ac8"
 
 [[package]]
 name = "serde"
-version = "1.0.130"
+version = "1.0.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f12d06de37cf59146fbdecab66aa99f9fe4f78722e3607577a5375d66bd0c913"
+checksum = "97565067517b60e2d1ea8b268e59ce036de907ac523ad83a0475da04e818989a"
+dependencies = [
+ "serde_derive",
+]
 
 [[package]]
 name = "serde-hjson"
@@ -1570,19 +1577,6 @@ dependencies = [
  "num-traits 0.1.43",
  "regex",
  "serde 0.8.23",
-]
-
-[[package]]
-name = "serde-protobuf"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "386e6493f9a732832e6b595ac2757a3c8c9285f4ab0c27313b7696b1712c32e4"
-dependencies = [
- "linked-hash-map",
- "log",
- "protobuf 2.25.2",
- "serde 1.0.130",
- "thiserror",
 ]
 
 [[package]]
@@ -1604,7 +1598,7 @@ checksum = "063bf466a64011ac24040a49009724ee60a57da1b437617ceb32e53ad61bfb19"
 dependencies = [
  "itoa 0.4.8",
  "ryu",
- "serde 1.0.130",
+ "serde 1.0.133",
 ]
 
 [[package]]
@@ -1856,7 +1850,7 @@ version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31142970826733df8241ef35dc040ef98c679ab14d7c3e54d827099b3acecaa"
 dependencies = [
- "serde 1.0.130",
+ "serde 1.0.133",
 ]
 
 [[package]]
@@ -2041,7 +2035,7 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb65ea441fbb84f9f6748fd496cf7f63ec9af5bca94dd86456978d055e8eb28b"
 dependencies = [
- "serde 1.0.130",
+ "serde 1.0.133",
  "tracing-core",
 ]
 
@@ -2056,7 +2050,7 @@ dependencies = [
  "lazy_static",
  "matchers",
  "regex",
- "serde 1.0.130",
+ "serde 1.0.133",
  "serde_json",
  "sharded-slab",
  "smallvec",

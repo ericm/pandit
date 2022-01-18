@@ -3,9 +3,10 @@ use access_json::JSONQuery;
 use config;
 use dashmap::DashMap;
 use jq_rs::{self, JqProgram};
-use protobuf;
+use protobuf::descriptor::FieldDescriptorProto;
+use protobuf::reflect::ProtobufValue;
+use protobuf::{self, CodedInputStream, MessageDyn, ProtobufResult};
 use protobuf_parse;
-use serde_protobuf;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::mem::ManuallyDrop;
@@ -58,13 +59,60 @@ impl Display for ServiceError {
     }
 }
 
-pub struct Value {
-    pub value: String,
+pub enum Value {
+    String(Vec<String>),
+    Int32(Vec<i32>),
+    UInt32(Vec<u32>),
 }
 
 impl Value {
-    fn new(val: String) -> Self {
-        Self { value: val }
+    pub fn from_string(val: String) -> Self {
+        Self::String(vec![val])
+    }
+
+    pub fn from_int32(val: i32) -> Self {
+        Self::Int32(vec![val])
+    }
+
+    pub fn from_uint32(val: u32) -> Self {
+        Self::UInt32(vec![val])
+    }
+
+    fn from_field_descriptor_proto(
+        input: &mut CodedInputStream,
+        field: &FieldDescriptorProto,
+    ) -> ProtobufResult<Self> {
+        use protobuf::descriptor::field_descriptor_proto::Type::*;
+        let (field_number, wire_type) = input.read_tag_unpack().unwrap();
+
+        match field.get_field_type() {
+            TYPE_DOUBLE => todo!(),
+            TYPE_FLOAT => todo!(),
+            TYPE_INT64 => todo!(),
+            TYPE_UINT64 => todo!(),
+            TYPE_INT32 => {
+                let target = Vec::new();
+                protobuf::rt::read_repeated_int32_into(wire_type, input, &mut target)?;
+                Ok(Self::Int32(target))
+            }
+            TYPE_FIXED64 => todo!(),
+            TYPE_FIXED32 => todo!(),
+            TYPE_BOOL => todo!(),
+            TYPE_STRING => {
+                let target = Vec::new();
+                protobuf::rt::read_repeated_string_into(wire_type, input, &mut target)?;
+                Ok(Self::String(target))
+            }
+            TYPE_GROUP => todo!(),
+            TYPE_MESSAGE => todo!(),
+            TYPE_BYTES => todo!(),
+            TYPE_UINT32 => todo!(),
+            TYPE_ENUM => todo!(),
+            TYPE_SFIXED32 => todo!(),
+            TYPE_SFIXED64 => todo!(),
+            TYPE_SINT32 => todo!(),
+            TYPE_SINT64 => todo!(),
+        }
     }
 }
 
@@ -110,9 +158,28 @@ impl Message {
         &self,
         buf: &[u8],
     ) -> protobuf::ProtobufResult<protobuf::descriptor::DescriptorProto> {
-        let buf = protobuf::CodedInputStream::from_bytes(buf);
-        let mut message = self.message.clone();
-        message.merge_from_dyn(&mut buf)?;
+        // let buf = protobuf::CodedInputStream::from_bytes(buf);
+        // let buf = protobuf::well_known_types::Any::parse_from_bytes(buf).unwrap();
+        let input = protobuf::CodedInputStream::from_bytes(buf);
+        let target = protobuf::well_known_types::Any::default();
+
+        let field_map: DashMap<String, Option<Value>> = self
+            .message
+            .field
+            .iter()
+            .map(|field| {
+                (
+                    String::from(field.get_name()),
+                    match Value::from_field_descriptor_proto(&mut input, field) {
+                        Ok(val) => Some(val),
+                        Err(e) => {
+                            println!("soft proto parsing error: {:?}", e);
+                            None
+                        }
+                    },
+                )
+            })
+            .collect();
         Ok(message)
     }
 }
@@ -291,8 +358,6 @@ impl Handler for HttpJsonHandler {
     }
 
     fn from_proto(&self, message: protobuf::descriptor::DescriptorProto) -> ServiceResult<Value> {
-        use serde_protobuf::descriptor::MessageDescriptor;
-        let message = MessageDescriptor::from_proto("", &message);
         let value = self.prog.execute(&message).unwrap();
         let result = value.unwrap();
         match result.as_str() {
