@@ -28,6 +28,8 @@ pub mod http {
     pub use crate::proto::http::API;
 }
 
+pub type ServiceResult<T> = Result<T, Box<dyn std::error::Error>>;
+
 impl FromStr for Protocol {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -51,8 +53,6 @@ impl ServiceError {
     }
 }
 
-pub type ServiceResult<T> = Result<T, Box<dyn std::error::Error>>;
-
 impl Display for ServiceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "unable to create service object: {}", self.err)
@@ -61,7 +61,7 @@ impl Display for ServiceError {
 
 impl std::error::Error for ServiceError {}
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Value {
     String(Vec<String>),
     Int32(Vec<i32>),
@@ -186,11 +186,16 @@ impl Message {
 }
 
 mod message_tests {
+    use std::hash::Hash;
+
+    use super::ServiceResult;
+
     #[test]
-    fn test_file_from_bytes() {
+    fn test_file_from_bytes_varint() -> ServiceResult<()> {
         use super::*;
         use protobuf::descriptor::field_descriptor_proto::Type::*;
 
+        let buf: &[u8] = &[0x08, 0x96, 0x01];
         let mut d = protobuf::descriptor::DescriptorProto::new();
         let mut field = protobuf::descriptor::FieldDescriptorProto::new();
         field.set_name("a".to_string());
@@ -198,8 +203,15 @@ mod message_tests {
         d.field = vec![field];
 
         let m = Message::new(d, "".to_string());
-        let buf: &[u8] = &[0x08, 0x96, 0x01];
-        println!("{:?}", m.fields_from_bytes(buf));
+        let output = m
+            .fields_from_bytes(buf)?
+            .get(&"a".to_string())
+            .ok_or(ServiceError::new("fieds incorrect"))?
+            .value()
+            .clone()
+            .ok_or(ServiceError::new("fieds incorrect"))?;
+        assert_eq!(output, Value::from_int32(150));
+        Ok(())
     }
 }
 
