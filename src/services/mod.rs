@@ -146,6 +146,8 @@ pub struct Message {
     message: protobuf::descriptor::DescriptorProto,
 }
 
+pub type Fields = DashMap<String, Option<Value>>;
+
 impl Message {
     fn new(message: protobuf::descriptor::DescriptorProto, path: String) -> Self {
         Self {
@@ -154,16 +156,13 @@ impl Message {
         }
     }
 
-    pub fn from_bytes(
-        &self,
-        buf: &[u8],
-    ) -> protobuf::ProtobufResult<protobuf::descriptor::DescriptorProto> {
+    pub fn fields_from_bytes(&self, buf: &[u8]) -> protobuf::ProtobufResult<Fields> {
         // let buf = protobuf::CodedInputStream::from_bytes(buf);
         // let buf = protobuf::well_known_types::Any::parse_from_bytes(buf).unwrap();
         let input = protobuf::CodedInputStream::from_bytes(buf);
-        let target = protobuf::well_known_types::Any::default();
+        // let target = protobuf::well_known_types::Any::default();
 
-        let field_map: DashMap<String, Option<Value>> = self
+        Ok(self
             .message
             .field
             .iter()
@@ -179,8 +178,25 @@ impl Message {
                     },
                 )
             })
-            .collect();
-        Ok(message)
+            .collect())
+    }
+}
+
+mod message_tests {
+    #[test]
+    fn test_file_from_bytes() {
+        use super::*;
+        use protobuf::descriptor::field_descriptor_proto::Type::*;
+
+        let d = protobuf::descriptor::DescriptorProto::new();
+        let field = protobuf::descriptor::FieldDescriptorProto::new();
+        field.set_name(String::from_str("a"));
+        field.set_field_type(TYPE_INT32);
+        d.field = vec![field];
+
+        let m = Message::new(d, "");
+        let buf: &[u8] = &[0x08, 0x96, 0x01];
+        println!("{:?}", m.fields_from_bytes(buf));
     }
 }
 
