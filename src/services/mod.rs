@@ -172,7 +172,6 @@ impl Message {
             .iter()
             .map(|field| {
                 let number = u32::try_from(field.get_number()).unwrap();
-                println!("init {}", number);
                 (number, field.clone())
             })
             .collect();
@@ -197,7 +196,6 @@ impl Message {
         len: u64,
     ) -> ServiceResult<Fields> {
         let fields = Fields::new();
-        println!("lllne {}", len);
         while input.pos() < len && !input.eof()? {
             let (name, value) = match self.from_field_descriptor_proto(input) {
                 Ok(val) => val,
@@ -222,7 +220,6 @@ impl Message {
         let field = self.fields.get(&number).ok_or(ServiceError::new(
             format!("field unknown: number({})", number).as_str(),
         ))?;
-        println!("field: {} {}", field.get_name(), field.get_type_name());
         Ok((
             field.get_name().to_string(),
             match field.get_field_type() {
@@ -309,10 +306,7 @@ impl Message {
                 TYPE_MESSAGE => {
                     let message_name = field.get_type_name().to_string();
                     match self.parse_another_message(input, &message_name, field) {
-                        Ok(v) => {
-                            println!("parse {:?}", v);
-                            Some(Value::Message(v))
-                        }
+                        Ok(v) => Some(Value::Message(v)),
                         _ => None,
                     }
                 }
@@ -328,12 +322,10 @@ impl Message {
         field: Ref<u32, FieldDescriptorProto>,
     ) -> ServiceResult<Vec<(String, Fields)>> {
         use protobuf::descriptor::field_descriptor_proto::Label::*;
-        println!("another");
         let parent = self.parent.clone();
         let message = parent.get(message_name).ok_or(ServiceError::new(
             format!("no message called: {}", message_name).as_str(),
         ))?;
-        println!("m {:?}", message.fields);
         let repeated_len = if field.get_label() == LABEL_REPEATED {
             input.pos() + input.read_raw_varint64()?
         } else {
@@ -342,7 +334,6 @@ impl Message {
         let mut output: Vec<(String, Fields)> = Vec::with_capacity(2);
         while input.pos() < repeated_len && !input.eof()? {
             let len = input.pos() + input.read_raw_varint64()?;
-            println!("len {}", len);
             output.push((
                 message_name.clone(),
                 message.fields_from_bytes_delimited(input, len)?,
@@ -393,6 +384,7 @@ mod message_tests {
     #[test]
     fn test_fields_from_bytes() -> ServiceResult<()> {
         use super::*;
+        use protobuf::descriptor::field_descriptor_proto::Label::{self, *};
         use protobuf::descriptor::field_descriptor_proto::Type::{self, *};
 
         let mut message2_fields: Fields = DashMap::new();
@@ -402,6 +394,7 @@ mod message_tests {
             field_type: Type,
             number: i32,
             type_name: String,
+            label: Label,
             want: Value,
         }
         let table = [
@@ -410,6 +403,7 @@ mod message_tests {
                 field_type: TYPE_INT32,
                 number: 1,
                 type_name: "".to_string(),
+                label: LABEL_OPTIONAL,
                 want: Value::from_int32(150),
             },
             Table {
@@ -417,6 +411,7 @@ mod message_tests {
                 field_type: TYPE_STRING,
                 number: 2,
                 type_name: "".to_string(),
+                label: LABEL_OPTIONAL,
                 want: Value::from_string("testing".to_string()),
             },
             Table {
@@ -424,7 +419,19 @@ mod message_tests {
                 field_type: TYPE_MESSAGE,
                 number: 3,
                 type_name: "Message2".to_string(),
-                want: Value::from_message("Message2".to_string(), message2_fields),
+                label: LABEL_OPTIONAL,
+                want: Value::from_message("Message2".to_string(), message2_fields.clone()),
+            },
+            Table {
+                name: "message_repeated".to_string(),
+                field_type: TYPE_MESSAGE,
+                number: 4,
+                type_name: "Message2".to_string(),
+                label: LABEL_REPEATED,
+                want: Value::Message(vec![
+                    ("Message2".to_string(), message2_fields.clone()),
+                    ("Message2".to_string(), message2_fields.clone()),
+                ]),
             },
         ];
 
@@ -432,6 +439,8 @@ mod message_tests {
             0x08, 0x96, 0x01, // Field varint
             0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67, // Field string
             0x1a, 0x03, 0x08, 0x96, 0x01, // Embedded message
+            0x22, 0x08, 0x03, 0x08, 0x96, 0x01, 0x03, 0x08, 0x96,
+            0x01, // Embedded message repeated x2
         ];
         let mut desc = protobuf::descriptor::DescriptorProto::new();
         for item in &table {
@@ -440,6 +449,7 @@ mod message_tests {
             field.set_field_type(item.field_type);
             field.set_number(item.number);
             field.set_type_name(item.type_name.clone());
+            field.set_label(item.label);
             desc.field.push(field);
         }
 
