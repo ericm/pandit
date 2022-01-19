@@ -80,43 +80,6 @@ impl Value {
     pub fn from_uint32(val: u32) -> Self {
         Self::UInt32(vec![val])
     }
-
-    fn from_field_descriptor_proto(
-        input: &mut CodedInputStream,
-        field: &FieldDescriptorProto,
-    ) -> ProtobufResult<Self> {
-        use protobuf::descriptor::field_descriptor_proto::Type::*;
-        let (field_number, wire_type) = input.read_tag_unpack().unwrap();
-
-        match field.get_field_type() {
-            TYPE_DOUBLE => todo!(),
-            TYPE_FLOAT => todo!(),
-            TYPE_INT64 => todo!(),
-            TYPE_UINT64 => todo!(),
-            TYPE_INT32 => {
-                let mut target = Vec::new();
-                protobuf::rt::read_repeated_int32_into(wire_type, input, &mut target)?;
-                Ok(Self::Int32(target))
-            }
-            TYPE_FIXED64 => todo!(),
-            TYPE_FIXED32 => todo!(),
-            TYPE_BOOL => todo!(),
-            TYPE_STRING => {
-                let mut target = Vec::new();
-                protobuf::rt::read_repeated_string_into(wire_type, input, &mut target)?;
-                Ok(Self::String(target))
-            }
-            TYPE_GROUP => todo!(),
-            TYPE_MESSAGE => todo!(),
-            TYPE_BYTES => todo!(),
-            TYPE_UINT32 => todo!(),
-            TYPE_ENUM => todo!(),
-            TYPE_SFIXED32 => todo!(),
-            TYPE_SFIXED64 => todo!(),
-            TYPE_SINT32 => todo!(),
-            TYPE_SINT64 => todo!(),
-        }
-    }
 }
 
 pub trait Handler {
@@ -146,6 +109,7 @@ impl Default for MessageField {
 
 pub struct Message {
     path: String,
+    fields: DashMap<u32, FieldDescriptorProto>,
     message: protobuf::descriptor::DescriptorProto,
 }
 
@@ -153,8 +117,18 @@ pub type Fields = DashMap<String, Option<Value>>;
 
 impl Message {
     fn new(message: protobuf::descriptor::DescriptorProto, path: String) -> Self {
+        let fields: DashMap<u32, FieldDescriptorProto> = message
+            .field
+            .iter()
+            .map(|field| {
+                let number = u32::try_from(field.get_number()).unwrap();
+                println!("init {}", number);
+                (number, field.clone())
+            })
+            .collect();
         Self {
-            path: Default::default(),
+            path,
+            fields,
             message,
         }
     }
@@ -165,23 +139,62 @@ impl Message {
         let mut input = protobuf::CodedInputStream::from_bytes(buf);
         // let target = protobuf::well_known_types::Any::default();
 
-        Ok(self
-            .message
-            .field
-            .iter()
-            .map(|field| {
-                (
-                    String::from(field.get_name()),
-                    match Value::from_field_descriptor_proto(&mut input, field) {
-                        Ok(val) => Some(val),
-                        Err(e) => {
-                            println!("soft proto parsing error: {:?}", e);
-                            None
-                        }
-                    },
-                )
-            })
-            .collect())
+        let fields = Fields::new();
+        while !input.eof()? {
+            let (name, value) = match self.from_field_descriptor_proto(&mut input) {
+                Ok(val) => val,
+                Err(e) => {
+                    eprintln!("soft proto parsing error: {:?}", e);
+                    continue;
+                }
+            };
+            fields.insert(name, value);
+        }
+
+        Ok(fields)
+    }
+
+    fn from_field_descriptor_proto(
+        &self,
+        input: &mut CodedInputStream,
+    ) -> ServiceResult<(String, Option<Value>)> {
+        use protobuf::descriptor::field_descriptor_proto::Type::*;
+        let tag = input.read_tag()?;
+        let (number, wire_type) = tag.unpack();
+        let field = self.fields.get(&number).ok_or(ServiceError::new(
+            format!("field unknown: number({})", number).as_str(),
+        ))?;
+        Ok((
+            field.get_name().to_string(),
+            match field.get_field_type() {
+                TYPE_DOUBLE => todo!(),
+                TYPE_FLOAT => todo!(),
+                TYPE_INT64 => todo!(),
+                TYPE_UINT64 => todo!(),
+                TYPE_INT32 => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_int32_into(wire_type, input, &mut target)?;
+                    Some(Value::Int32(target))
+                }
+                TYPE_FIXED64 => todo!(),
+                TYPE_FIXED32 => todo!(),
+                TYPE_BOOL => todo!(),
+                TYPE_STRING => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_string_into(wire_type, input, &mut target)?;
+                    Some(Value::String(target))
+                }
+                TYPE_GROUP => todo!(),
+                TYPE_MESSAGE => todo!(),
+                TYPE_BYTES => todo!(),
+                TYPE_UINT32 => todo!(),
+                TYPE_ENUM => todo!(),
+                TYPE_SFIXED32 => todo!(),
+                TYPE_SFIXED64 => todo!(),
+                TYPE_SINT32 => todo!(),
+                TYPE_SINT64 => todo!(),
+            },
+        ))
     }
 }
 
@@ -200,16 +213,17 @@ mod message_tests {
         let mut field = protobuf::descriptor::FieldDescriptorProto::new();
         field.set_name("a".to_string());
         field.set_field_type(TYPE_INT32);
+        field.set_number(1);
         d.field = vec![field];
 
         let m = Message::new(d, "".to_string());
         let output = m
             .fields_from_bytes(buf)?
             .get(&"a".to_string())
-            .ok_or(ServiceError::new("fieds incorrect"))?
+            .ok_or(ServiceError::new("fields incorrect"))?
             .value()
             .clone()
-            .ok_or(ServiceError::new("fieds incorrect"))?;
+            .ok_or(ServiceError::new("fields incorrect"))?;
         assert_eq!(output, Value::from_int32(150));
         Ok(())
     }
@@ -220,6 +234,7 @@ impl Clone for Message {
         Self {
             path: self.path.clone(),
             message: self.message.clone(),
+            fields: self.fields.clone(),
         }
     }
 }
