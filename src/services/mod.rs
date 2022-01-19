@@ -96,6 +96,29 @@ impl Value {
     }
 }
 
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::String(l0), Self::String(r0)) => l0 == r0,
+            (Self::Bytes(l0), Self::Bytes(r0)) => l0 == r0,
+            (Self::Int32(l0), Self::Int32(r0)) => l0 == r0,
+            (Self::Int64(l0), Self::Int64(r0)) => l0 == r0,
+            (Self::UInt32(l0), Self::UInt32(r0)) => l0 == r0,
+            (Self::UInt64(l0), Self::UInt64(r0)) => l0 == r0,
+            (Self::Float64(l0), Self::Float64(r0)) => l0 == r0,
+            (Self::Float32(l0), Self::Float32(r0)) => l0 == r0,
+            (Self::Bool(l0), Self::Bool(r0)) => l0 == r0,
+            (Self::Enum(l0), Self::Enum(r0)) => l0 == r0,
+            (Self::Message((l0, l1)), Self::Message((r0, r1))) => {
+                l0 == r0
+                    && l1.get(l0).unwrap().value().as_ref().unwrap()
+                        == r1.get(r0).unwrap().value().as_ref().unwrap()
+            }
+            _ => false,
+        }
+    }
+}
+
 pub trait Handler {
     fn from_payload(&self, buf: &[u8]) -> ServiceResult<Value>;
     fn from_proto(&self, message: protobuf::descriptor::DescriptorProto) -> ServiceResult<Value>;
@@ -125,7 +148,7 @@ pub struct Message {
     path: String,
     fields: DashMap<u32, FieldDescriptorProto>,
     message: protobuf::descriptor::DescriptorProto,
-    parent: Arc<Mutex<DashMap<String, Message>>>,
+    parent: Arc<DashMap<String, Message>>,
 }
 
 pub type Fields = DashMap<String, Option<Value>>;
@@ -134,7 +157,7 @@ impl Message {
     fn new(
         message: protobuf::descriptor::DescriptorProto,
         path: String,
-        parent: Arc<Mutex<DashMap<String, Message>>>,
+        parent: Arc<DashMap<String, Message>>,
     ) -> Self {
         let fields: DashMap<u32, FieldDescriptorProto> = message
             .field
@@ -275,7 +298,6 @@ impl Message {
                 }
                 TYPE_MESSAGE => {
                     let message_name = field.get_type_name().to_string();
-                    let parent = self.parent.clone();
                     match self.parse_another_message(input, &message_name) {
                         Ok(v) => Some(Value::Message((message_name, v))),
                         _ => None,
@@ -292,7 +314,6 @@ impl Message {
         message_name: &String,
     ) -> ServiceResult<Fields> {
         let parent = self.parent.clone();
-        let parent = parent.lock()?;
         let message = parent.get(message_name).ok_or(ServiceError::new(
             format!("no message called: {}", message_name).as_str(),
         ))?;
@@ -342,56 +363,64 @@ mod message_tests {
     #[test]
     fn test_fields_from_bytes() -> ServiceResult<()> {
         use super::*;
-        use protobuf::descriptor::field_descriptor_proto::Type::*;
+        use protobuf::descriptor::field_descriptor_proto::Type::{self, *};
+
+        struct Table {
+            name: String,
+            field_type: Type,
+            number: i32,
+            type_name: String,
+            want: Value,
+        }
+        let table = [
+            Table {
+                name: "varint".to_string(),
+                field_type: TYPE_INT32,
+                number: 1,
+                type_name: "".to_string(),
+                want: Value::from_int32(150),
+            },
+            Table {
+                name: "string".to_string(),
+                field_type: TYPE_STRING,
+                number: 2,
+                type_name: "".to_string(),
+                want: Value::from_string("testing".to_string()),
+            },
+            // Table {
+            //     name: "message",
+            //     field_type: TYPE_MESSAGE,
+            //     number: 3,
+            //     type_name: "Message2",
+            //     want: Value::from_string("testing".to_string()),
+            // }
+        ];
 
         let buf: &[u8] = &[
             0x08, 0x96, 0x01, 0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67,
         ];
-        let mut d = protobuf::descriptor::DescriptorProto::new();
-        let mut field = protobuf::descriptor::FieldDescriptorProto::new();
-        field.set_name("a".to_string());
-        field.set_field_type(TYPE_INT32);
-        field.set_number(1);
-        let mut field_str = protobuf::descriptor::FieldDescriptorProto::new();
-        field_str.set_name("string".to_string());
-        field_str.set_field_type(TYPE_STRING);
-        field_str.set_number(2);
-        let mut field_message = protobuf::descriptor::FieldDescriptorProto::new();
-        field_message.set_name("message".to_string());
-        field_message.set_field_type(TYPE_MESSAGE);
-        field_message.set_type_name("Message2".to_string());
-        field_message.set_number(3);
-        d.field = vec![field, field_str, field_message];
+        let mut desc = protobuf::descriptor::DescriptorProto::new();
+        for item in &table {
+            let mut field = protobuf::descriptor::FieldDescriptorProto::new();
+            field.set_name(item.name.clone());
+            field.set_field_type(item.field_type);
+            field.set_number(item.number);
+            field.set_type_name(item.type_name.clone());
+            desc.field.push(field);
+        }
 
-        let parent: Arc<Mutex<DashMap<String, Message>>> = Arc::new(Mutex::new(DashMap::new()));
-
-        let m = Message::new(d, "".to_string(), parent);
-        let output = m
-            .fields_from_bytes(buf)?
-            .get(&"a".to_string())
-            .ok_or(ServiceError::new("fields incorrect"))?
-            .value()
-            .clone()
-            .ok_or(ServiceError::new("fields incorrect"))?;
-        assert_eq!(
-            output,
-            Value::from_int32(150),
-            "expected 150, got {}",
-            output
-        );
-        let output = m
-            .fields_from_bytes(buf)?
-            .get(&"string".to_string())
-            .ok_or(ServiceError::new("fields incorrect"))?
-            .value()
-            .clone()
-            .ok_or(ServiceError::new("fields incorrect"))?;
-        assert_eq!(
-            output,
-            Value::from_string("testing".to_string()),
-            "expected testing, got {}",
-            output
-        );
+        let parent: Arc<DashMap<String, Message>> = Arc::new(DashMap::new());
+        let m = Message::new(desc, "".to_string(), parent);
+        for item in &table {
+            let output = m
+                .fields_from_bytes(buf)?
+                .get(&item.name)
+                .ok_or(ServiceError::new("fields incorrect"))?
+                .value()
+                .clone()
+                .ok_or(ServiceError::new("fields incorrect"))?;
+            assert_eq!(output, item.want, "expected 150, got {:?}", output);
+        }
         Ok(())
     }
 }
@@ -420,7 +449,7 @@ pub struct Service {
     pub name: String,
     pub protocol: Protocol,
     pub methods: DashMap<String, Method>,
-    pub messages: Arc<Mutex<DashMap<String, Message>>>,
+    pub messages: Arc<DashMap<String, Message>>,
 }
 
 impl Service {
@@ -486,19 +515,22 @@ impl Service {
         file: &protobuf::descriptor::FileDescriptorProto,
     ) -> Result<(), ServiceError> {
         use proto::pandit::exts;
-        self.messages = Arc::new(Mutex::new(DashMap::new()));
-        let messages: DashMap<String, Message> = file
-            .message_type
-            .iter()
-            .map(|message| {
-                let name = message.get_name().to_string();
-                let opts = message.options.get_ref();
-                let path = exts::path.get(opts).unwrap();
-                let mut config = Message::new(message.clone(), path, self.messages.clone());
-                (name, config)
-            })
-            .collect();
-        self.messages.lock().unwrap().extend(messages);
+        self.messages = Arc::new(DashMap::new());
+        self.messages = Arc::new(
+            file.message_type
+                .iter()
+                .map(|message| {
+                    let name = message.get_name().to_string();
+                    let opts = message.options.get_ref();
+                    let path = exts::path.get(opts).unwrap();
+                    let mut config = Message::new(message.clone(), path, self.messages.clone());
+                    (name, config)
+                })
+                .collect(),
+        );
+        self.messages
+            .iter_mut()
+            .for_each(|mut m| m.parent = self.messages.clone());
         Ok(())
     }
 
