@@ -10,6 +10,7 @@ use protobuf::reflect::ProtobufValue;
 use protobuf::reflect::ReflectValueBox;
 use protobuf::reflect::ReflectValueRef;
 use protobuf::reflect::RuntimeTypeBox;
+use protobuf::wire_format::Tag;
 use protobuf::{self, CodedInputStream, MessageDyn, ProtobufResult};
 use protobuf_parse;
 use std::collections::HashMap;
@@ -66,7 +67,7 @@ impl Display for ServiceError {
 
 impl std::error::Error for ServiceError {}
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub enum Value {
     String(Vec<String>),
     Bytes(Vec<Vec<u8>>),
@@ -78,6 +79,7 @@ pub enum Value {
     Float32(Vec<f32>),
     Bool(Vec<bool>),
     Enum(Vec<ProtoEnum>),
+    Message((String, Fields)),
 }
 
 impl Value {
@@ -123,12 +125,17 @@ pub struct Message {
     path: String,
     fields: DashMap<u32, FieldDescriptorProto>,
     message: protobuf::descriptor::DescriptorProto,
+    parent: Arc<Mutex<DashMap<String, Message>>>,
 }
 
 pub type Fields = DashMap<String, Option<Value>>;
 
 impl Message {
-    fn new(message: protobuf::descriptor::DescriptorProto, path: String) -> Self {
+    fn new(
+        message: protobuf::descriptor::DescriptorProto,
+        path: String,
+        parent: Arc<Mutex<DashMap<String, Message>>>,
+    ) -> Self {
         let fields: DashMap<u32, FieldDescriptorProto> = message
             .field
             .iter()
@@ -142,18 +149,25 @@ impl Message {
             path,
             fields,
             message,
+            parent,
         }
     }
 
-    pub fn fields_from_bytes(&self, buf: &[u8]) -> protobuf::ProtobufResult<Fields> {
-        // let buf = protobuf::CodedInputStream::from_bytes(buf);
-        // let buf = protobuf::well_known_types::Any::parse_from_bytes(buf).unwrap();
-        let mut input = protobuf::CodedInputStream::from_bytes(buf);
-        // let target = protobuf::well_known_types::Any::default();
+    pub fn fields_from_bytes(&self, buf: &[u8]) -> ServiceResult<Fields> {
+        use std::convert::TryInto;
 
+        let mut input = protobuf::CodedInputStream::from_bytes(buf);
+        self.fields_from_bytes_delimited(&mut input, buf.len().try_into()?)
+    }
+
+    fn fields_from_bytes_delimited(
+        &self,
+        input: &mut CodedInputStream,
+        len: u64,
+    ) -> ServiceResult<Fields> {
         let fields = Fields::new();
-        while !input.eof()? {
-            let (name, value) = match self.from_field_descriptor_proto(&mut input) {
+        while input.pos() < len && !input.eof()? {
+            let (name, value) = match self.from_field_descriptor_proto(input) {
                 Ok(val) => val,
                 Err(e) => {
                     eprintln!("soft proto parsing error: {:?}", e);
@@ -253,16 +267,37 @@ impl Message {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_sint64_into(wire_type, input, &mut target)?;
                     Some(Value::Int64(target))
-                },
+                }
                 TYPE_ENUM => {
                     let mut target: Vec<ProtoEnum> = Vec::new();
                     protobuf::rt::read_repeated_enum_into(wire_type, input, &mut target)?;
                     Some(Value::Enum(target))
                 }
-                TYPE_MESSAGE => todo!(),
+                TYPE_MESSAGE => {
+                    let message_name = field.get_type_name().to_string();
+                    let parent = self.parent.clone();
+                    match self.parse_another_message(input, &message_name) {
+                        Ok(v) => Some(Value::Message((message_name, v))),
+                        _ => None,
+                    }
+                }
                 _ => None,
             },
         ))
+    }
+
+    fn parse_another_message(
+        &self,
+        input: &mut CodedInputStream,
+        message_name: &String,
+    ) -> ServiceResult<Fields> {
+        let parent = self.parent.clone();
+        let parent = parent.lock()?;
+        let message = parent.get(message_name).ok_or(ServiceError::new(
+            format!("no message called: {}", message_name).as_str(),
+        ))?;
+        let len = input.read_raw_varint64()?;
+        message.fields_from_bytes_delimited(input, len)
     }
 }
 
@@ -305,19 +340,32 @@ mod message_tests {
     use super::ServiceResult;
 
     #[test]
-    fn test_file_from_bytes_varint() -> ServiceResult<()> {
+    fn test_fields_from_bytes() -> ServiceResult<()> {
         use super::*;
         use protobuf::descriptor::field_descriptor_proto::Type::*;
 
-        let buf: &[u8] = &[0x08, 0x96, 0x01];
+        let buf: &[u8] = &[
+            0x08, 0x96, 0x01, 0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67,
+        ];
         let mut d = protobuf::descriptor::DescriptorProto::new();
         let mut field = protobuf::descriptor::FieldDescriptorProto::new();
         field.set_name("a".to_string());
         field.set_field_type(TYPE_INT32);
         field.set_number(1);
-        d.field = vec![field];
+        let mut field_str = protobuf::descriptor::FieldDescriptorProto::new();
+        field_str.set_name("string".to_string());
+        field_str.set_field_type(TYPE_STRING);
+        field_str.set_number(2);
+        let mut field_message = protobuf::descriptor::FieldDescriptorProto::new();
+        field_message.set_name("message".to_string());
+        field_message.set_field_type(TYPE_MESSAGE);
+        field_message.set_type_name("Message2".to_string());
+        field_message.set_number(3);
+        d.field = vec![field, field_str, field_message];
 
-        let m = Message::new(d, "".to_string());
+        let parent: Arc<Mutex<DashMap<String, Message>>> = Arc::new(Mutex::new(DashMap::new()));
+
+        let m = Message::new(d, "".to_string(), parent);
         let output = m
             .fields_from_bytes(buf)?
             .get(&"a".to_string())
@@ -325,7 +373,25 @@ mod message_tests {
             .value()
             .clone()
             .ok_or(ServiceError::new("fields incorrect"))?;
-        assert_eq!(output, Value::from_int32(150));
+        assert_eq!(
+            output,
+            Value::from_int32(150),
+            "expected 150, got {}",
+            output
+        );
+        let output = m
+            .fields_from_bytes(buf)?
+            .get(&"string".to_string())
+            .ok_or(ServiceError::new("fields incorrect"))?
+            .value()
+            .clone()
+            .ok_or(ServiceError::new("fields incorrect"))?;
+        assert_eq!(
+            output,
+            Value::from_string("testing".to_string()),
+            "expected testing, got {}",
+            output
+        );
         Ok(())
     }
 }
@@ -336,6 +402,7 @@ impl Clone for Message {
             path: self.path.clone(),
             message: self.message.clone(),
             fields: self.fields.clone(),
+            parent: self.parent.clone(),
         }
     }
 }
@@ -353,7 +420,7 @@ pub struct Service {
     pub name: String,
     pub protocol: Protocol,
     pub methods: DashMap<String, Method>,
-    pub messages: DashMap<String, Message>,
+    pub messages: Arc<Mutex<DashMap<String, Message>>>,
 }
 
 impl Service {
@@ -419,17 +486,19 @@ impl Service {
         file: &protobuf::descriptor::FileDescriptorProto,
     ) -> Result<(), ServiceError> {
         use proto::pandit::exts;
-        self.messages = file
+        self.messages = Arc::new(Mutex::new(DashMap::new()));
+        let messages: DashMap<String, Message> = file
             .message_type
             .iter()
             .map(|message| {
                 let name = message.get_name().to_string();
                 let opts = message.options.get_ref();
                 let path = exts::path.get(opts).unwrap();
-                let mut config = Message::new(message.clone(), path);
+                let mut config = Message::new(message.clone(), path, self.messages.clone());
                 (name, config)
             })
             .collect();
+        self.messages.lock().unwrap().extend(messages);
         Ok(())
     }
 

@@ -70,7 +70,9 @@ impl Server {
 
         let service = services.get(service).unwrap();
         let method = service.methods.get(method).unwrap();
-        let message = service.messages.get(&method.input_message).unwrap();
+        let messages = service.messages.clone();
+        let messages = messages.lock().unwrap();
+        let message = messages.get(&method.input_message).unwrap();
         // let message = message.from_bytes(&data[..])?;
 
         let response = http::Response::new(());
