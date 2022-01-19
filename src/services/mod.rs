@@ -2,6 +2,7 @@ use crate::proto;
 use ::std::slice;
 use access_json::JSONQuery;
 use config;
+use dashmap::mapref::one::Ref;
 use dashmap::{DashMap, DashSet};
 use jq_rs::{self, JqProgram};
 use protobuf::descriptor::FieldDescriptorProto;
@@ -79,7 +80,7 @@ pub enum Value {
     Float32(Vec<f32>),
     Bool(Vec<bool>),
     Enum(Vec<ProtoEnum>),
-    Message((String, Fields)),
+    Message(Vec<(String, Fields)>),
 }
 
 impl Value {
@@ -93,6 +94,10 @@ impl Value {
 
     pub fn from_uint32(val: u32) -> Self {
         Self::UInt32(vec![val])
+    }
+
+    pub fn from_message(name: String, fields: Fields) -> Self {
+        Self::Message(vec![(name, fields)])
     }
 }
 
@@ -109,10 +114,13 @@ impl PartialEq for Value {
             (Self::Float32(l0), Self::Float32(r0)) => l0 == r0,
             (Self::Bool(l0), Self::Bool(r0)) => l0 == r0,
             (Self::Enum(l0), Self::Enum(r0)) => l0 == r0,
-            (Self::Message((l0, l1)), Self::Message((r0, r1))) => {
-                l0 == r0
-                    && l1.get(l0).unwrap().value().as_ref().unwrap()
-                        == r1.get(r0).unwrap().value().as_ref().unwrap()
+            (Self::Message(l0), Self::Message(r0)) => {
+                l0.len() == r0.len()
+                    && l0.iter().zip(r0).all(|(l, r)| {
+                        l.0 == r.0
+                            && l.1.len() == r.1.len()
+                            && l.1.iter().all(|k| r.1.contains_key(k.key()))
+                    })
             }
             _ => false,
         }
@@ -189,6 +197,7 @@ impl Message {
         len: u64,
     ) -> ServiceResult<Fields> {
         let fields = Fields::new();
+        println!("lllne {}", len);
         while input.pos() < len && !input.eof()? {
             let (name, value) = match self.from_field_descriptor_proto(input) {
                 Ok(val) => val,
@@ -213,6 +222,7 @@ impl Message {
         let field = self.fields.get(&number).ok_or(ServiceError::new(
             format!("field unknown: number({})", number).as_str(),
         ))?;
+        println!("field: {} {}", field.get_name(), field.get_type_name());
         Ok((
             field.get_name().to_string(),
             match field.get_field_type() {
@@ -298,8 +308,11 @@ impl Message {
                 }
                 TYPE_MESSAGE => {
                     let message_name = field.get_type_name().to_string();
-                    match self.parse_another_message(input, &message_name) {
-                        Ok(v) => Some(Value::Message((message_name, v))),
+                    match self.parse_another_message(input, &message_name, field) {
+                        Ok(v) => {
+                            println!("parse {:?}", v);
+                            Some(Value::Message(v))
+                        }
                         _ => None,
                     }
                 }
@@ -312,13 +325,30 @@ impl Message {
         &self,
         input: &mut CodedInputStream,
         message_name: &String,
-    ) -> ServiceResult<Fields> {
+        field: Ref<u32, FieldDescriptorProto>,
+    ) -> ServiceResult<Vec<(String, Fields)>> {
+        use protobuf::descriptor::field_descriptor_proto::Label::*;
+        println!("another");
         let parent = self.parent.clone();
         let message = parent.get(message_name).ok_or(ServiceError::new(
             format!("no message called: {}", message_name).as_str(),
         ))?;
-        let len = input.read_raw_varint64()?;
-        message.fields_from_bytes_delimited(input, len)
+        println!("m {:?}", message.fields);
+        let repeated_len = if field.get_label() == LABEL_REPEATED {
+            input.pos() + input.read_raw_varint64()?
+        } else {
+            input.pos() + 1
+        };
+        let mut output: Vec<(String, Fields)> = Vec::with_capacity(2);
+        while input.pos() < repeated_len && !input.eof()? {
+            let len = input.pos() + input.read_raw_varint64()?;
+            println!("len {}", len);
+            output.push((
+                message_name.clone(),
+                message.fields_from_bytes_delimited(input, len)?,
+            ));
+        }
+        Ok(output)
     }
 }
 
@@ -365,6 +395,8 @@ mod message_tests {
         use super::*;
         use protobuf::descriptor::field_descriptor_proto::Type::{self, *};
 
+        let mut message2_fields: Fields = DashMap::new();
+        message2_fields.insert("varint".to_string(), Some(Value::from_int32(150)));
         struct Table {
             name: String,
             field_type: Type,
@@ -387,17 +419,19 @@ mod message_tests {
                 type_name: "".to_string(),
                 want: Value::from_string("testing".to_string()),
             },
-            // Table {
-            //     name: "message",
-            //     field_type: TYPE_MESSAGE,
-            //     number: 3,
-            //     type_name: "Message2",
-            //     want: Value::from_string("testing".to_string()),
-            // }
+            Table {
+                name: "message".to_string(),
+                field_type: TYPE_MESSAGE,
+                number: 3,
+                type_name: "Message2".to_string(),
+                want: Value::from_message("Message2".to_string(), message2_fields),
+            },
         ];
 
         let buf: &[u8] = &[
-            0x08, 0x96, 0x01, 0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67,
+            0x08, 0x96, 0x01, // Field varint
+            0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67, // Field string
+            0x1a, 0x03, 0x08, 0x96, 0x01, // Embedded message
         ];
         let mut desc = protobuf::descriptor::DescriptorProto::new();
         for item in &table {
@@ -410,10 +444,17 @@ mod message_tests {
         }
 
         let parent: Arc<DashMap<String, Message>> = Arc::new(DashMap::new());
+        let mut message2 = protobuf::descriptor::DescriptorProto::new();
+        message2.field.push(desc.field.first().unwrap().clone());
+        parent.insert(
+            "Message2".to_string(),
+            Message::new(message2, "".to_string(), parent.clone()),
+        );
+
         let m = Message::new(desc, "".to_string(), parent);
+        let output = m.fields_from_bytes(buf)?;
         for item in &table {
-            let output = m
-                .fields_from_bytes(buf)?
+            let output = output
                 .get(&item.name)
                 .ok_or(ServiceError::new("fields incorrect"))?
                 .value()
