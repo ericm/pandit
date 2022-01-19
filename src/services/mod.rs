@@ -1,10 +1,15 @@
 use crate::proto;
+use ::std::slice;
 use access_json::JSONQuery;
 use config;
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use jq_rs::{self, JqProgram};
 use protobuf::descriptor::FieldDescriptorProto;
+use protobuf::reflect::runtime_types::*;
 use protobuf::reflect::ProtobufValue;
+use protobuf::reflect::ReflectValueBox;
+use protobuf::reflect::ReflectValueRef;
+use protobuf::reflect::RuntimeTypeBox;
 use protobuf::{self, CodedInputStream, MessageDyn, ProtobufResult};
 use protobuf_parse;
 use std::collections::HashMap;
@@ -61,11 +66,18 @@ impl Display for ServiceError {
 
 impl std::error::Error for ServiceError {}
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Value {
     String(Vec<String>),
+    Bytes(Vec<Vec<u8>>),
     Int32(Vec<i32>),
+    Int64(Vec<i64>),
     UInt32(Vec<u32>),
+    UInt64(Vec<u64>),
+    Float64(Vec<f64>),
+    Float32(Vec<f32>),
+    Bool(Vec<bool>),
+    Enum(Vec<ProtoEnum>),
 }
 
 impl Value {
@@ -167,34 +179,123 @@ impl Message {
         Ok((
             field.get_name().to_string(),
             match field.get_field_type() {
-                TYPE_DOUBLE => todo!(),
-                TYPE_FLOAT => todo!(),
-                TYPE_INT64 => todo!(),
-                TYPE_UINT64 => todo!(),
+                TYPE_DOUBLE => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_double_into(wire_type, input, &mut target)?;
+                    Some(Value::Float64(target))
+                }
+                TYPE_FLOAT => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_float_into(wire_type, input, &mut target)?;
+                    Some(Value::Float32(target))
+                }
+                TYPE_INT64 => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_int64_into(wire_type, input, &mut target)?;
+                    Some(Value::Int64(target))
+                }
+                TYPE_UINT64 => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_uint64_into(wire_type, input, &mut target)?;
+                    Some(Value::UInt64(target))
+                }
                 TYPE_INT32 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_int32_into(wire_type, input, &mut target)?;
                     Some(Value::Int32(target))
                 }
-                TYPE_FIXED64 => todo!(),
-                TYPE_FIXED32 => todo!(),
-                TYPE_BOOL => todo!(),
+                TYPE_FIXED64 => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_fixed64_into(wire_type, input, &mut target)?;
+                    Some(Value::UInt64(target))
+                }
+                TYPE_FIXED32 => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_fixed32_into(wire_type, input, &mut target)?;
+                    Some(Value::UInt32(target))
+                }
+                TYPE_BOOL => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_bool_into(wire_type, input, &mut target)?;
+                    Some(Value::Bool(target))
+                }
                 TYPE_STRING => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_string_into(wire_type, input, &mut target)?;
                     Some(Value::String(target))
                 }
-                TYPE_GROUP => todo!(),
+                TYPE_BYTES => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_bytes_into(wire_type, input, &mut target)?;
+                    Some(Value::Bytes(target))
+                }
+                TYPE_UINT32 => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_uint32_into(wire_type, input, &mut target)?;
+                    Some(Value::UInt32(target))
+                }
+                TYPE_SFIXED32 => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_sfixed32_into(wire_type, input, &mut target)?;
+                    Some(Value::Int32(target))
+                }
+                TYPE_SFIXED64 => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_sfixed64_into(wire_type, input, &mut target)?;
+                    Some(Value::Int64(target))
+                }
+                TYPE_SINT32 => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_sint32_into(wire_type, input, &mut target)?;
+                    Some(Value::Int32(target))
+                }
+                TYPE_SINT64 => {
+                    let mut target = Vec::new();
+                    protobuf::rt::read_repeated_sint64_into(wire_type, input, &mut target)?;
+                    Some(Value::Int64(target))
+                },
+                TYPE_ENUM => {
+                    let mut target: Vec<ProtoEnum> = Vec::new();
+                    protobuf::rt::read_repeated_enum_into(wire_type, input, &mut target)?;
+                    Some(Value::Enum(target))
+                }
                 TYPE_MESSAGE => todo!(),
-                TYPE_BYTES => todo!(),
-                TYPE_UINT32 => todo!(),
-                TYPE_ENUM => todo!(),
-                TYPE_SFIXED32 => todo!(),
-                TYPE_SFIXED64 => todo!(),
-                TYPE_SINT32 => todo!(),
-                TYPE_SINT64 => todo!(),
+                _ => None,
             },
         ))
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub enum ProtoEnum {
+    Val(i32),
+}
+
+impl Default for ProtoEnum {
+    fn default() -> Self {
+        Self::Val(Default::default())
+    }
+}
+
+impl ProtobufValue for ProtoEnum {
+    type RuntimeType = RuntimeTypeEnum<ProtoEnum>;
+}
+
+impl protobuf::ProtobufEnum for ProtoEnum {
+    fn value(&self) -> i32 {
+        match self {
+            Self::Val(i) => *i,
+            _ => panic!("unknown error"),
+        }
+    }
+
+    fn from_i32(v: i32) -> Option<Self> {
+        Some(Self::Val(v))
+    }
+
+    fn values() -> &'static [Self] {
+        static VALUES: &'static [ProtoEnum] = &[ProtoEnum::Val(1)];
+        VALUES
     }
 }
 
