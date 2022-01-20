@@ -14,8 +14,9 @@ use protobuf::reflect::RuntimeTypeBox;
 use protobuf::wire_format::Tag;
 use protobuf::{self, CodedInputStream, MessageDyn, ProtobufResult};
 use protobuf_parse;
+use serde::de::Visitor;
 use serde::ser::SerializeMap;
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
@@ -71,7 +72,7 @@ impl Display for ServiceError {
 
 impl std::error::Error for ServiceError {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub enum Value {
     String(Vec<String>),
     Bytes(Vec<Vec<u8>>),
@@ -101,6 +102,31 @@ impl Value {
 
     pub fn from_message(fields: Fields) -> Self {
         Self::Message(vec![fields])
+    }
+}
+
+struct EnumVisitor {}
+impl<'de> Visitor<'de> for EnumVisitor {
+    type Value = ProtoEnum;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("")
+    }
+    fn visit_i32<E>(self, v: i32) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(ProtoEnum::Val(v))
+    }
+}
+
+impl<'de> Deserialize<'de> for ProtoEnum {
+    fn deserialize<D>(dr: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let visitor = EnumVisitor {};
+        dr.deserialize_i32(visitor)
     }
 }
 
@@ -167,8 +193,7 @@ impl PartialEq for Value {
 
 pub trait Handler {
     fn from_payload(&self, buf: &[u8]) -> ServiceResult<Value>;
-    // fn to_payload(&self, fields: &Fields) -> ServiceResult<Vec<u8>>;
-    fn from_proto(&self, message: protobuf::descriptor::DescriptorProto) -> ServiceResult<Value>;
+    fn to_payload(&self, fields: &Fields) -> ServiceResult<Vec<u8>>;
     // fn fields_to_payload(&self, fields: &Fields) {
     //     for field in fields.iter() {
     //         let value = match field.value() {
@@ -204,6 +229,43 @@ pub type FieldsMap = DashMap<String, Option<Value>>;
 #[derive(Debug, Clone)]
 pub struct Fields {
     map: FieldsMap,
+}
+
+struct FieldsVisitor {}
+
+impl<'de> Visitor<'de> for FieldsVisitor {
+    type Value = Fields;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a map of strings to values")
+    }
+
+    fn visit_map<A>(self, mut access: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        let map = FieldsMap::new();
+        while let Some((key, value)) = access.next_entry()? {
+            map.insert(key, value);
+        }
+        Ok(Fields::new(map))
+    }
+}
+
+impl<'de> Deserialize<'de> for Fields {
+    fn deserialize<D>(dr: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let visitor = FieldsVisitor {};
+        dr.deserialize_map(visitor)
+    }
+}
+
+impl Fields {
+    pub fn new(map: FieldsMap) -> Self {
+        Self { map }
+    }
 }
 
 impl Serialize for Fields {
@@ -257,7 +319,7 @@ impl Message {
         }
     }
 
-    pub fn fields_from_bytes(&self, buf: &[u8]) -> ServiceResult<FieldsMap> {
+    pub fn fields_from_bytes(&self, buf: &[u8]) -> ServiceResult<Fields> {
         use std::convert::TryInto;
 
         let mut input = protobuf::CodedInputStream::from_bytes(buf);
@@ -268,7 +330,7 @@ impl Message {
         &self,
         input: &mut CodedInputStream,
         len: u64,
-    ) -> ServiceResult<FieldsMap> {
+    ) -> ServiceResult<Fields> {
         let fields = FieldsMap::new();
         while input.pos() < len && !input.eof()? {
             let (name, value) = match self.from_field_descriptor_proto(input) {
@@ -281,7 +343,7 @@ impl Message {
             fields.insert(name, value);
         }
 
-        Ok(fields)
+        Ok(Fields::new(fields))
     }
 
     fn from_field_descriptor_proto(
@@ -394,7 +456,7 @@ impl Message {
         input: &mut CodedInputStream,
         message_name: &String,
         field: Ref<u32, FieldDescriptorProto>,
-    ) -> ServiceResult<Vec<(String, FieldsMap)>> {
+    ) -> ServiceResult<Vec<Fields>> {
         use protobuf::descriptor::field_descriptor_proto::Label::*;
         let parent = self.parent.clone();
         let message = parent.get(message_name).ok_or(ServiceError::new(
@@ -405,13 +467,10 @@ impl Message {
         } else {
             input.pos() + 1
         };
-        let mut output: Vec<(String, FieldsMap)> = Vec::with_capacity(2);
+        let mut output: Vec<Fields> = Vec::with_capacity(2);
         while input.pos() < repeated_len && !input.eof()? {
             let len = input.pos() + input.read_raw_varint64()?;
-            output.push((
-                message_name.clone(),
-                message.fields_from_bytes_delimited(input, len)?,
-            ));
+            output.push(message.fields_from_bytes_delimited(input, len)?);
         }
         Ok(output)
     }
@@ -472,8 +531,10 @@ mod message_tests {
         use protobuf::descriptor::field_descriptor_proto::Label::{self, *};
         use protobuf::descriptor::field_descriptor_proto::Type::{self, *};
 
-        let message2_fields: FieldsMap = DashMap::new();
-        message2_fields.insert("varint".to_string(), Some(Value::from_int32(150)));
+        let message2_fields: Fields = Fields::new(DashMap::new());
+        message2_fields
+            .map
+            .insert("varint".to_string(), Some(Value::from_int32(150)));
         struct Table {
             name: String,
             field_type: Type,
@@ -505,7 +566,7 @@ mod message_tests {
                 number: 3,
                 type_name: "Message2".to_string(),
                 label: LABEL_OPTIONAL,
-                want: Value::from_message("Message2".to_string(), message2_fields.clone()),
+                want: Value::from_message(message2_fields.clone()),
             },
             Table {
                 name: "message_repeated".to_string(),
@@ -513,10 +574,7 @@ mod message_tests {
                 number: 4,
                 type_name: "Message2".to_string(),
                 label: LABEL_REPEATED,
-                want: Value::Message(vec![
-                    ("Message2".to_string(), message2_fields.clone()),
-                    ("Message2".to_string(), message2_fields.clone()),
-                ]),
+                want: Value::Message(vec![message2_fields.clone(), message2_fields.clone()]),
             },
         ];
 
@@ -552,6 +610,7 @@ mod message_tests {
         let output = m.fields_from_bytes(buf)?;
         for item in &table {
             let output = output
+                .map
                 .get(&item.name)
                 .ok_or(ServiceError::new("fields incorrect"))?
                 .value()
@@ -746,13 +805,11 @@ impl Handler for HttpJsonHandler {
         }
     }
 
-    fn from_proto(&self, message: protobuf::descriptor::DescriptorProto) -> ServiceResult<Value> {
-        let value = self.prog.execute(&message).unwrap();
-        let result = value.unwrap();
-        match result.as_str() {
-            Some(v) => Ok(Value::from_string(String::from_str(v).unwrap())),
-            None => Err(ServiceError::new(
-                "result was unable to be serialized into String",
+    fn to_payload(&self, fields: &Fields) -> ServiceResult<Vec<u8>> {
+        match serde_json::to_vec(fields) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(ServiceError::new(
+                format!("to_payload json failed: {}", e.to_string()).as_str(),
             )),
         }
     }
