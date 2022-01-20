@@ -1,6 +1,6 @@
 use crate::proto;
 use ::std::slice;
-use access_json::JSONQuery;
+use access_json::{AnySerializable, JSONQuery};
 use config;
 use dashmap::mapref::one::Ref;
 use dashmap::{DashMap, DashSet};
@@ -14,8 +14,11 @@ use protobuf::reflect::RuntimeTypeBox;
 use protobuf::wire_format::Tag;
 use protobuf::{self, CodedInputStream, MessageDyn, ProtobufResult};
 use protobuf_parse;
+use serde::ser::SerializeMap;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::error::Error;
 use std::mem::ManuallyDrop;
 use std::path::Path;
 use std::pin::Pin;
@@ -80,7 +83,7 @@ pub enum Value {
     Float32(Vec<f32>),
     Bool(Vec<bool>),
     Enum(Vec<ProtoEnum>),
-    Message(Vec<(String, Fields)>),
+    Message(Vec<(String, FieldsMap)>),
 }
 
 impl Value {
@@ -96,8 +99,44 @@ impl Value {
         Self::UInt32(vec![val])
     }
 
-    pub fn from_message(name: String, fields: Fields) -> Self {
+    pub fn from_message(name: String, fields: FieldsMap) -> Self {
         Self::Message(vec![(name, fields)])
+    }
+}
+
+impl Serialize for Value {
+    fn serialize<S>(&self, sr: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        fn serialize_seq<S, T>(
+            sr: S,
+            v: &Vec<T>,
+        ) -> Result<<S as serde::Serializer>::Ok, <S as serde::Serializer>::Error>
+        where
+            S: serde::Serializer,
+            T: Serialize,
+        {
+            use serde::ser::SerializeSeq;
+            let mut seq = sr.serialize_seq(Some(v.len()))?;
+            for item in v {
+                seq.serialize_element(item).unwrap();
+            }
+            seq.end()
+        }
+        match self {
+            Value::String(v) => serialize_seq(sr, &v),
+            Value::Bytes(v) => serialize_seq(sr, &v),
+            Value::Int32(v) => serialize_seq(sr, &v),
+            Value::Int64(v) => serialize_seq(sr, &v),
+            Value::UInt32(v) => serialize_seq(sr, &v),
+            Value::UInt64(v) => serialize_seq(sr, &v),
+            Value::Float64(v) => serialize_seq(sr, &v),
+            Value::Float32(v) => serialize_seq(sr, &v),
+            Value::Bool(v) => serialize_seq(sr, &v),
+            Value::Enum(v) => todo!(),
+            Value::Message(v) => todo!(),
+        }
     }
 }
 
@@ -129,7 +168,16 @@ impl PartialEq for Value {
 
 pub trait Handler {
     fn from_payload(&self, buf: &[u8]) -> ServiceResult<Value>;
+    // fn to_payload(&self, fields: &Fields) -> ServiceResult<Vec<u8>>;
     fn from_proto(&self, message: protobuf::descriptor::DescriptorProto) -> ServiceResult<Value>;
+    // fn fields_to_payload(&self, fields: &Fields) {
+    //     for field in fields.iter() {
+    //         let value = match field.value() {
+    //             Some(v) => v,
+    //             None => continue,
+    //         };
+    //     }
+    // }
 }
 
 pub union MethodAPI {
@@ -152,14 +200,40 @@ impl Default for MessageField {
     }
 }
 
+pub type FieldsMap = DashMap<String, Option<Value>>;
+
+pub struct Fields {
+    map: FieldsMap,
+}
+
+impl Serialize for Fields {
+    fn serialize<S>(
+        &self,
+        sr: S,
+    ) -> Result<<S as serde::Serializer>::Ok, <S as serde::Serializer>::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeMap;
+        let mut map = sr.serialize_map(Some(self.map.len()))?;
+        for kv in &self.map {
+            match kv.value() {
+                Some(value) => {
+                    map.serialize_entry(kv.key(), value).unwrap();
+                }
+                None => continue,
+            }
+        }
+        map.end()
+    }
+}
+
 pub struct Message {
     path: String,
     fields: DashMap<u32, FieldDescriptorProto>,
     message: protobuf::descriptor::DescriptorProto,
     parent: Arc<DashMap<String, Message>>,
 }
-
-pub type Fields = DashMap<String, Option<Value>>;
 
 impl Message {
     fn new(
@@ -183,7 +257,7 @@ impl Message {
         }
     }
 
-    pub fn fields_from_bytes(&self, buf: &[u8]) -> ServiceResult<Fields> {
+    pub fn fields_from_bytes(&self, buf: &[u8]) -> ServiceResult<FieldsMap> {
         use std::convert::TryInto;
 
         let mut input = protobuf::CodedInputStream::from_bytes(buf);
@@ -194,8 +268,8 @@ impl Message {
         &self,
         input: &mut CodedInputStream,
         len: u64,
-    ) -> ServiceResult<Fields> {
-        let fields = Fields::new();
+    ) -> ServiceResult<FieldsMap> {
+        let fields = FieldsMap::new();
         while input.pos() < len && !input.eof()? {
             let (name, value) = match self.from_field_descriptor_proto(input) {
                 Ok(val) => val,
@@ -320,7 +394,7 @@ impl Message {
         input: &mut CodedInputStream,
         message_name: &String,
         field: Ref<u32, FieldDescriptorProto>,
-    ) -> ServiceResult<Vec<(String, Fields)>> {
+    ) -> ServiceResult<Vec<(String, FieldsMap)>> {
         use protobuf::descriptor::field_descriptor_proto::Label::*;
         let parent = self.parent.clone();
         let message = parent.get(message_name).ok_or(ServiceError::new(
@@ -331,7 +405,7 @@ impl Message {
         } else {
             input.pos() + 1
         };
-        let mut output: Vec<(String, Fields)> = Vec::with_capacity(2);
+        let mut output: Vec<(String, FieldsMap)> = Vec::with_capacity(2);
         while input.pos() < repeated_len && !input.eof()? {
             let len = input.pos() + input.read_raw_varint64()?;
             output.push((
@@ -387,7 +461,7 @@ mod message_tests {
         use protobuf::descriptor::field_descriptor_proto::Label::{self, *};
         use protobuf::descriptor::field_descriptor_proto::Type::{self, *};
 
-        let mut message2_fields: Fields = DashMap::new();
+        let message2_fields: FieldsMap = DashMap::new();
         message2_fields.insert("varint".to_string(), Some(Value::from_int32(150)));
         struct Table {
             name: String,
@@ -442,6 +516,7 @@ mod message_tests {
             0x22, 0x08, 0x03, 0x08, 0x96, 0x01, 0x03, 0x08, 0x96,
             0x01, // Embedded message repeated x2
         ];
+
         let mut desc = protobuf::descriptor::DescriptorProto::new();
         for item in &table {
             let mut field = protobuf::descriptor::FieldDescriptorProto::new();
@@ -453,9 +528,10 @@ mod message_tests {
             desc.field.push(field);
         }
 
-        let parent: Arc<DashMap<String, Message>> = Arc::new(DashMap::new());
         let mut message2 = protobuf::descriptor::DescriptorProto::new();
         message2.field.push(desc.field.first().unwrap().clone());
+
+        let parent: Arc<DashMap<String, Message>> = Arc::new(DashMap::new());
         parent.insert(
             "Message2".to_string(),
             Message::new(message2, "".to_string(), parent.clone()),

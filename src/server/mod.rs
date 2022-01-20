@@ -50,7 +50,7 @@ impl Server {
         services: Arc<services::Services>,
         mut request: Request<RecvStream>,
         mut respond: SendResponse<Bytes>,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) -> Result<(), Box<dyn Error>> {
         let body = request.body_mut();
         let data: Vec<u8> = body
             .data()
@@ -72,7 +72,7 @@ impl Server {
         let method = service.methods.get(method).unwrap();
         let messages = service.messages.clone();
         let message = messages.get(&method.input_message).unwrap();
-        // let message = message.from_bytes(&data[..])?;
+        let fields = message.fields_from_bytes(&data[..])?;
 
         let response = http::Response::new(());
         let mut send = respond.send_response(response, false)?;
