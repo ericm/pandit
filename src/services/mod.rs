@@ -103,6 +103,8 @@ impl Value {
     pub fn from_message(fields: Fields) -> Self {
         Self::Message(vec![fields])
     }
+
+    // pub fn from_query_value(value: )
 }
 
 struct EnumVisitor {}
@@ -746,12 +748,13 @@ impl Service {
             .iter()
             .map(|method| {
                 let api = exts::api.get(method.options.get_ref()).unwrap();
+                let input_message = method.get_input_type().to_string();
                 (
                     method.get_name().to_string(),
                     Method {
-                        input_message: method.get_input_type().to_string(),
+                        input_message: input_message.clone(),
                         output_message: method.get_output_type().to_string(),
-                        handler: Service::handler_from_http_api(api.clone()),
+                        handler: self.handler_from_http_api(&input_message, api.clone()),
                         api: MethodAPI {
                             http: ManuallyDrop::new(api),
                         },
@@ -763,9 +766,17 @@ impl Service {
         Ok(())
     }
 
-    fn handler_from_http_api(api: http::API) -> Pin<Box<dyn Handler + Sync + Send + 'static>> {
+    fn handler_from_http_api(
+        &self,
+        input_message: &String,
+        api: http::API,
+    ) -> Pin<Box<dyn Handler + Sync + Send + 'static>> {
+        let message = self.messages.get(input_message).unwrap();
         match api.content_type.as_str() {
-            "application/json" => Box::pin(HttpJsonHandler::new(api.pattern.unwrap())),
+            "application/json" => Box::pin(HttpJsonHandler::new(
+                api.pattern.unwrap(),
+                message.path.clone(),
+            )),
             e => panic!("unknown http api content type: {}", e),
         }
     }
@@ -778,12 +789,7 @@ pub struct HttpJsonHandler {
 }
 
 impl HttpJsonHandler {
-    pub fn new(method: http::api::Pattern) -> Self {
-        use proto::http::api::Pattern::*;
-        let prog = match method {
-            get(ref x) | put(ref x) | post(ref x) | delete(ref x) | patch(ref x) => x,
-        };
-        let path = prog.to_string();
+    pub fn new(method: http::api::Pattern, path: String) -> Self {
         Self {
             method,
             prog: JSONQuery::parse(path.as_str()).unwrap(),
