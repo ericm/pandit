@@ -83,7 +83,7 @@ pub enum Value {
     Float32(Vec<f32>),
     Bool(Vec<bool>),
     Enum(Vec<ProtoEnum>),
-    Message(Vec<(String, FieldsMap)>),
+    Message(Vec<Fields>),
 }
 
 impl Value {
@@ -99,8 +99,8 @@ impl Value {
         Self::UInt32(vec![val])
     }
 
-    pub fn from_message(name: String, fields: FieldsMap) -> Self {
-        Self::Message(vec![(name, fields)])
+    pub fn from_message(fields: Fields) -> Self {
+        Self::Message(vec![fields])
     }
 }
 
@@ -134,8 +134,8 @@ impl Serialize for Value {
             Value::Float64(v) => serialize_seq(sr, &v),
             Value::Float32(v) => serialize_seq(sr, &v),
             Value::Bool(v) => serialize_seq(sr, &v),
-            Value::Enum(v) => todo!(),
-            Value::Message(v) => todo!(),
+            Value::Enum(v) => serialize_seq(sr, &v),
+            Value::Message(v) => serialize_seq(sr, &v),
         }
     }
 }
@@ -156,9 +156,8 @@ impl PartialEq for Value {
             (Self::Message(l0), Self::Message(r0)) => {
                 l0.len() == r0.len()
                     && l0.iter().zip(r0).all(|(l, r)| {
-                        l.0 == r.0
-                            && l.1.len() == r.1.len()
-                            && l.1.iter().all(|k| r.1.contains_key(k.key()))
+                        l.map.len() == r.map.len()
+                            && l.map.iter().all(|k| r.map.contains_key(k.key()))
                     })
             }
             _ => false,
@@ -202,6 +201,7 @@ impl Default for MessageField {
 
 pub type FieldsMap = DashMap<String, Option<Value>>;
 
+#[derive(Debug, Clone)]
 pub struct Fields {
     map: FieldsMap,
 }
@@ -425,6 +425,17 @@ pub enum ProtoEnum {
 impl Default for ProtoEnum {
     fn default() -> Self {
         Self::Val(Default::default())
+    }
+}
+
+impl Serialize for ProtoEnum {
+    fn serialize<S>(&self, sr: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Val(v) => sr.serialize_i32(*v),
+        }
     }
 }
 
