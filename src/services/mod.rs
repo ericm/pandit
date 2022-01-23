@@ -1,6 +1,7 @@
 use crate::proto;
 use ::std::slice;
 use access_json::{AnySerializable, JSONQuery};
+use async_trait::async_trait;
 use config;
 use dashmap::mapref::one::Ref;
 use dashmap::{DashMap, DashSet};
@@ -20,6 +21,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
+use std::io::Write;
+use std::iter::FromIterator;
 use std::mem::ManuallyDrop;
 use std::path::Path;
 use std::pin::Pin;
@@ -193,9 +196,10 @@ impl PartialEq for Value {
     }
 }
 
+#[async_trait]
 pub trait Handler {
-    fn from_payload(&self, buf: &[u8]) -> ServiceResult<Value>;
-    fn to_payload(&self, fields: &Fields) -> ServiceResult<Vec<u8>>;
+    fn from_payload(&self, buf: &[u8]) -> ServiceResult<Fields>;
+    async fn to_payload_and_send(&self, fields: &Fields) -> ServiceResult<bytes::Bytes>;
     // fn fields_to_payload(&self, fields: &Fields) {
     //     for field in fields.iter() {
     //         let value = match field.value() {
@@ -649,6 +653,7 @@ pub struct Service {
     pub protocol: Protocol,
     pub methods: DashMap<String, Method>,
     pub messages: Arc<DashMap<String, Message>>,
+    writer: Box<dyn Write>,
 }
 
 impl Service {
@@ -780,40 +785,82 @@ impl Service {
             e => panic!("unknown http api content type: {}", e),
         }
     }
+
+    pub fn send_proto_to_local(&self, method: &String, data: &[u8]) -> ServiceResult<()> {
+        let method = self.methods.get(method).unwrap();
+        let messages = self.messages.clone();
+        let message = messages.get(&method.input_message).unwrap();
+        let fields = message.fields_from_bytes(data)?;
+        let payload = method.handler.to_payload(&fields)?;
+        Ok(())
+    }
 }
 
 pub struct HttpJsonHandler {
     pub method: http::api::Pattern,
     prog: JSONQuery,
     path: String,
+    parts: ::http::request::Parts,
+    send: h2::client::SendRequest<bytes::Bytes>,
 }
 
 impl HttpJsonHandler {
-    pub fn new(method: http::api::Pattern, path: String) -> Self {
+    pub fn new(
+        method: http::api::Pattern,
+        path: String,
+        parts: ::http::request::Parts,
+        send: h2::client::SendRequest<bytes::Bytes>,
+    ) -> Self {
         Self {
             method,
             prog: JSONQuery::parse(path.as_str()).unwrap(),
             path,
+            parts,
+            send,
         }
     }
 }
 
+#[async_trait]
 impl Handler for HttpJsonHandler {
-    fn from_payload(&self, buf: &[u8]) -> ServiceResult<Value> {
+    fn from_payload(&self, buf: &[u8]) -> ServiceResult<Fields> {
         let json: serde_json::Value = serde_json::from_slice(buf).unwrap();
         let pr = self.prog.execute(&json).unwrap();
         let result = pr.unwrap();
-        match result.as_str() {
-            Some(v) => Ok(Value::from_string(String::from_str(v).unwrap())),
-            None => Err(ServiceError::new(
-                "result was unable to be serialized into String",
-            )),
-        }
+        Ok(serde_json::value::from_value(result)?)
     }
 
-    fn to_payload(&self, fields: &Fields) -> ServiceResult<Vec<u8>> {
+    async fn to_payload_and_send(&self, fields: &Fields) -> ServiceResult<bytes::Bytes> {
+        use ::http;
         match serde_json::to_vec(fields) {
-            Ok(v) => Ok(v),
+            Ok(data) => {
+                let data = bytes::Bytes::from_iter(data);
+                let builder = http::request::Builder::default();
+                let request = http::Request::from_parts(self.parts, ());
+                let resp = self
+                    .send
+                    .ready()
+                    .await
+                    .and_then(|send_req| {
+                        let (resp, sender) = send_req.send_request(request, false)?;
+                        sender.send_data(data, true)?;
+                        Ok(resp)
+                    })
+                    .unwrap()
+                    .await
+                    .unwrap();
+                let body = resp.body();
+                let body = match body.data().await {
+                    Some(body) => body,
+                    None => return Err(ServiceError::new("no body in response")),
+                };
+                match body {
+                    Ok(body) => Ok(body),
+                    Err(e) => Err(ServiceError::new(
+                        format!("error parsing body: {}", e).as_str(),
+                    )),
+                }
+            }
             Err(e) => Err(ServiceError::new(
                 format!("to_payload json failed: {}", e.to_string()).as_str(),
             )),
@@ -821,16 +868,14 @@ impl Handler for HttpJsonHandler {
     }
 }
 
-impl Default for Service {
-    fn default() -> Self {
-        Self {
-            name: Default::default(),
-            methods: Default::default(),
-            messages: Default::default(),
-            protocol: Protocol::None,
-        }
-    }
-}
+// struct HttpWriter {
+//     send: h2::client::SendRequest,
+// }
+
+// impl HttpWriter {
+//     fn write_request(&mut self, parts: ::http::r buf: &[u8])  {
+//     }
+// }
 
 pub fn new_config(path: &str) -> config::Config {
     let mut obj = config::Config::new();

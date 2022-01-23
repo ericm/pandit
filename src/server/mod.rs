@@ -69,10 +69,6 @@ impl Server {
         let method = path.next().unwrap();
 
         let service = services.get(service).unwrap();
-        let method = service.methods.get(method).unwrap();
-        let messages = service.messages.clone();
-        let message = messages.get(&method.input_message).unwrap();
-        let fields = message.fields_from_bytes(&data[..])?;
 
         let response = http::Response::new(());
         let mut send = respond.send_response(response, false)?;

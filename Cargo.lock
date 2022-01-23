@@ -962,6 +962,7 @@ name = "pandit"
 version = "0.1.0"
 dependencies = [
  "access-json",
+ "async-trait",
  "bytes",
  "clap",
  "config",
