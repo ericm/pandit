@@ -653,7 +653,17 @@ pub struct Service {
     pub protocol: Protocol,
     pub methods: DashMap<String, Method>,
     pub messages: Arc<DashMap<String, Message>>,
-    writer: Box<dyn Write>,
+}
+
+impl Default for Service {
+    fn default() -> Self {
+        Self {
+            name: Default::default(),
+            protocol: Protocol::None,
+            methods: Default::default(),
+            messages: Default::default(),
+        }
+    }
 }
 
 impl Service {
@@ -776,22 +786,55 @@ impl Service {
         input_message: &String,
         api: http::API,
     ) -> Pin<Box<dyn Handler + Sync + Send + 'static>> {
+        use crate::proto::http as proto_http;
+        use ::http;
+        fn method(pattern: proto_http::api::Pattern) -> http::Method {
+            match pattern {
+                proto_http::api::Pattern::get(_) => http::Method::GET,
+                proto_http::api::Pattern::put(_) => http::Method::PUT,
+                proto_http::api::Pattern::post(_) => http::Method::POST,
+                proto_http::api::Pattern::delete(_) => http::Method::DELETE,
+                proto_http::api::Pattern::patch(_) => http::Method::PATCH,
+            }
+        }
         let message = self.messages.get(input_message).unwrap();
+        let req_parts = http::request::Parts {
+            method: method(api.pattern.unwrap()),
+            uri: todo!(),
+            version: todo!(),
+            headers: todo!(),
+            extensions: todo!(),
+            _priv: todo!(),
+        };
+        let resp_parts = http::response::Parts {
+            status: todo!(),
+            version: todo!(),
+            headers: todo!(),
+            extensions: todo!(),
+            _priv: todo!(),
+        };
+        let writer = Http2Writer {
+            send: todo!(),
+            resp: todo!(),
+        };
         match api.content_type.as_str() {
             "application/json" => Box::pin(HttpJsonHandler::new(
                 api.pattern.unwrap(),
                 message.path.clone(),
+                req_parts,
+                resp_parts,
+                Box::new(writer),
             )),
             e => panic!("unknown http api content type: {}", e),
         }
     }
 
-    pub fn send_proto_to_local(&self, method: &String, data: &[u8]) -> ServiceResult<()> {
+    pub async fn send_proto_to_local(&self, method: &String, data: &[u8]) -> ServiceResult<()> {
         let method = self.methods.get(method).unwrap();
         let messages = self.messages.clone();
         let message = messages.get(&method.input_message).unwrap();
-        let fields = message.fields_from_bytes(data)?;
-        let payload = method.handler.to_payload(&fields)?;
+        let fields = Arc::new(message.fields_from_bytes(data)?);
+        let payload = method.handler.to_payload_and_send(&fields).await?;
         Ok(())
     }
 }
@@ -800,23 +843,28 @@ pub struct HttpJsonHandler {
     pub method: http::api::Pattern,
     prog: JSONQuery,
     path: String,
-    parts: ::http::request::Parts,
-    send: h2::client::SendRequest<bytes::Bytes>,
+    req_parts: Arc<::http::request::Parts>,
+    resp_parts: Arc<::http::response::Parts>,
+    writer: Box<dyn Writer<Request = ::http::request::Parts, Response = ::http::response::Parts>>,
 }
 
 impl HttpJsonHandler {
     pub fn new(
         method: http::api::Pattern,
         path: String,
-        parts: ::http::request::Parts,
-        send: h2::client::SendRequest<bytes::Bytes>,
+        req_parts: ::http::request::Parts,
+        resp_parts: ::http::response::Parts,
+        writer: Box<
+            dyn Writer<Request = ::http::request::Parts, Response = ::http::response::Parts>,
+        >,
     ) -> Self {
         Self {
             method,
             prog: JSONQuery::parse(path.as_str()).unwrap(),
             path,
-            parts,
-            send,
+            req_parts: Arc::new(req_parts),
+            resp_parts: Arc::new(resp_parts),
+            writer,
         }
     }
 }
@@ -831,35 +879,12 @@ impl Handler for HttpJsonHandler {
     }
 
     async fn to_payload_and_send(&self, fields: &Fields) -> ServiceResult<bytes::Bytes> {
-        use ::http;
         match serde_json::to_vec(fields) {
             Ok(data) => {
                 let data = bytes::Bytes::from_iter(data);
-                let builder = http::request::Builder::default();
-                let request = http::Request::from_parts(self.parts, ());
-                let resp = self
-                    .send
-                    .ready()
+                self.writer
+                    .write_request(self.req_parts.clone(), data)
                     .await
-                    .and_then(|send_req| {
-                        let (resp, sender) = send_req.send_request(request, false)?;
-                        sender.send_data(data, true)?;
-                        Ok(resp)
-                    })
-                    .unwrap()
-                    .await
-                    .unwrap();
-                let body = resp.body();
-                let body = match body.data().await {
-                    Some(body) => body,
-                    None => return Err(ServiceError::new("no body in response")),
-                };
-                match body {
-                    Ok(body) => Ok(body),
-                    Err(e) => Err(ServiceError::new(
-                        format!("error parsing body: {}", e).as_str(),
-                    )),
-                }
             }
             Err(e) => Err(ServiceError::new(
                 format!("to_payload json failed: {}", e.to_string()).as_str(),
@@ -868,14 +893,87 @@ impl Handler for HttpJsonHandler {
     }
 }
 
-// struct HttpWriter {
-//     send: h2::client::SendRequest,
-// }
+#[async_trait]
+pub trait Writer: Sync + Send {
+    type Request;
 
-// impl HttpWriter {
-//     fn write_request(&mut self, parts: ::http::r buf: &[u8])  {
-//     }
-// }
+    type Response;
+
+    async fn write_request(
+        &mut self,
+        context: Arc<Self::Request>,
+        body: bytes::Bytes,
+    ) -> ServiceResult<bytes::Bytes>;
+
+    async fn write_response(
+        &mut self,
+        context: Arc<Self::Response>,
+        body: bytes::Bytes,
+    ) -> ServiceResult<()>;
+}
+
+struct Http2Writer {
+    send: h2::client::SendRequest<bytes::Bytes>,
+    resp: h2::server::SendResponse<bytes::Bytes>,
+}
+
+#[async_trait]
+impl Writer for Http2Writer {
+    type Request = ::http::request::Parts;
+
+    type Response = ::http::response::Parts;
+
+    async fn write_request(
+        &mut self,
+        context: Arc<::http::request::Parts>,
+        body: bytes::Bytes,
+    ) -> ServiceResult<bytes::Bytes> {
+        use ::http;
+        let request = http::Request::from_parts(Arc::try_unwrap(context).unwrap(), ());
+        let resp = self
+            .send
+            .ready()
+            .await
+            .and_then(|send_req| {
+                let (resp, sender) = send_req.send_request(request, false)?;
+                sender.send_data(body, true)?;
+                Ok(resp)
+            })
+            .unwrap()
+            .await
+            .unwrap();
+        let body = resp.body();
+        let body = match body.data().await {
+            Some(body) => body,
+            None => return Err(ServiceError::new("no body in response")),
+        };
+        match body {
+            Ok(body) => Ok(body),
+            Err(e) => Err(ServiceError::new(
+                format!("error parsing body: {}", e).as_str(),
+            )),
+        }
+    }
+
+    async fn write_response(
+        &mut self,
+        context: Arc<::http::response::Parts>,
+        body: bytes::Bytes,
+    ) -> ServiceResult<()> {
+        use ::http;
+        let response = http::Response::from_parts(Arc::try_unwrap(context).unwrap(), ());
+        let success = self
+            .resp
+            .send_response(response, false)?
+            .send_data(body, true);
+        match success {
+            Ok(_) => Ok(()),
+            Err(e) => Err(ServiceError::new(
+                format!("error parsing body: {}", e).as_str(),
+            )),
+        }
+    }
+}
 
 pub fn new_config(path: &str) -> config::Config {
     let mut obj = config::Config::new();
