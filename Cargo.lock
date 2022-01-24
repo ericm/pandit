@@ -983,6 +983,7 @@ dependencies = [
  "protofish",
  "redbpf",
  "serde 1.0.133",
+ "serde-protobuf",
  "serde_json",
  "tokio",
  "tokio-test",
@@ -1600,6 +1601,19 @@ dependencies = [
  "num-traits 0.1.43",
  "regex",
  "serde 0.8.23",
+]
+
+[[package]]
+name = "serde-protobuf"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "386e6493f9a732832e6b595ac2757a3c8c9285f4ab0c27313b7696b1712c32e4"
+dependencies = [
+ "linked-hash-map",
+ "log",
+ "protobuf 2.25.2",
+ "serde 1.0.133",
+ "thiserror",
 ]
 
 [[package]]

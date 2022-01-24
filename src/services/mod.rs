@@ -198,7 +198,7 @@ impl PartialEq for Value {
 
 #[async_trait]
 pub trait Handler {
-    fn from_payload(&self, buf: &[u8]) -> ServiceResult<Fields>;
+    fn from_payload(&self, buf: bytes::Bytes) -> ServiceResult<Fields>;
     async fn to_payload_and_send(&self, fields: &Fields) -> ServiceResult<bytes::Bytes>;
     // fn fields_to_payload(&self, fields: &Fields) {
     //     for field in fields.iter() {
@@ -299,6 +299,7 @@ impl Serialize for Fields {
 pub struct Message {
     path: String,
     fields: DashMap<u32, FieldDescriptorProto>,
+    fields_by_name: DashMap<String, FieldDescriptorProto>,
     message: protobuf::descriptor::DescriptorProto,
     parent: Arc<DashMap<String, Message>>,
 }
@@ -317,9 +318,18 @@ impl Message {
                 (number, field.clone())
             })
             .collect();
+        let fields_by_name: DashMap<String, FieldDescriptorProto> = message
+            .field
+            .iter()
+            .map(|field| {
+                let name = field.get_name().to_string();
+                (name, field.clone())
+            })
+            .collect();
         Self {
             path,
             fields,
+            fields_by_name,
             message,
             parent,
         }
@@ -350,6 +360,282 @@ impl Message {
         }
 
         Ok(Fields::new(fields))
+    }
+
+    pub fn write_bytes_from_fields<'a, B>(
+        &self,
+        output: &'a mut protobuf::CodedOutputStream<'a>,
+        fields: &Fields,
+    ) -> protobuf::ProtobufResult<()> {
+        for (key, value) in fields.map {
+            let value = match value {
+                Some(v) => v,
+                None => {
+                    eprintln!("no value for key {:?}", key);
+                    continue;
+                }
+            };
+            let field = self
+                .fields_by_name
+                .get(&key)
+                .ok_or(ServiceError::new(format!("no field: {}", key).as_str()))?;
+
+            use protobuf::descriptor::field_descriptor_proto::Label;
+            use protobuf::descriptor::field_descriptor_proto::Type::*;
+            fn write_value<'a, T>(
+                field: Ref<String, FieldDescriptorProto>,
+                output: &'a mut protobuf::CodedOutputStream<'a>,
+                write: fn(
+                    &'a mut protobuf::CodedOutputStream<'a>,
+                    T,
+                ) -> protobuf::ProtobufResult<()>,
+                value: Vec<T>,
+            ) -> protobuf::ProtobufResult<()> {
+                let num = u32::try_from(field.get_number()).unwrap();
+                if field.get_label() == Label::LABEL_REPEATED {
+                    output.write_tag(num, protobuf::wire_format::WireTypeFixed64)?;
+                    output.write_raw_varint64(u64::try_from(value.len()).unwrap())?;
+                    for item in value {
+                        write(output, item)?;
+                    }
+                    Ok(())
+                } else {
+                    let value = value
+                        .first()
+                        .ok_or(protobuf::ProtobufError::MessageNotInitialized(
+                            "value does not exist".to_string(),
+                        ))?
+                        .clone();
+                    output.write_tag(num, protobuf::wire_format::WireTypeFixed64)?;
+                    write(output, *value)
+                }
+            }
+
+            match field.get_field_type() {
+                TYPE_DOUBLE => {
+                    let value = match value {
+                        Value::Float64(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        protobuf::CodedOutputStream::write_double_no_tag,
+                        value,
+                    )?;
+                }
+                TYPE_FLOAT => {
+                    let value = match value {
+                        Value::Float32(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        protobuf::CodedOutputStream::write_float_no_tag,
+                        value,
+                    )?;
+                }
+                TYPE_INT64 => {
+                    let value = match value {
+                        Value::Int64(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        protobuf::CodedOutputStream::write_int64_no_tag,
+                        value,
+                    )?;
+                }
+                TYPE_UINT64 => {
+                    let value = match value {
+                        Value::UInt64(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        protobuf::CodedOutputStream::write_uint64_no_tag,
+                        value,
+                    )?;
+                }
+                TYPE_INT32 => {
+                    let value = match value {
+                        Value::Int32(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        protobuf::CodedOutputStream::write_int32_no_tag,
+                        value,
+                    )?;
+                }
+                TYPE_FIXED64 => {
+                    let value = match value {
+                        Value::UInt64(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        protobuf::CodedOutputStream::write_fixed64_no_tag,
+                        value,
+                    )?;
+                }
+                TYPE_FIXED32 => {
+                    let value = match value {
+                        Value::UInt32(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        protobuf::CodedOutputStream::write_fixed32_no_tag,
+                        value,
+                    )?;
+                }
+                TYPE_BOOL => {
+                    let value = match value {
+                        Value::Bool(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        protobuf::CodedOutputStream::write_bool_no_tag,
+                        value,
+                    )?;
+                }
+                TYPE_STRING => {
+                    let value = match value {
+                        Value::String(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        |output, s| {
+                            protobuf::CodedOutputStream::write_string_no_tag(output, s.as_str())
+                        },
+                        value,
+                    )?;
+                }
+                TYPE_BYTES => {
+                    let value = match value {
+                        Value::Bytes(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        |output, s| protobuf::CodedOutputStream::write_bytes_no_tag(output, &s[..]),
+                        value,
+                    )?;
+                }
+                TYPE_UINT32 => {
+                    let value = match value {
+                        Value::UInt64(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        protobuf::CodedOutputStream::write_uint64_no_tag,
+                        value,
+                    )?;
+                }
+                TYPE_SFIXED32 => {
+                    let value = match value {
+                        Value::Int32(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        protobuf::CodedOutputStream::write_sfixed32_no_tag,
+                        value,
+                    )?;
+                }
+                TYPE_SFIXED64 => {
+                    let value = match value {
+                        Value::Int64(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        protobuf::CodedOutputStream::write_sfixed64_no_tag,
+                        value,
+                    )?;
+                }
+                TYPE_SINT32 => {
+                    let value = match value {
+                        Value::Int32(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        protobuf::CodedOutputStream::write_sint32_no_tag,
+                        value,
+                    )?;
+                }
+                TYPE_SINT64 => {
+                    let value = match value {
+                        Value::Int64(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        protobuf::CodedOutputStream::write_sint64_no_tag,
+                        value,
+                    )?;
+                }
+                TYPE_ENUM => {
+                    let value = match value {
+                        Value::Enum(v) => v,
+                        _ => continue,
+                    };
+                    write_value(
+                        field,
+                        output,
+                        |output, val| {
+                            use protobuf::ProtobufEnum;
+                            protobuf::CodedOutputStream::write_enum_no_tag(output, val.value())
+                        },
+                        value,
+                    )?;
+                }
+                TYPE_MESSAGE => {
+                    let message_name = field.get_type_name().to_string();
+                    let parent = self.parent.clone();
+                    let other_message = parent.get(&message_name).unwrap();
+                    let value = match value {
+                        Value::Message(v) => v,
+                        _ => continue,
+                    };
+
+                    if field.get_label() == Label::LABEL_REPEATED {
+                        let num = u32::try_from(field.get_number()).unwrap();
+                        output.write_tag(num, protobuf::wire_format::WireTypeFixed64)?;
+                        output.write_raw_varint64(u64::try_from(value.len()).unwrap())?;
+                        for item in value {
+                            output.write_raw_varint64(u64::try_from(item.map.len()).unwrap())?;
+                            other_message.write_bytes_from_fields(output, &item)?;
+                        }
+                    } else {
+                        let item = value.first().unwrap();
+                        output.write_raw_varint64(u64::try_from(item.map.len()).unwrap())?;
+                        other_message.write_bytes_from_fields(output, item)?;
+                    }
+                }
+                _ => continue,
+            }
+        }
+        Ok(())
     }
 
     fn from_field_descriptor_proto(
@@ -835,6 +1121,8 @@ impl Service {
         let message = messages.get(&method.input_message).unwrap();
         let fields = Arc::new(message.fields_from_bytes(data)?);
         let payload = method.handler.to_payload_and_send(&fields).await?;
+        let resp_fields = method.handler.from_payload(payload)?;
+        // TODO: Proto from fields.
         Ok(())
     }
 }
@@ -871,8 +1159,8 @@ impl HttpJsonHandler {
 
 #[async_trait]
 impl Handler for HttpJsonHandler {
-    fn from_payload(&self, buf: &[u8]) -> ServiceResult<Fields> {
-        let json: serde_json::Value = serde_json::from_slice(buf).unwrap();
+    fn from_payload(&self, buf: bytes::Bytes) -> ServiceResult<Fields> {
+        let json: serde_json::Value = serde_json::from_reader(buf).unwrap();
         let pr = self.prog.execute(&json).unwrap();
         let result = pr.unwrap();
         Ok(serde_json::value::from_value(result)?)

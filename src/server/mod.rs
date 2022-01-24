@@ -70,6 +70,9 @@ impl Server {
 
         let service = services.get(service).unwrap();
 
+        service
+            .send_proto_to_local(&method.to_string(), &data[..])
+            .await?;
         let response = http::Response::new(());
         let mut send = respond.send_response(response, false)?;
         Ok(())
