@@ -894,23 +894,31 @@ mod message_tests {
         );
 
         let m = Message::new(desc, "".to_string(), parent);
-        let buf: &mut [u8] = &mut [];
         {
-            let mut buf = buf.writer();
-            let mut output = protobuf::CodedOutputStream::new(&mut buf);
-            let fields = Fields::new(map);
+            let buf = bytes::BytesMut::new();
+            {
+                let mut buf = buf.writer();
+                let mut output = protobuf::CodedOutputStream::new(&mut buf);
+                let fields = Fields::new(map);
 
-            m.write_bytes_from_fields(&mut output, &fields)?;
+                m.write_bytes_from_fields(&mut output, &fields)?;
+            }
+            let want: &[u8] = &[
+                0x08, 0x96, 0x01, // Field varint
+                0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67, // Field string
+                0x1a, 0x03, 0x08, 0x96, 0x01, // Embedded message
+                0x22, 0x08, 0x03, 0x08, 0x96, 0x01, 0x03, 0x08, 0x96,
+                0x01, // Embedded message repeated x2
+            ];
+
+            // {
+            //     assert_eq!(buf, want);
+            // }
+            let buf = buf.clone();
+            let buf = buf.as_ref();
+            buf.eq(want);
         }
-        let want: &mut [u8] = &mut [
-            0x08, 0x96, 0x01, // Field varint
-            0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67, // Field string
-            0x1a, 0x03, 0x08, 0x96, 0x01, // Embedded message
-            0x22, 0x08, 0x03, 0x08, 0x96, 0x01, 0x03, 0x08, 0x96,
-            0x01, // Embedded message repeated x2
-        ];
-
-        assert_eq!(buf, want);
+        // println!("{:?}", buf);
 
         Ok(())
     }
