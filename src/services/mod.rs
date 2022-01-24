@@ -24,6 +24,7 @@ use std::error::Error;
 use std::io::Write;
 use std::iter::FromIterator;
 use std::mem::ManuallyDrop;
+use std::ops::Deref;
 use std::path::Path;
 use std::pin::Pin;
 use std::str;
@@ -199,7 +200,7 @@ impl PartialEq for Value {
 #[async_trait]
 pub trait Handler {
     fn from_payload(&self, buf: bytes::Bytes) -> ServiceResult<Fields>;
-    async fn to_payload_and_send(&self, fields: &Fields) -> ServiceResult<bytes::Bytes>;
+    async fn to_payload_and_send(&mut self, fields: &Fields) -> ServiceResult<bytes::Bytes>;
     // fn fields_to_payload(&self, fields: &Fields) {
     //     for field in fields.iter() {
     //         let value = match field.value() {
@@ -362,33 +363,30 @@ impl Message {
         Ok(Fields::new(fields))
     }
 
-    pub fn write_bytes_from_fields<'a, B>(
+    pub fn write_bytes_from_fields(
         &self,
-        output: &'a mut protobuf::CodedOutputStream<'a>,
+        output: &mut protobuf::CodedOutputStream,
         fields: &Fields,
     ) -> protobuf::ProtobufResult<()> {
-        for (key, value) in fields.map {
-            let value = match value {
+        for kv in fields.map.iter() {
+            let key = kv.key().clone();
+            let value = match kv.value().clone() {
                 Some(v) => v,
                 None => {
                     eprintln!("no value for key {:?}", key);
                     continue;
                 }
             };
-            let field = self
-                .fields_by_name
-                .get(&key)
-                .ok_or(ServiceError::new(format!("no field: {}", key).as_str()))?;
+            let field = self.fields_by_name.get(&key).ok_or(
+                protobuf::ProtobufError::MessageNotInitialized(format!("no field: {}", key)),
+            )?;
 
             use protobuf::descriptor::field_descriptor_proto::Label;
             use protobuf::descriptor::field_descriptor_proto::Type::*;
-            fn write_value<'a, T>(
+            fn write_value<'b, T: Clone>(
                 field: Ref<String, FieldDescriptorProto>,
-                output: &'a mut protobuf::CodedOutputStream<'a>,
-                write: fn(
-                    &'a mut protobuf::CodedOutputStream<'a>,
-                    T,
-                ) -> protobuf::ProtobufResult<()>,
+                output: &mut protobuf::CodedOutputStream<'b>,
+                write: fn(&mut protobuf::CodedOutputStream<'b>, T) -> protobuf::ProtobufResult<()>,
                 value: Vec<T>,
             ) -> protobuf::ProtobufResult<()> {
                 let num = u32::try_from(field.get_number()).unwrap();
@@ -407,7 +405,7 @@ impl Message {
                         ))?
                         .clone();
                     output.write_tag(num, protobuf::wire_format::WireTypeFixed64)?;
-                    write(output, *value)
+                    write(output, value)
                 }
             }
 
@@ -815,7 +813,107 @@ impl protobuf::ProtobufEnum for ProtoEnum {
 mod message_tests {
     use std::hash::Hash;
 
+    use bytes::BufMut;
+
     use super::ServiceResult;
+
+    #[test]
+    fn test_bytes_from_fields() -> ServiceResult<()> {
+        use super::*;
+        use protobuf::descriptor::field_descriptor_proto::Label::{self, *};
+        use protobuf::descriptor::field_descriptor_proto::Type::{self, *};
+
+        let message2_fields: Fields = Fields::new(DashMap::new());
+        message2_fields
+            .map
+            .insert("varint".to_string(), Some(Value::from_int32(150)));
+
+        struct Table {
+            name: String,
+            field_type: Type,
+            number: i32,
+            type_name: String,
+            label: Label,
+            value: Value,
+        }
+        let table = [
+            Table {
+                name: "varint".to_string(),
+                field_type: TYPE_INT32,
+                number: 1,
+                type_name: "".to_string(),
+                label: LABEL_OPTIONAL,
+                value: Value::from_int32(150),
+            },
+            Table {
+                name: "string".to_string(),
+                field_type: TYPE_STRING,
+                number: 2,
+                type_name: "".to_string(),
+                label: LABEL_OPTIONAL,
+                value: Value::from_string("testing".to_string()),
+            },
+            Table {
+                name: "message".to_string(),
+                field_type: TYPE_MESSAGE,
+                number: 3,
+                type_name: "Message2".to_string(),
+                label: LABEL_OPTIONAL,
+                value: Value::from_message(message2_fields.clone()),
+            },
+            Table {
+                name: "message_repeated".to_string(),
+                field_type: TYPE_MESSAGE,
+                number: 4,
+                type_name: "Message2".to_string(),
+                label: LABEL_REPEATED,
+                value: Value::Message(vec![message2_fields.clone(), message2_fields.clone()]),
+            },
+        ];
+
+        let mut desc = protobuf::descriptor::DescriptorProto::new();
+        let map = FieldsMap::new();
+        for item in &table {
+            let mut field = protobuf::descriptor::FieldDescriptorProto::new();
+            field.set_name(item.name.clone());
+            field.set_field_type(item.field_type);
+            field.set_number(item.number);
+            field.set_type_name(item.type_name.clone());
+            field.set_label(item.label);
+            desc.field.push(field);
+            map.insert(item.name.clone(), Some(item.value.clone()));
+        }
+
+        let mut message2 = protobuf::descriptor::DescriptorProto::new();
+        message2.field.push(desc.field.first().unwrap().clone());
+
+        let parent: Arc<DashMap<String, Message>> = Arc::new(DashMap::new());
+        parent.insert(
+            "Message2".to_string(),
+            Message::new(message2, "".to_string(), parent.clone()),
+        );
+
+        let m = Message::new(desc, "".to_string(), parent);
+        let buf: &mut [u8] = &mut [];
+        {
+            let mut buf = buf.writer();
+            let mut output = protobuf::CodedOutputStream::new(&mut buf);
+            let fields = Fields::new(map);
+
+            m.write_bytes_from_fields(&mut output, &fields)?;
+        }
+        let want: &mut [u8] = &mut [
+            0x08, 0x96, 0x01, // Field varint
+            0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67, // Field string
+            0x1a, 0x03, 0x08, 0x96, 0x01, // Embedded message
+            0x22, 0x08, 0x03, 0x08, 0x96, 0x01, 0x03, 0x08, 0x96,
+            0x01, // Embedded message repeated x2
+        ];
+
+        assert_eq!(buf, want);
+
+        Ok(())
+    }
 
     #[test]
     fn test_fields_from_bytes() -> ServiceResult<()> {
@@ -921,6 +1019,7 @@ impl Clone for Message {
             message: self.message.clone(),
             fields: self.fields.clone(),
             parent: self.parent.clone(),
+            fields_by_name: self.fields_by_name.clone(),
         }
     }
 }
@@ -1084,31 +1183,26 @@ impl Service {
             }
         }
         let message = self.messages.get(input_message).unwrap();
-        let req_parts = http::request::Parts {
-            method: method(api.pattern.unwrap()),
-            uri: todo!(),
-            version: todo!(),
-            headers: todo!(),
-            extensions: todo!(),
-            _priv: todo!(),
-        };
-        let resp_parts = http::response::Parts {
-            status: todo!(),
-            version: todo!(),
-            headers: todo!(),
-            extensions: todo!(),
-            _priv: todo!(),
-        };
-        let writer = Http2Writer {
-            send: todo!(),
-            resp: todo!(),
-        };
+        // let req_parts = http::request::Parts {
+        //     method: method(api.pattern.unwrap()),
+        //     uri: todo!(),
+        //     version: todo!(),
+        //     headers: todo!(),
+        //     extensions: todo!(),
+        // };
+        // let resp_parts = http::response::Parts {
+        //     status: todo!(),
+        //     version: todo!(),
+        //     headers: todo!(),
+        //     extensions: todo!(),
+        // };
+        let writer = Http2Writer {};
         match api.content_type.as_str() {
             "application/json" => Box::pin(HttpJsonHandler::new(
                 api.pattern.unwrap(),
                 message.path.clone(),
-                req_parts,
-                resp_parts,
+                todo!(),
+                todo!(),
                 Box::new(writer),
             )),
             e => panic!("unknown http api content type: {}", e),
@@ -1116,12 +1210,12 @@ impl Service {
     }
 
     pub async fn send_proto_to_local(&self, method: &String, data: &[u8]) -> ServiceResult<()> {
-        let method = self.methods.get(method).unwrap();
+        let mut method = self.methods.get_mut(method).unwrap();
         let messages = self.messages.clone();
         let message = messages.get(&method.input_message).unwrap();
         let fields = Arc::new(message.fields_from_bytes(data)?);
-        let payload = method.handler.to_payload_and_send(&fields).await?;
-        let resp_fields = method.handler.from_payload(payload)?;
+        // let payload = method.handler.to_payload_and_send(&fields).await?;
+        // let resp_fields = method.handler.from_payload(payload)?;
         // TODO: Proto from fields.
         Ok(())
     }
@@ -1160,19 +1254,21 @@ impl HttpJsonHandler {
 #[async_trait]
 impl Handler for HttpJsonHandler {
     fn from_payload(&self, buf: bytes::Bytes) -> ServiceResult<Fields> {
-        let json: serde_json::Value = serde_json::from_reader(buf).unwrap();
+        use bytes::Buf;
+        let json: serde_json::Value = serde_json::from_reader(buf.reader()).unwrap();
         let pr = self.prog.execute(&json).unwrap();
         let result = pr.unwrap();
         Ok(serde_json::value::from_value(result)?)
     }
 
-    async fn to_payload_and_send(&self, fields: &Fields) -> ServiceResult<bytes::Bytes> {
+    async fn to_payload_and_send(&mut self, fields: &Fields) -> ServiceResult<bytes::Bytes> {
         match serde_json::to_vec(fields) {
             Ok(data) => {
                 let data = bytes::Bytes::from_iter(data);
-                self.writer
-                    .write_request(self.req_parts.clone(), data)
-                    .await
+                todo!()
+                // self.writer
+                //     .write_request(self.req_parts.clone(), data)
+                //     .await
             }
             Err(e) => Err(ServiceError::new(
                 format!("to_payload json failed: {}", e.to_string()).as_str(),
@@ -1188,22 +1284,21 @@ pub trait Writer: Sync + Send {
     type Response;
 
     async fn write_request(
-        &mut self,
-        context: Arc<Self::Request>,
+        self,
+        context: Arc<::http::request::Parts>,
+        send: h2::client::SendRequest<bytes::Bytes>,
         body: bytes::Bytes,
     ) -> ServiceResult<bytes::Bytes>;
 
     async fn write_response(
-        &mut self,
+        self,
         context: Arc<Self::Response>,
+        mut resp: h2::server::SendResponse<bytes::Bytes>,
         body: bytes::Bytes,
     ) -> ServiceResult<()>;
 }
 
-struct Http2Writer {
-    send: h2::client::SendRequest<bytes::Bytes>,
-    resp: h2::server::SendResponse<bytes::Bytes>,
-}
+struct Http2Writer {}
 
 #[async_trait]
 impl Writer for Http2Writer {
@@ -1212,25 +1307,25 @@ impl Writer for Http2Writer {
     type Response = ::http::response::Parts;
 
     async fn write_request(
-        &mut self,
+        self,
         context: Arc<::http::request::Parts>,
+        send: h2::client::SendRequest<bytes::Bytes>,
         body: bytes::Bytes,
     ) -> ServiceResult<bytes::Bytes> {
         use ::http;
         let request = http::Request::from_parts(Arc::try_unwrap(context).unwrap(), ());
-        let resp = self
-            .send
+        let mut resp = send
             .ready()
             .await
-            .and_then(|send_req| {
-                let (resp, sender) = send_req.send_request(request, false)?;
+            .and_then(|mut send_req| {
+                let (resp, mut sender) = send_req.send_request(request, false)?;
                 sender.send_data(body, true)?;
                 Ok(resp)
             })
             .unwrap()
             .await
             .unwrap();
-        let body = resp.body();
+        let body = resp.body_mut();
         let body = match body.data().await {
             Some(body) => body,
             None => return Err(ServiceError::new("no body in response")),
@@ -1244,16 +1339,14 @@ impl Writer for Http2Writer {
     }
 
     async fn write_response(
-        &mut self,
-        context: Arc<::http::response::Parts>,
+        self,
+        context: Arc<Self::Response>,
+        mut resp: h2::server::SendResponse<bytes::Bytes>,
         body: bytes::Bytes,
     ) -> ServiceResult<()> {
         use ::http;
         let response = http::Response::from_parts(Arc::try_unwrap(context).unwrap(), ());
-        let success = self
-            .resp
-            .send_response(response, false)?
-            .send_data(body, true);
+        let success = resp.send_response(response, false)?.send_data(body, true);
         match success {
             Ok(_) => Ok(()),
             Err(e) => Err(ServiceError::new(
