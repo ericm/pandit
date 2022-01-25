@@ -893,31 +893,29 @@ mod message_tests {
             Message::new(message2, "".to_string(), parent.clone()),
         );
 
+        println!("Testing fieldstobytes");
+
         let m = Message::new(desc, "".to_string(), parent);
+        let buf: Vec<u8> = Vec::with_capacity(1000);
+        use bytes::BufMut;
+        let mut buf = buf.writer();
         {
-            let buf = bytes::BytesMut::new();
-            {
-                let mut buf = buf.writer();
-                let mut output = protobuf::CodedOutputStream::new(&mut buf);
-                let fields = Fields::new(map);
-
-                m.write_bytes_from_fields(&mut output, &fields)?;
-            }
-            let want: &[u8] = &[
-                0x08, 0x96, 0x01, // Field varint
-                0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67, // Field string
-                0x1a, 0x03, 0x08, 0x96, 0x01, // Embedded message
-                0x22, 0x08, 0x03, 0x08, 0x96, 0x01, 0x03, 0x08, 0x96,
-                0x01, // Embedded message repeated x2
-            ];
-
-            // {
-            //     assert_eq!(buf, want);
-            // }
-            let buf = buf.clone();
-            let buf = buf.as_ref();
-            buf.eq(want);
+            let mut output = protobuf::CodedOutputStream::new(&mut buf);
+            let fields = Fields::new(map);
+            m.write_bytes_from_fields(&mut output, &fields)?;
         }
+        let want = vec![
+            0x08, 0x96, 0x01, // Field varint
+            0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67, // Field string
+            0x1a, 0x03, 0x08, 0x96, 0x01, // Embedded message
+            0x22, 0x08, 0x03, 0x08, 0x96, 0x01, 0x03, 0x08, 0x96,
+            0x01, // Embedded message repeated x2
+        ];
+        let buf = buf.into_inner();
+        assert_eq!(buf, want);
+        // let buf = buf.clone();
+        // let buf = buf.as_ref();
+        // buf.eq(want);
         // println!("{:?}", buf);
 
         Ok(())
