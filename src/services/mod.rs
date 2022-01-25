@@ -388,10 +388,12 @@ impl Message {
                 output: &mut protobuf::CodedOutputStream<'b>,
                 write: fn(&mut protobuf::CodedOutputStream<'b>, T) -> protobuf::ProtobufResult<()>,
                 value: Vec<T>,
+                wire_type: protobuf::wire_format::WireType,
             ) -> protobuf::ProtobufResult<()> {
                 let num = u32::try_from(field.get_number()).unwrap();
+                println!("write_value {} {}", field.get_name(), num);
                 if field.get_label() == Label::LABEL_REPEATED {
-                    output.write_tag(num, protobuf::wire_format::WireTypeFixed64)?;
+                    output.write_tag(num, protobuf::wire_format::WireTypeLengthDelimited)?;
                     output.write_raw_varint64(u64::try_from(value.len()).unwrap())?;
                     for item in value {
                         write(output, item)?;
@@ -404,11 +406,12 @@ impl Message {
                             "value does not exist".to_string(),
                         ))?
                         .clone();
-                    output.write_tag(num, protobuf::wire_format::WireTypeFixed64)?;
+                    output.write_tag(num, wire_type)?;
                     write(output, value)
                 }
             }
 
+            println!("match {}", field.get_name());
             match field.get_field_type() {
                 TYPE_DOUBLE => {
                     let value = match value {
@@ -420,6 +423,7 @@ impl Message {
                         output,
                         protobuf::CodedOutputStream::write_double_no_tag,
                         value,
+                        protobuf::wire_format::WireTypeFixed64,
                     )?;
                 }
                 TYPE_FLOAT => {
@@ -432,6 +436,7 @@ impl Message {
                         output,
                         protobuf::CodedOutputStream::write_float_no_tag,
                         value,
+                        protobuf::wire_format::WireTypeFixed32,
                     )?;
                 }
                 TYPE_INT64 => {
@@ -444,6 +449,7 @@ impl Message {
                         output,
                         protobuf::CodedOutputStream::write_int64_no_tag,
                         value,
+                        protobuf::wire_format::WireTypeVarint,
                     )?;
                 }
                 TYPE_UINT64 => {
@@ -456,6 +462,7 @@ impl Message {
                         output,
                         protobuf::CodedOutputStream::write_uint64_no_tag,
                         value,
+                        protobuf::wire_format::WireTypeVarint,
                     )?;
                 }
                 TYPE_INT32 => {
@@ -468,6 +475,7 @@ impl Message {
                         output,
                         protobuf::CodedOutputStream::write_int32_no_tag,
                         value,
+                        protobuf::wire_format::WireTypeVarint,
                     )?;
                 }
                 TYPE_FIXED64 => {
@@ -480,6 +488,7 @@ impl Message {
                         output,
                         protobuf::CodedOutputStream::write_fixed64_no_tag,
                         value,
+                        protobuf::wire_format::WireTypeFixed64,
                     )?;
                 }
                 TYPE_FIXED32 => {
@@ -492,6 +501,7 @@ impl Message {
                         output,
                         protobuf::CodedOutputStream::write_fixed32_no_tag,
                         value,
+                        protobuf::wire_format::WireTypeFixed32,
                     )?;
                 }
                 TYPE_BOOL => {
@@ -504,6 +514,7 @@ impl Message {
                         output,
                         protobuf::CodedOutputStream::write_bool_no_tag,
                         value,
+                        protobuf::wire_format::WireTypeVarint,
                     )?;
                 }
                 TYPE_STRING => {
@@ -518,6 +529,7 @@ impl Message {
                             protobuf::CodedOutputStream::write_string_no_tag(output, s.as_str())
                         },
                         value,
+                        protobuf::wire_format::WireTypeLengthDelimited,
                     )?;
                 }
                 TYPE_BYTES => {
@@ -530,6 +542,7 @@ impl Message {
                         output,
                         |output, s| protobuf::CodedOutputStream::write_bytes_no_tag(output, &s[..]),
                         value,
+                        protobuf::wire_format::WireTypeLengthDelimited,
                     )?;
                 }
                 TYPE_UINT32 => {
@@ -542,6 +555,7 @@ impl Message {
                         output,
                         protobuf::CodedOutputStream::write_uint64_no_tag,
                         value,
+                        protobuf::wire_format::WireTypeVarint,
                     )?;
                 }
                 TYPE_SFIXED32 => {
@@ -554,6 +568,7 @@ impl Message {
                         output,
                         protobuf::CodedOutputStream::write_sfixed32_no_tag,
                         value,
+                        protobuf::wire_format::WireTypeFixed32,
                     )?;
                 }
                 TYPE_SFIXED64 => {
@@ -566,6 +581,7 @@ impl Message {
                         output,
                         protobuf::CodedOutputStream::write_sfixed64_no_tag,
                         value,
+                        protobuf::wire_format::WireTypeFixed64,
                     )?;
                 }
                 TYPE_SINT32 => {
@@ -578,6 +594,7 @@ impl Message {
                         output,
                         protobuf::CodedOutputStream::write_sint32_no_tag,
                         value,
+                        protobuf::wire_format::WireTypeVarint,
                     )?;
                 }
                 TYPE_SINT64 => {
@@ -590,6 +607,7 @@ impl Message {
                         output,
                         protobuf::CodedOutputStream::write_sint64_no_tag,
                         value,
+                        protobuf::wire_format::WireTypeVarint,
                     )?;
                 }
                 TYPE_ENUM => {
@@ -605,6 +623,7 @@ impl Message {
                             protobuf::CodedOutputStream::write_enum_no_tag(output, val.value())
                         },
                         value,
+                        protobuf::wire_format::WireTypeVarint,
                     )?;
                 }
                 TYPE_MESSAGE => {
@@ -616,18 +635,49 @@ impl Message {
                         _ => continue,
                     };
 
+                    let num = u32::try_from(field.get_number()).unwrap();
+                    output.write_tag(num, protobuf::wire_format::WireTypeLengthDelimited)?;
+
                     if field.get_label() == Label::LABEL_REPEATED {
-                        let num = u32::try_from(field.get_number()).unwrap();
-                        output.write_tag(num, protobuf::wire_format::WireTypeFixed64)?;
-                        output.write_raw_varint64(u64::try_from(value.len()).unwrap())?;
-                        for item in value {
-                            output.write_raw_varint64(u64::try_from(item.map.len()).unwrap())?;
-                            other_message.write_bytes_from_fields(output, &item)?;
+                        let buf: Vec<u8> = Vec::with_capacity(10000);
+                        use bytes::BufMut;
+                        let mut buf = buf.writer();
+                        {
+                            let mut outer_output = protobuf::CodedOutputStream::new(&mut buf);
+                            for item in value {
+                                let buf: Vec<u8> = Vec::with_capacity(1000);
+                                let mut buf = buf.writer();
+
+                                {
+                                    let mut sub_output = protobuf::CodedOutputStream::new(&mut buf);
+                                    other_message
+                                        .write_bytes_from_fields(&mut sub_output, &item)?;
+                                }
+
+                                let buf = buf.into_inner();
+                                outer_output
+                                    .write_raw_varint64(u64::try_from(buf.len()).unwrap())?;
+                                outer_output.write_all(&buf[..])?;
+                            }
                         }
+                        let buf = buf.into_inner();
+                        output.write_raw_varint64(u64::try_from(buf.len()).unwrap())?;
+                        output.write_all(&buf[..])?;
                     } else {
                         let item = value.first().unwrap();
-                        output.write_raw_varint64(u64::try_from(item.map.len()).unwrap())?;
-                        other_message.write_bytes_from_fields(output, item)?;
+
+                        let buf: Vec<u8> = Vec::with_capacity(1000);
+                        use bytes::BufMut;
+                        let mut buf = buf.writer();
+
+                        {
+                            let mut sub_output = protobuf::CodedOutputStream::new(&mut buf);
+                            other_message.write_bytes_from_fields(&mut sub_output, item)?;
+                        }
+
+                        let buf = buf.into_inner();
+                        output.write_raw_varint64(u64::try_from(buf.len()).unwrap())?;
+                        output.write_all(&buf[..])?;
                     }
                 }
                 _ => continue,
@@ -904,15 +954,13 @@ mod message_tests {
             let fields = Fields::new(map);
             m.write_bytes_from_fields(&mut output, &fields)?;
         }
-        let want = vec![
-            0x08, 0x96, 0x01, // Field varint
-            0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67, // Field string
-            0x1a, 0x03, 0x08, 0x96, 0x01, // Embedded message
-            0x22, 0x08, 0x03, 0x08, 0x96, 0x01, 0x03, 0x08, 0x96,
-            0x01, // Embedded message repeated x2
-        ];
+
         let buf = buf.into_inner();
-        assert_eq!(buf, want);
+        let got = m.fields_from_bytes(&buf[..])?;
+        for item in &table {
+            let got_item = got.map.get(&item.name).unwrap().clone().unwrap();
+            assert_eq!(item.value, got_item);
+        }
         // let buf = buf.clone();
         // let buf = buf.as_ref();
         // buf.eq(want);
