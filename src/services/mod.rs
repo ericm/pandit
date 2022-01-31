@@ -1,6 +1,7 @@
 use crate::proto;
 use ::std::slice;
 use access_json::{AnySerializable, JSONQuery};
+use actix::prelude as actix;
 use async_trait::async_trait;
 use config;
 use dashmap::mapref::one::Ref;
@@ -1273,6 +1274,16 @@ impl Service {
         // TODO: Proto from fields.
         Ok(())
     }
+}
+
+pub struct HttpHandler {}
+
+impl actix::Actor for HttpHandler {
+    type Context = actix::Context<HttpHandler>;
+}
+
+impl actix::Handler<bytes::Bytes> for HttpHandler {
+    type Result = ::http::Response<bytes::Bytes>;
 }
 
 pub struct HttpJsonHandler {

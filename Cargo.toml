@@ -11,6 +11,8 @@ publish = false
 
 [dependencies]
 access-json = "0.1.0"
+actix = "0.12"
+actix-web = "3"
 probes = { path = "./probes", package = "probes" }
 clap = "2.34.0"
 config = "0.11.0"
