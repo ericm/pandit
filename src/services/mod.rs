@@ -1209,7 +1209,7 @@ impl Service {
                     Method {
                         input_message: input_message.clone(),
                         output_message: method.get_output_type().to_string(),
-                        handler: self.handler_from_http_api(&input_message, api.clone()),
+                        handler: self.handler_from_http_api(&input_message, api.clone(), todo!()),
                         api: MethodAPI {
                             http: ManuallyDrop::new(api),
                         },
@@ -1225,6 +1225,7 @@ impl Service {
         &self,
         input_message: &String,
         api: http::API,
+        stream: tokio::net::TcpStream,
     ) -> Pin<Box<dyn Handler + Sync + Send + 'static>> {
         use crate::proto::http as proto_http;
         use ::http;
@@ -1251,7 +1252,7 @@ impl Service {
         //     headers: todo!(),
         //     extensions: todo!(),
         // };
-        let writer = Http2Writer {};
+        let writer = Http2Writer::new(stream);
         match api.content_type.as_str() {
             "application/json" => Box::pin(HttpJsonHandler::new(
                 api.pattern.unwrap(),
@@ -1266,24 +1267,15 @@ impl Service {
 
     pub async fn send_proto_to_local(&self, method: &String, data: &[u8]) -> ServiceResult<()> {
         let mut method = self.methods.get_mut(method).unwrap();
+        let handler = method.handler.deref();
         let messages = self.messages.clone();
         let message = messages.get(&method.input_message).unwrap();
         let fields = Arc::new(message.fields_from_bytes(data)?);
-        // let payload = method.handler.to_payload_and_send(&fields).await?;
+        let payload = handler.to_payload_and_send(&fields).await?;
         // let resp_fields = method.handler.from_payload(payload)?;
         // TODO: Proto from fields.
         Ok(())
     }
-}
-
-pub struct HttpHandler {}
-
-impl actix::Actor for HttpHandler {
-    type Context = actix::Context<HttpHandler>;
-}
-
-impl actix::Handler<bytes::Bytes> for HttpHandler {
-    type Result = ::http::Response<bytes::Bytes>;
 }
 
 pub struct HttpJsonHandler {
@@ -1330,10 +1322,9 @@ impl Handler for HttpJsonHandler {
         match serde_json::to_vec(fields) {
             Ok(data) => {
                 let data = bytes::Bytes::from_iter(data);
-                todo!()
-                // self.writer
-                //     .write_request(self.req_parts.clone(), data)
-                //     .await
+                self.writer
+                    .write_request(self.req_parts.clone(), data)
+                    .await
             }
             Err(e) => Err(ServiceError::new(
                 format!("to_payload json failed: {}", e.to_string()).as_str(),
@@ -1349,21 +1340,28 @@ pub trait Writer: Sync + Send {
     type Response;
 
     async fn write_request(
-        self,
+        &mut self,
         context: Arc<::http::request::Parts>,
-        send: h2::client::SendRequest<bytes::Bytes>,
         body: bytes::Bytes,
     ) -> ServiceResult<bytes::Bytes>;
 
-    async fn write_response(
-        self,
-        context: Arc<Self::Response>,
-        mut resp: h2::server::SendResponse<bytes::Bytes>,
-        body: bytes::Bytes,
-    ) -> ServiceResult<()>;
+    // async fn write_response(
+    //     self,
+    //     context: Arc<Self::Response>,
+    //     mut resp: h2::server::SendResponse<bytes::Bytes>,
+    //     body: bytes::Bytes,
+    // ) -> ServiceResult<()>;
 }
 
-struct Http2Writer {}
+struct Http2Writer {
+    stream: tokio::net::TcpStream,
+}
+
+impl Http2Writer {
+    fn new(stream: tokio::net::TcpStream) -> Http2Writer {
+        Self { stream }
+    }
+}
 
 #[async_trait]
 impl Writer for Http2Writer {
@@ -1372,12 +1370,12 @@ impl Writer for Http2Writer {
     type Response = ::http::response::Parts;
 
     async fn write_request(
-        self,
+        &mut self,
         context: Arc<::http::request::Parts>,
-        send: h2::client::SendRequest<bytes::Bytes>,
         body: bytes::Bytes,
     ) -> ServiceResult<bytes::Bytes> {
         use ::http;
+        let (send, conn) = h2::client::handshake(&mut self.stream).await?;
         let request = http::Request::from_parts(Arc::try_unwrap(context).unwrap(), ());
         let mut resp = send
             .ready()
@@ -1386,10 +1384,8 @@ impl Writer for Http2Writer {
                 let (resp, mut sender) = send_req.send_request(request, false)?;
                 sender.send_data(body, true)?;
                 Ok(resp)
-            })
-            .unwrap()
-            .await
-            .unwrap();
+            })?
+            .await?;
         let body = resp.body_mut();
         let body = match body.data().await {
             Some(body) => body,
@@ -1403,22 +1399,24 @@ impl Writer for Http2Writer {
         }
     }
 
-    async fn write_response(
-        self,
-        context: Arc<Self::Response>,
-        mut resp: h2::server::SendResponse<bytes::Bytes>,
-        body: bytes::Bytes,
-    ) -> ServiceResult<()> {
-        use ::http;
-        let response = http::Response::from_parts(Arc::try_unwrap(context).unwrap(), ());
-        let success = resp.send_response(response, false)?.send_data(body, true);
-        match success {
-            Ok(_) => Ok(()),
-            Err(e) => Err(ServiceError::new(
-                format!("error parsing body: {}", e).as_str(),
-            )),
-        }
-    }
+    // async fn write_response(
+    //     self,
+    //     context: Arc<Self::Response>,
+    //     mut resp: h2::server::SendResponse<bytes::Bytes>,
+    //     body: bytes::Bytes,
+    // ) -> ServiceResult<()> {
+    //     use ::http;
+    //     let conn = h2::server::handshake(self.stream).await?;
+    //     h2::server::SendResponse::
+    //     let response = http::Response::from_parts(Arc::try_unwrap(context).unwrap(), ());
+    //     let success = resp.send_response(response, false)?.send_data(body, true);
+    //     match success {
+    //         Ok(_) => Ok(()),
+    //         Err(e) => Err(ServiceError::new(
+    //             format!("error parsing body: {}", e).as_str(),
+    //         )),
+    //     }
+    // }
 }
 
 pub fn new_config(path: &str) -> config::Config {
