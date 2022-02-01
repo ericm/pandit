@@ -1081,7 +1081,7 @@ impl Clone for Message {
 
 pub struct Method {
     pub api: MethodAPI,
-    pub handler: Pin<Box<dyn Handler + Sync + Send + 'static>>,
+    pub handler: Box<dyn Handler + Sync + Send + 'static>,
     pub input_message: String,
     pub output_message: String,
 }
@@ -1226,7 +1226,7 @@ impl Service {
         input_message: &String,
         api: http::API,
         stream: tokio::net::TcpStream,
-    ) -> Pin<Box<dyn Handler + Sync + Send + 'static>> {
+    ) -> Box<dyn Handler + Sync + Send + 'static> {
         use crate::proto::http as proto_http;
         use ::http;
         fn method(pattern: proto_http::api::Pattern) -> http::Method {
@@ -1254,7 +1254,7 @@ impl Service {
         // };
         let writer = Http2Writer::new(stream);
         match api.content_type.as_str() {
-            "application/json" => Box::pin(HttpJsonHandler::new(
+            "application/json" => Box::new(HttpJsonHandler::new(
                 api.pattern.unwrap(),
                 message.path.clone(),
                 todo!(),
@@ -1265,16 +1265,28 @@ impl Service {
         }
     }
 
-    pub async fn send_proto_to_local(&self, method: &String, data: &[u8]) -> ServiceResult<()> {
+    pub async fn send_proto_to_local(
+        &self,
+        method: &String,
+        data: &[u8],
+    ) -> ServiceResult<bytes::Bytes> {
         let mut method = self.methods.get_mut(method).unwrap();
-        let handler = method.handler.deref();
         let messages = self.messages.clone();
         let message = messages.get(&method.input_message).unwrap();
+
         let fields = Arc::new(message.fields_from_bytes(data)?);
-        let payload = handler.to_payload_and_send(&fields).await?;
-        // let resp_fields = method.handler.from_payload(payload)?;
-        // TODO: Proto from fields.
-        Ok(())
+        let payload = method.handler.to_payload_and_send(&fields).await?;
+
+        let resp_fields = method.handler.from_payload(payload)?;
+        let buf: Vec<u8> = Vec::with_capacity(1000);
+        use bytes::BufMut;
+        let mut buf = buf.writer();
+        {
+            let mut output = protobuf::CodedOutputStream::new(&mut buf);
+            message.write_bytes_from_fields(&mut output, &resp_fields)?;
+        }
+        let buf = buf.into_inner();
+        Ok(bytes::Bytes::copy_from_slice(&buf[..]))
     }
 }
 

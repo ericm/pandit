@@ -1,3 +1,4 @@
+#![feature(destructuring_assignment)]
 use std::error::Error;
 use std::sync::Arc;
 
@@ -70,11 +71,18 @@ impl Server {
 
         let service = services.get(service).unwrap();
 
-        service
+        let resp_payload = service
             .send_proto_to_local(&method.to_string(), &data[..])
             .await?;
-        let response = http::Response::new(());
+        let response = http::Response::from_parts(
+            http::response::Parts {
+                status: http::StatusCode::OK,
+                ..
+            },
+            (),
+        );
         let mut send = respond.send_response(response, false)?;
+        send.send_data(resp_payload, true)?;
         Ok(())
     }
 }
