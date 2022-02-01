@@ -19,15 +19,20 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn run(
-        &self,
-        service: services::Service,
-        addr: String,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn run(&self, addr: String) -> Result<(), Box<dyn std::error::Error>> {
         let listener = TcpListener::bind(addr).await?;
         loop {
             if let Ok((socket, saddr)) = listener.accept().await {
-                self.serve(socket);
+                match self.serve(socket).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        println!(
+                            "error parsing packet from {}: {}",
+                            saddr.to_string(),
+                            e.to_string()
+                        );
+                    }
+                }
             }
         }
         Ok(())
@@ -74,13 +79,7 @@ impl Server {
         let resp_payload = service
             .send_proto_to_local(&method.to_string(), &data[..])
             .await?;
-        let response = http::Response::from_parts(
-            http::response::Parts {
-                status: http::StatusCode::OK,
-                ..
-            },
-            (),
-        );
+        let response = http::Response::new(());
         let mut send = respond.send_response(response, false)?;
         send.send_data(resp_payload, true)?;
         Ok(())
