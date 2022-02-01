@@ -3,6 +3,7 @@ use std::error::Error;
 use std::sync::Arc;
 
 use crate::services;
+use async_trait::async_trait;
 use bytes::Bytes;
 use h2::server::{self, SendResponse};
 use h2::RecvStream;
@@ -14,12 +15,9 @@ use tokio;
 use tokio::net::{TcpListener, TcpStream};
 use tonic;
 
-pub struct Server {
-    services: Arc<services::Services>,
-}
-
-impl Server {
-    pub async fn run(&self, addr: String) -> Result<(), Box<dyn std::error::Error>> {
+#[async_trait]
+pub trait Server {
+    async fn run(&self, addr: String) -> Result<(), Box<dyn std::error::Error>> {
         let listener = TcpListener::bind(addr).await?;
         loop {
             if let Ok((socket, saddr)) = listener.accept().await {
@@ -37,21 +35,31 @@ impl Server {
         }
         Ok(())
     }
+    async fn serve(&self, socket: TcpStream) -> Result<(), Box<dyn Error + Send + Sync + '_>>;
+}
 
+pub struct IntraServer {
+    services: Arc<services::Services>,
+}
+
+#[async_trait]
+impl Server for IntraServer {
     async fn serve(&self, socket: TcpStream) -> Result<(), Box<dyn Error + Send + Sync + '_>> {
         let mut conn = server::handshake(socket).await?;
         while let Some(result) = conn.accept().await {
             let (req, resp) = result?;
             let services = self.services.clone();
             tokio::spawn(async move {
-                if let Err(e) = Server::handle_request(services, req, resp).await {
+                if let Err(e) = IntraServer::handle_request(services, req, resp).await {
                     println!("error handling request: {}", e);
                 }
             });
         }
         Ok(())
     }
+}
 
+impl IntraServer {
     async fn handle_request(
         services: Arc<services::Services>,
         mut request: Request<RecvStream>,
