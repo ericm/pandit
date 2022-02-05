@@ -19,6 +19,7 @@ use protobuf_parse;
 use serde::de::Visitor;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize};
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
@@ -30,8 +31,9 @@ use std::path::Path;
 use std::pin::Pin;
 use std::str;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::{fmt::Display, path::PathBuf};
+use tokio::sync::Mutex;
 
 #[derive(Debug, PartialEq)]
 pub enum Protocol {
@@ -1086,18 +1088,20 @@ pub struct Method {
     pub output_message: String,
 }
 
-pub type Services<'a> = DashMap<String, Service<'a>>;
+pub type Services = DashMap<String, Service>;
 
-pub struct Service<'w> {
+type WriterRef = Box<Mutex<dyn Writer>>;
+
+pub struct Service {
     pub name: String,
     pub protocol: Protocol,
     pub methods: DashMap<String, Method>,
     pub messages: Arc<DashMap<String, Message>>,
-    pub writer: &'w mut dyn Writer,
+    pub writer: WriterRef,
 }
 
-impl<'w> Service<'w> {
-    pub fn from_file(path: &str, writer: &'w mut dyn Writer) -> Result<Self, ServiceError> {
+impl Service {
+    pub fn from_file(path: &str, writer: WriterRef) -> Result<Self, ServiceError> {
         let path_buf = &PathBuf::from(path);
         let include = PathBuf::from("./src/proto");
         let parsed =
@@ -1155,7 +1159,7 @@ impl<'w> Service<'w> {
 
     fn get_service_attrs_base(
         file: &protobuf::descriptor::FileDescriptorProto,
-        writer: &'w mut dyn Writer,
+        writer: WriterRef,
     ) -> Result<Self, ServiceError> {
         use proto::pandit::exts;
         let mut messages: Arc<DashMap<String, Message>> = Arc::new(DashMap::new());
@@ -1204,7 +1208,7 @@ impl<'w> Service<'w> {
                     Method {
                         input_message: input_message.clone(),
                         output_message: method.get_output_type().to_string(),
-                        handler: self.handler_from_http_api(&input_message, api.clone(), todo!()),
+                        handler: self.handler_from_http_api(&input_message, api.clone()),
                         api: MethodAPI {
                             http: ManuallyDrop::new(api),
                         },
@@ -1220,7 +1224,6 @@ impl<'w> Service<'w> {
         &self,
         input_message: &String,
         api: http::API,
-        stream: tokio::net::TcpStream,
     ) -> Box<dyn Handler + Sync + Send + 'static> {
         use crate::proto::http as proto_http;
         use ::http;
@@ -1247,7 +1250,6 @@ impl<'w> Service<'w> {
         //     headers: todo!(),
         //     extensions: todo!(),
         // };
-        let writer = Http2Writer::new(stream);
         match api.content_type.as_str() {
             "application/json" => Box::new(HttpJsonHandler::new(
                 api.pattern.unwrap(),
@@ -1264,13 +1266,14 @@ impl<'w> Service<'w> {
         method: &String,
         data: &[u8],
     ) -> ServiceResult<bytes::Bytes> {
-        let mut method = self.methods.get_mut(method).unwrap();
+        let method = self.methods.get_mut(method).unwrap();
         let messages = self.messages.clone();
         let message = messages.get(&method.input_message).unwrap();
 
         let fields = Arc::new(message.fields_from_bytes(data)?);
-        let resp = self
-            .writer
+        let writer = self.writer.get_mut();
+
+        let resp = writer
             .write_request(todo!(), &fields, method.handler)
             .await?;
 
@@ -1335,8 +1338,8 @@ impl Handler for HttpJsonHandler {
 
 #[async_trait]
 pub trait Writer: Sync + Send {
-    async fn write_request<'w>(
-        &'w mut self,
+    async fn write_request(
+        &mut self,
         context: Arc<::http::request::Parts>,
         fields: &Fields,
         handler: Box<dyn Handler + Send + Sync>,
@@ -1351,11 +1354,11 @@ pub trait Writer: Sync + Send {
 }
 
 struct Http2Writer {
-    stream: tokio::net::TcpStream,
+    stream: Mutex<tokio::net::TcpStream>,
 }
 
 impl Http2Writer {
-    fn new(stream: tokio::net::TcpStream) -> Http2Writer {
+    fn new(stream: Mutex<tokio::net::TcpStream>) -> Http2Writer {
         Self { stream }
     }
 }
@@ -1369,7 +1372,8 @@ impl Writer for Http2Writer {
         handler: Box<dyn Handler + Send + Sync>,
     ) -> ServiceResult<bytes::Bytes> {
         use ::http;
-        let (send, conn) = h2::client::handshake(&mut self.stream).await?;
+        let mut stream = self.stream.get_mut();
+        let (send, conn) = h2::client::handshake(stream).await?;
         let request = http::Request::from_parts(Arc::try_unwrap(context).unwrap(), ());
         let payload = handler.to_payload(fields).await?;
 

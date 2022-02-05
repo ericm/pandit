@@ -82,7 +82,7 @@ impl IntraServer {
         let service = path.next().unwrap();
         let method = path.next().unwrap();
 
-        let service = services.get(service).unwrap();
+        let mut service = services.get_mut(service).unwrap();
 
         let resp_payload = service
             .send_proto_to_local(&method.to_string(), &data[..])
