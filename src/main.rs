@@ -15,6 +15,7 @@ pub mod client;
 pub mod proto;
 pub mod server;
 pub mod services;
+pub mod writers;
 
 use clap;
 use dashmap::DashMap;
