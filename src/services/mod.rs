@@ -1,6 +1,7 @@
 mod message;
 mod value;
 
+use crate::handlers::json::JsonHandler;
 use crate::proto;
 use crate::services::message::Message;
 use access_json::JSONQuery;
@@ -310,10 +311,9 @@ impl Service {
     ) -> Box<dyn Handler + Sync + Send + 'static> {
         let message = self.messages.get(input_message).unwrap();
         match api.content_type.as_str() {
-            "application/json" => Box::new(HttpJsonHandler::new(
-                api.pattern.unwrap(),
-                message.path.clone(),
-            )),
+            "application/json" => {
+                Box::new(JsonHandler::new(api.pattern.unwrap(), message.path.clone()))
+            }
             e => panic!("unknown http api content type: {}", e),
         }
     }
@@ -344,41 +344,6 @@ impl Service {
         }
         let buf = buf.into_inner();
         Ok(bytes::Bytes::copy_from_slice(&buf[..]))
-    }
-}
-
-pub struct HttpJsonHandler {
-    pub method: http::api::Pattern,
-    prog: JSONQuery,
-}
-
-impl HttpJsonHandler {
-    pub fn new(method: http::api::Pattern, path: String) -> Self {
-        Self {
-            method,
-            prog: JSONQuery::parse(path.as_str()).unwrap(),
-        }
-    }
-}
-
-#[async_trait]
-impl Handler for HttpJsonHandler {
-    fn from_payload(&self, buf: bytes::Bytes) -> ServiceResult<Fields> {
-        use bytes::Buf;
-        let json: serde_json::Value = serde_json::from_reader(buf.reader()).unwrap();
-        let pr = self.prog.execute(&json).unwrap();
-        let result = pr.unwrap();
-        Ok(serde_json::value::from_value(result)?)
-    }
-
-    async fn to_payload(&self, fields: &Fields) -> ServiceResult<bytes::Bytes> {
-        match serde_json::to_vec(fields) {
-            Ok(data) => Ok(bytes::Bytes::from_iter(data)),
-
-            Err(e) => Err(ServiceError::new(
-                format!("to_payload json failed: {}", e.to_string()).as_str(),
-            )),
-        }
     }
 }
 
