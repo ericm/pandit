@@ -308,37 +308,11 @@ impl Service {
         input_message: &String,
         api: http::API,
     ) -> Box<dyn Handler + Sync + Send + 'static> {
-        use crate::proto::http as proto_http;
-        use ::http;
-        fn method(pattern: proto_http::api::Pattern) -> http::Method {
-            match pattern {
-                proto_http::api::Pattern::get(_) => http::Method::GET,
-                proto_http::api::Pattern::put(_) => http::Method::PUT,
-                proto_http::api::Pattern::post(_) => http::Method::POST,
-                proto_http::api::Pattern::delete(_) => http::Method::DELETE,
-                proto_http::api::Pattern::patch(_) => http::Method::PATCH,
-            }
-        }
         let message = self.messages.get(input_message).unwrap();
-        // let req_parts = http::request::Parts {
-        //     method: method(api.pattern.unwrap()),
-        //     uri: todo!(),
-        //     version: todo!(),
-        //     headers: todo!(),
-        //     extensions: todo!(),
-        // };
-        // let resp_parts = http::response::Parts {
-        //     status: todo!(),
-        //     version: todo!(),
-        //     headers: todo!(),
-        //     extensions: todo!(),
-        // };
         match api.content_type.as_str() {
             "application/json" => Box::new(HttpJsonHandler::new(
                 api.pattern.unwrap(),
                 message.path.clone(),
-                todo!(),
-                todo!(),
             )),
             e => panic!("unknown http api content type: {}", e),
         }
@@ -376,24 +350,13 @@ impl Service {
 pub struct HttpJsonHandler {
     pub method: http::api::Pattern,
     prog: JSONQuery,
-    path: String,
-    req_parts: Arc<::http::request::Parts>,
-    resp_parts: Arc<::http::response::Parts>,
 }
 
 impl HttpJsonHandler {
-    pub fn new(
-        method: http::api::Pattern,
-        path: String,
-        req_parts: ::http::request::Parts,
-        resp_parts: ::http::response::Parts,
-    ) -> Self {
+    pub fn new(method: http::api::Pattern, path: String) -> Self {
         Self {
             method,
             prog: JSONQuery::parse(path.as_str()).unwrap(),
-            path,
-            req_parts: Arc::new(req_parts),
-            resp_parts: Arc::new(resp_parts),
         }
     }
 }
@@ -419,21 +382,16 @@ impl Handler for HttpJsonHandler {
     }
 }
 
+pub type WriterContext = DashMap<String, String>;
+
 #[async_trait]
 pub trait Writer: Sync + Send {
     async fn write_request(
         &mut self,
-        context: Arc<::http::request::Parts>,
+        context: WriterContext,
         fields: &Fields,
         handler: Box<dyn Handler + Send + Sync>,
     ) -> ServiceResult<bytes::Bytes>;
-
-    // async fn write_response(
-    //     self,
-    //     context: Arc<Self::Response>,
-    //     mut resp: h2::server::SendResponse<bytes::Bytes>,
-    //     body: bytes::Bytes,
-    // ) -> ServiceResult<()>;
 }
 
 pub fn new_config(path: &str) -> config::Config {

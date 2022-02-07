@@ -1,9 +1,10 @@
+#![feature(destructuring_assignment)]
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio::sync::Mutex;
 
-use crate::services::{Fields, Handler, ServiceError, ServiceResult, Writer};
+use crate::services::{Fields, Handler, ServiceError, ServiceResult, Writer, WriterContext};
 
 pub struct Http2Writer {
     stream: Mutex<tokio::net::TcpStream>,
@@ -19,7 +20,7 @@ impl Http2Writer {
 impl Writer for Http2Writer {
     async fn write_request(
         &mut self,
-        context: Arc<::http::request::Parts>,
+        context: WriterContext,
         fields: &Fields,
         handler: Box<dyn Handler + Send + Sync>,
     ) -> ServiceResult<bytes::Bytes> {
@@ -50,5 +51,11 @@ impl Writer for Http2Writer {
                 format!("error parsing body: {}", e).as_str(),
             )),
         }
+    }
+}
+
+impl Http2Writer {
+    fn parts_from_context(context: WriterContext) -> ServiceResult<http::request::Parts> {
+        Ok(http::request::Parts { .. })
     }
 }
