@@ -366,10 +366,47 @@ pub fn new_config(path: &str) -> config::Config {
     obj
 }
 
-// #[test]
-// fn test_service() {
-//     let s = Service::from_file("./src/proto/example.proto").unwrap();
-//     assert_eq!(s.protocol, Protocol::HTTP);
-//     assert_eq!(s.messages.len(), 2);
-//     assert_eq!(s.methods.len(), 1);
-// }
+mod tests {
+    use super::*;
+    struct FakeWriter {
+        context: Option<WriterContext>,
+        fields: Option<Fields>,
+        handler: Option<Box<dyn Handler + Send + Sync>>,
+    }
+
+    #[async_trait]
+    impl Writer for FakeWriter {
+        async fn write_request(
+            &mut self,
+            context: WriterContext,
+            fields: &Fields,
+            handler: Box<dyn Handler + Send + Sync>,
+        ) -> ServiceResult<bytes::Bytes> {
+            self.context = Some(context);
+            self.fields = Some(fields.clone());
+            self.handler = Some(handler);
+            Ok(bytes::Bytes::from_static(&[
+                0x08, 0x96, 0x01, // Field varint
+            ]))
+        }
+    }
+
+    #[test]
+    async fn test_send_proto_to_local_http_json() {
+        use super::*;
+        let writer = FakeWriter {
+            context: None,
+            fields: None,
+            handler: None,
+        };
+        let writer_ref = WriterRef::new(Mutex::new(writer));
+        let service = Service::from_file("./src/proto/example.proto", writer_ref).unwrap();
+        let buf: &[u8] = &[
+            0x08, 0x96, 0x01, // Field varint
+        ];
+        let resp = service
+            .send_proto_to_local("GetExample", buf)
+            .await
+            .unwrap();
+    }
+}
