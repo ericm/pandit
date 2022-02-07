@@ -9,7 +9,6 @@ use h2::server::{self, SendResponse};
 use h2::RecvStream;
 use http::Request;
 use protobuf::Message;
-use protofish::context::MessageRef;
 use std::collections::HashMap;
 use tokio;
 use tokio::net::{TcpListener, TcpStream};

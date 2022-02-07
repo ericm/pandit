@@ -1,5 +1,4 @@
-#![feature(destructuring_assignment)]
-use std::sync::Arc;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use tokio::sync::Mutex;
@@ -24,10 +23,9 @@ impl Writer for Http2Writer {
         fields: &Fields,
         handler: Box<dyn Handler + Send + Sync>,
     ) -> ServiceResult<bytes::Bytes> {
-        use ::http;
         let stream = self.stream.get_mut();
         let (send, _) = h2::client::handshake(stream).await?;
-        let request = http::Request::from_parts(Arc::try_unwrap(context).unwrap(), ());
+        let request = request_from_context(http::Version::HTTP_2, context)?;
         let payload = handler.to_payload(fields).await?;
 
         let mut resp = send
@@ -54,8 +52,30 @@ impl Writer for Http2Writer {
     }
 }
 
-impl Http2Writer {
-    fn parts_from_context(context: WriterContext) -> ServiceResult<http::request::Parts> {
-        Ok(http::request::Parts { .. })
+fn request_from_context(
+    version: http::Version,
+    context: WriterContext,
+) -> ServiceResult<http::request::Request<()>> {
+    let mut request = http::Request::new(());
+    let mut uri = http::Uri::builder().scheme("http");
+    for (k, v) in context {
+        match k.as_str() {
+            "method" => {
+                *request.method_mut() = http::Method::from_str(v.as_str())?;
+                continue;
+            }
+            "uri" => {
+                uri = uri.path_and_query(v.as_str());
+                continue;
+            }
+            _ => {}
+        }
+        let name = http::header::HeaderName::from_str(k.as_str())?;
+        let value = http::HeaderValue::from_str(v.as_str())?;
+        request.headers_mut().insert(name, value);
     }
+    let uri = uri.build()?;
+    *request.uri_mut() = uri;
+    *request.version_mut() = version;
+    Ok(request)
 }
