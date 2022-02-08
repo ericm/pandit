@@ -289,18 +289,14 @@ impl Service {
                 let api = exts::api.get(method.options.get_ref()).unwrap();
                 let input_message = method.get_input_type().to_string();
                 let input_message = input_message.split('.').last().unwrap().to_string();
+                let output_message = method.get_output_type().to_string();
+                let output_message = output_message.split('.').last().unwrap().to_string();
                 (
                     method.get_name().to_string(),
                     Method {
                         input_message: input_message.clone(),
-                        output_message: method
-                            .get_output_type()
-                            .to_string()
-                            .split('.')
-                            .last()
-                            .unwrap()
-                            .to_string(),
-                        handler: self.handler_from_http_api(&input_message, api.clone()),
+                        output_message: output_message.clone(),
+                        handler: self.handler_from_http_api(&output_message, api.clone()),
                         api: MethodAPI {
                             http: ManuallyDrop::new(api),
                         },
@@ -314,11 +310,11 @@ impl Service {
 
     fn handler_from_http_api(
         &self,
-        input_message: &String,
+        message_name: &String,
         api: http::API,
     ) -> Box<dyn Handler + Sync + Send + 'static> {
-        println!("n{}", *input_message);
-        let message = self.messages.get(input_message).unwrap();
+        println!("n{}", *message_name);
+        let message = self.messages.get(message_name).unwrap();
         match api.content_type.as_str() {
             "application/json" => {
                 Box::new(JsonHandler::new(api.pattern.unwrap(), message.path.clone()))
