@@ -252,9 +252,10 @@ impl Service {
                 .iter()
                 .map(|message| {
                     let name = message.get_name().to_string();
+                    println!("{}", name);
                     let opts = message.options.get_ref();
-                    let path = exts::path.get(opts).unwrap();
-                    let mut config = Message::new(message.clone(), path, messages.clone());
+                    let path = exts::path.get(opts).unwrap_or(".".to_string());
+                    let config = Message::new(message.clone(), path, messages.clone());
                     (name, config)
                 })
                 .collect(),
@@ -287,11 +288,18 @@ impl Service {
             .map(|method| {
                 let api = exts::api.get(method.options.get_ref()).unwrap();
                 let input_message = method.get_input_type().to_string();
+                let input_message = input_message.split('.').last().unwrap().to_string();
                 (
                     method.get_name().to_string(),
                     Method {
                         input_message: input_message.clone(),
-                        output_message: method.get_output_type().to_string(),
+                        output_message: method
+                            .get_output_type()
+                            .to_string()
+                            .split('.')
+                            .last()
+                            .unwrap()
+                            .to_string(),
                         handler: self.handler_from_http_api(&input_message, api.clone()),
                         api: MethodAPI {
                             http: ManuallyDrop::new(api),
@@ -309,6 +317,7 @@ impl Service {
         input_message: &String,
         api: http::API,
     ) -> Box<dyn Handler + Sync + Send + 'static> {
+        println!("n{}", *input_message);
         let message = self.messages.get(input_message).unwrap();
         match api.content_type.as_str() {
             "application/json" => {
@@ -327,11 +336,12 @@ impl Service {
         let messages = self.messages.clone();
         let message = messages.get(&method.input_message).unwrap();
 
-        let fields = Arc::new(message.fields_from_bytes(data)?);
+        let fields = message.fields_from_bytes(data)?;
         let writer = self.writer.get_mut();
+        let context = Self::context_from_api(&method.api)?;
 
         let resp = writer
-            .write_request(todo!(), &fields, method.handler)
+            .write_request(context, &fields, &method.handler)
             .await?;
 
         let resp_fields = method.handler.from_payload(resp)?;
@@ -345,6 +355,33 @@ impl Service {
         let buf = buf.into_inner();
         Ok(bytes::Bytes::copy_from_slice(&buf[..]))
     }
+
+    fn context_from_api(api: &MethodAPI) -> ServiceResult<WriterContext> {
+        let context = WriterContext::new();
+        match unsafe { api.http.pattern.as_ref() }.ok_or(ServiceError::new("no pattern in api"))? {
+            http::api::Pattern::get(s) => {
+                context.insert("method".to_string(), "GET".to_string());
+                context.insert("uri".to_string(), s.clone());
+            }
+            http::api::Pattern::put(s) => {
+                context.insert("method".to_string(), "PUT".to_string());
+                context.insert("uri".to_string(), s.clone());
+            }
+            http::api::Pattern::post(s) => {
+                context.insert("method".to_string(), "POST".to_string());
+                context.insert("uri".to_string(), s.clone());
+            }
+            http::api::Pattern::delete(s) => {
+                context.insert("method".to_string(), "DELETE".to_string());
+                context.insert("uri".to_string(), s.clone());
+            }
+            http::api::Pattern::patch(s) => {
+                context.insert("method".to_string(), "PATCH".to_string());
+                context.insert("uri".to_string(), s.clone());
+            }
+        }
+        Ok(context)
+    }
 }
 
 pub type WriterContext = DashMap<String, String>;
@@ -355,7 +392,7 @@ pub trait Writer: Sync + Send {
         &mut self,
         context: WriterContext,
         fields: &Fields,
-        handler: Box<dyn Handler + Send + Sync>,
+        handler: &Box<dyn Handler + Send + Sync>,
     ) -> ServiceResult<bytes::Bytes>;
 }
 
@@ -371,7 +408,6 @@ mod tests {
     struct FakeWriter {
         context: Option<WriterContext>,
         fields: Option<Fields>,
-        handler: Option<Box<dyn Handler + Send + Sync>>,
     }
 
     #[async_trait]
@@ -380,33 +416,35 @@ mod tests {
             &mut self,
             context: WriterContext,
             fields: &Fields,
-            handler: Box<dyn Handler + Send + Sync>,
+            handler: &Box<dyn Handler + Send + Sync>,
         ) -> ServiceResult<bytes::Bytes> {
             self.context = Some(context);
             self.fields = Some(fields.clone());
-            self.handler = Some(handler);
-            Ok(bytes::Bytes::from_static(&[
-                0x08, 0x96, 0x01, // Field varint
-            ]))
+            Ok(bytes::Bytes::from_static(b"{\"test\": 1}"))
         }
     }
 
-    #[test]
+    #[tokio::test]
     async fn test_send_proto_to_local_http_json() {
         use super::*;
         let writer = FakeWriter {
             context: None,
             fields: None,
-            handler: None,
         };
-        let writer_ref = WriterRef::new(Mutex::new(writer));
-        let service = Service::from_file("./src/proto/example.proto", writer_ref).unwrap();
+        let writer_ref = Box::new(Mutex::new(writer));
+        let mut service = Service::from_file("./src/proto/example.proto", writer_ref).unwrap();
         let buf: &[u8] = &[
             0x08, 0x96, 0x01, // Field varint
         ];
         let resp = service
-            .send_proto_to_local("GetExample", buf)
+            .send_proto_to_local(&"GetExample".to_string(), buf)
             .await
             .unwrap();
+        assert_eq!(
+            resp,
+            bytes::Bytes::from_static(&[
+                0x08, 0x96, 0x01, // Field varint
+            ])
+        );
     }
 }

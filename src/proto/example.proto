@@ -6,12 +6,12 @@ import "http.proto";
 package demo;
 
 message ExampleRequest {
-  option (pandit.path) = ".0";
+  option (pandit.path) = ".";
   int32 id = 1;
 }
 
 message ExampleResponse {
-  option (pandit.path) = ".0";
+  option (pandit.path) = ".";
   int32 id = 1;
 }
 
@@ -19,8 +19,8 @@ service ExampleService {
   option (pandit.http.name) = "my_service";
   rpc GetExample(ExampleRequest) returns (ExampleResponse) {
     option (pandit.http.api) = {
-      content_type: "application/json"
-      get: "/example"
+      content_type : "application/json"
+      get : "/example"
     };
   }
 }
