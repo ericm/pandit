@@ -110,11 +110,11 @@ impl<'de> Visitor<'de> for ValueVisitor {
         formatter.write_str("a pandit supported value")
     }
 
-    fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
     where
         A: serde::de::SeqAccess<'de>,
     {
-        let value = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+        let mut value = Vec::with_capacity(seq.size_hint().unwrap_or(0));
         while let Some(item) = seq.next_element()? {
             value.push(item);
         }
@@ -174,7 +174,7 @@ impl<'de> Visitor<'de> for ValueVisitor {
     {
         Ok(Value::Float64(v))
     }
-    fn visit_map<A>(self, access: A) -> Result<Self::Value, A::Error>
+    fn visit_map<A>(self, mut access: A) -> Result<Self::Value, A::Error>
     where
         A: serde::de::MapAccess<'de>,
     {
@@ -216,11 +216,10 @@ impl PartialEq for Value {
             (Self::Bool(l0), Self::Bool(r0)) => l0 == r0,
             (Self::Enum(l0), Self::Enum(r0)) => l0 == r0,
             (Self::Message(l0), Self::Message(r0)) => {
-                l0.len() == r0.len()
-                    && l0.iter().zip(r0).all(|(l, r)| {
-                        l.map.len() == r.map.len()
-                            && l.map.iter().all(|k| r.map.contains_key(k.key()))
-                    })
+                l0.map.iter().all(|k| r0.map.contains_key(k.key()))
+            }
+            (Self::Array(l0), Self::Array(r0)) => {
+                l0.len() == r0.len() && l0.iter().zip(r0).all(|(l, r)| l == r)
             }
             _ => false,
         }

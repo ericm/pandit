@@ -285,52 +285,50 @@ impl Message {
                     )?,
                     _ => continue,
                 },
-                TYPE_STRING => {
-                    let write_string = |output, s: String| {
-                        protobuf::CodedOutputStream::write_string_no_tag(output, s.as_str())
-                    };
-                    match value {
-                        Value::String(v) => write_value(
-                            field,
-                            output,
-                            write_string,
-                            v,
-                            protobuf::wire_format::WireTypeLengthDelimited,
-                        )?,
-                        Value::Array(arr) => write_value_repeated(
-                            field,
-                            output,
-                            write_string,
-                            arr,
-                            protobuf::wire_format::WireTypeLengthDelimited,
-                            |val| as_variant!(val, Value::String),
-                        )?,
-                        _ => continue,
-                    }
-                }
-                TYPE_BYTES => {
-                    let write_bytes = |output, s: Vec<u8>| {
-                        protobuf::CodedOutputStream::write_bytes_no_tag(output, &s[..])
-                    };
-                    match value {
-                        Value::Bytes(v) => write_value(
-                            field,
-                            output,
-                            write_bytes,
-                            v,
-                            protobuf::wire_format::WireTypeLengthDelimited,
-                        )?,
-                        Value::Array(arr) => write_value_repeated(
-                            field,
-                            output,
-                            write_bytes,
-                            arr,
-                            protobuf::wire_format::WireTypeLengthDelimited,
-                            |val| as_variant!(val, Value::Bytes),
-                        )?,
-                        _ => continue,
-                    }
-                }
+                TYPE_STRING => match value {
+                    Value::String(v) => write_value(
+                        field,
+                        output,
+                        |output, s: String| {
+                            protobuf::CodedOutputStream::write_string_no_tag(output, s.as_str())
+                        },
+                        v,
+                        protobuf::wire_format::WireTypeLengthDelimited,
+                    )?,
+                    Value::Array(arr) => write_value_repeated(
+                        field,
+                        output,
+                        |output, s: String| {
+                            protobuf::CodedOutputStream::write_string_no_tag(output, s.as_str())
+                        },
+                        arr,
+                        protobuf::wire_format::WireTypeLengthDelimited,
+                        |val| as_variant!(val, Value::String),
+                    )?,
+                    _ => continue,
+                },
+                TYPE_BYTES => match value {
+                    Value::Bytes(v) => write_value(
+                        field,
+                        output,
+                        |output, s: Vec<u8>| {
+                            protobuf::CodedOutputStream::write_bytes_no_tag(output, &s[..])
+                        },
+                        v,
+                        protobuf::wire_format::WireTypeLengthDelimited,
+                    )?,
+                    Value::Array(arr) => write_value_repeated(
+                        field,
+                        output,
+                        |output, s: Vec<u8>| {
+                            protobuf::CodedOutputStream::write_bytes_no_tag(output, &s[..])
+                        },
+                        arr,
+                        protobuf::wire_format::WireTypeLengthDelimited,
+                        |val| as_variant!(val, Value::Bytes),
+                    )?,
+                    _ => continue,
+                },
                 TYPE_UINT32 => match value {
                     Value::UInt32(v) => write_value(
                         field,
@@ -421,30 +419,30 @@ impl Message {
                     )?,
                     _ => continue,
                 },
-                TYPE_ENUM => {
-                    let write_enum = |output, val: ProtoEnum| {
-                        use protobuf::ProtobufEnum;
-                        protobuf::CodedOutputStream::write_enum_no_tag(output, val.value())
-                    };
-                    match value {
-                        Value::Enum(v) => write_value(
-                            field,
-                            output,
-                            write_enum,
-                            v,
-                            protobuf::wire_format::WireTypeLengthDelimited,
-                        )?,
-                        Value::Array(arr) => write_value_repeated(
-                            field,
-                            output,
-                            write_enum,
-                            arr,
-                            protobuf::wire_format::WireTypeLengthDelimited,
-                            |val| as_variant!(val, Value::Enum),
-                        )?,
-                        _ => continue,
-                    }
-                }
+                TYPE_ENUM => match value {
+                    Value::Enum(v) => write_value(
+                        field,
+                        output,
+                        |output, val: ProtoEnum| {
+                            use protobuf::ProtobufEnum;
+                            protobuf::CodedOutputStream::write_enum_no_tag(output, val.value())
+                        },
+                        v,
+                        protobuf::wire_format::WireTypeLengthDelimited,
+                    )?,
+                    Value::Array(arr) => write_value_repeated(
+                        field,
+                        output,
+                        |output, val: ProtoEnum| {
+                            use protobuf::ProtobufEnum;
+                            protobuf::CodedOutputStream::write_enum_no_tag(output, val.value())
+                        },
+                        arr,
+                        protobuf::wire_format::WireTypeLengthDelimited,
+                        |val| as_variant!(val, Value::Enum),
+                    )?,
+                    _ => continue,
+                },
                 TYPE_MESSAGE => {
                     let message_name = field.get_type_name().to_string();
                     let parent = self.parent.clone();
@@ -513,93 +511,109 @@ impl Message {
         let field = self.fields.get(&number).ok_or(ServiceError::new(
             format!("field unknown: number({})", number).as_str(),
         ))?;
+        macro_rules! parse_vec {
+            ($value:expr, $label:expr, $variant:path) => {
+                if $label == Label::LABEL_REPEATED {
+                    Some(Value::Array(
+                        $value.iter().map(|v| $variant(v.clone())).collect(),
+                    ))
+                } else {
+                    match $value.first() {
+                        Some(v) => Some($variant(v.clone())),
+                        None => Some(Value::None),
+                    }
+                }
+            };
+        }
+        use protobuf::descriptor::field_descriptor_proto::Label;
         Ok((
             field.get_name().to_string(),
             match field.get_field_type() {
                 TYPE_DOUBLE => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_double_into(wire_type, input, &mut target)?;
-                    Some(Value::Float64(target))
+                    parse_vec!(target, field.get_label(), Value::Float64)
                 }
                 TYPE_FLOAT => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_float_into(wire_type, input, &mut target)?;
-                    Some(Value::Float32(target))
+                    parse_vec!(target, field.get_label(), Value::Float32)
                 }
                 TYPE_INT64 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_int64_into(wire_type, input, &mut target)?;
-                    Some(Value::Int64(target))
+                    parse_vec!(target, field.get_label(), Value::Int64)
                 }
                 TYPE_UINT64 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_uint64_into(wire_type, input, &mut target)?;
-                    Some(Value::UInt64(target))
+                    parse_vec!(target, field.get_label(), Value::UInt64)
                 }
                 TYPE_INT32 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_int32_into(wire_type, input, &mut target)?;
-                    Some(Value::Int32(target))
+                    parse_vec!(target, field.get_label(), Value::Int32)
                 }
                 TYPE_FIXED64 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_fixed64_into(wire_type, input, &mut target)?;
-                    Some(Value::UInt64(target))
+                    parse_vec!(target, field.get_label(), Value::UInt64)
                 }
                 TYPE_FIXED32 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_fixed32_into(wire_type, input, &mut target)?;
-                    Some(Value::UInt32(target))
+                    parse_vec!(target, field.get_label(), Value::UInt32)
                 }
                 TYPE_BOOL => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_bool_into(wire_type, input, &mut target)?;
-                    Some(Value::Bool(target))
+                    parse_vec!(target, field.get_label(), Value::Bool)
                 }
                 TYPE_STRING => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_string_into(wire_type, input, &mut target)?;
-                    Some(Value::String(target))
+                    parse_vec!(target, field.get_label(), Value::String)
                 }
                 TYPE_BYTES => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_bytes_into(wire_type, input, &mut target)?;
-                    Some(Value::Bytes(target))
+                    parse_vec!(target, field.get_label(), Value::Bytes)
                 }
                 TYPE_UINT32 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_uint32_into(wire_type, input, &mut target)?;
-                    Some(Value::UInt32(target))
+                    parse_vec!(target, field.get_label(), Value::UInt32)
                 }
                 TYPE_SFIXED32 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_sfixed32_into(wire_type, input, &mut target)?;
-                    Some(Value::Int32(target))
+                    parse_vec!(target, field.get_label(), Value::Int32)
                 }
                 TYPE_SFIXED64 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_sfixed64_into(wire_type, input, &mut target)?;
-                    Some(Value::Int64(target))
+                    parse_vec!(target, field.get_label(), Value::Int64)
                 }
                 TYPE_SINT32 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_sint32_into(wire_type, input, &mut target)?;
-                    Some(Value::Int32(target))
+                    parse_vec!(target, field.get_label(), Value::Int32)
                 }
                 TYPE_SINT64 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_sint64_into(wire_type, input, &mut target)?;
-                    Some(Value::Int64(target))
+                    parse_vec!(target, field.get_label(), Value::Int64)
                 }
                 TYPE_ENUM => {
                     let mut target: Vec<ProtoEnum> = Vec::new();
                     protobuf::rt::read_repeated_enum_into(wire_type, input, &mut target)?;
-                    Some(Value::Enum(target))
+                    parse_vec!(target, field.get_label(), Value::Enum)
                 }
                 TYPE_MESSAGE => {
                     let message_name = field.get_type_name().to_string();
+                    let label = field.get_label();
                     match self.parse_another_message(input, &message_name, field) {
-                        Ok(v) => Some(Value::Message(v)),
+                        Ok(v) => parse_vec!(v, label, Value::Message),
                         _ => None,
                     }
                 }
@@ -690,7 +704,10 @@ mod message_tests {
                 number: 4,
                 type_name: "Message2".to_string(),
                 label: LABEL_REPEATED,
-                value: Value::Message(vec![message2_fields.clone(), message2_fields.clone()]),
+                value: Value::Array(vec![
+                    Value::Message(message2_fields.clone()),
+                    Value::Message(message2_fields.clone()),
+                ]),
             },
         ];
 
@@ -791,7 +808,10 @@ mod message_tests {
                 number: 4,
                 type_name: "Message2".to_string(),
                 label: LABEL_REPEATED,
-                want: Value::Message(vec![message2_fields.clone(), message2_fields.clone()]),
+                want: Value::Array(vec![
+                    Value::Message(message2_fields.clone()),
+                    Value::Message(message2_fields.clone()),
+                ]),
             },
         ];
 
