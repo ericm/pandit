@@ -139,7 +139,7 @@ impl Message {
                 Ok(())
             }
 
-            println!("match {}", field.get_name());
+            println!("match {} {:?}", field.get_name(), value);
             match field.get_field_type() {
                 TYPE_DOUBLE => match value {
                     Value::Float64(v) => write_value(

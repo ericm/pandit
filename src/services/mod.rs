@@ -416,7 +416,7 @@ mod tests {
         ) -> ServiceResult<bytes::Bytes> {
             self.context = Some(context);
             self.fields = Some(fields.clone());
-            Ok(bytes::Bytes::from_static(b"{\"test\": 1}"))
+            Ok(bytes::Bytes::from_static(b"{\"id\": 1}"))
         }
     }
 

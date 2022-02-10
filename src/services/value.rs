@@ -20,6 +20,15 @@ pub enum Value {
     None,
 }
 
+macro_rules! int_cases {
+    ($value:expr, $type:path) => {
+        Value:Int32(v) => type::try_from(v).unwrap(),
+        Value:Int64(v) => type::try_from(v).unwrap(),
+        Value:UInt32(v) => type::try_from(v).unwrap(),
+        Value:UInt64(v) => type::try_from(v).unwrap(),
+    };
+}
+
 impl Value {
     pub fn from_string(val: String) -> Self {
         Self::String(val)
