@@ -254,7 +254,7 @@ impl Service {
                     let name = message.get_name().to_string();
                     println!("{}", name);
                     let opts = message.options.get_ref();
-                    let path = exts::path.get(opts).unwrap_or(".".to_string());
+                    let path = exts::path.get(opts).unwrap_or("".to_string());
                     let config = Message::new(message.clone(), path, messages.clone());
                     (name, config)
                 })

@@ -6,12 +6,12 @@ import "http.proto";
 package demo;
 
 message ExampleRequest {
-  option (pandit.path) = ".";
+  option (pandit.path) = "";
   int32 id = 1;
 }
 
 message ExampleResponse {
-  option (pandit.path) = ".";
+  option (pandit.path) = "";
   int32 id = 1;
 }
 
