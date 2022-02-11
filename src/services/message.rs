@@ -142,11 +142,11 @@ impl Message {
             println!("match {} {:?}", field.get_name(), value);
             match field.get_field_type() {
                 TYPE_DOUBLE => match value {
-                    Value::Float64(v) => write_value(
+                    Value::Float(v) => write_value(
                         field,
                         output,
                         protobuf::CodedOutputStream::write_double_no_tag,
-                        v,
+                        v.to_f64(),
                         protobuf::wire_format::WireTypeFixed64,
                     )?,
                     Value::Array(arr) => write_value_repeated(
@@ -155,16 +155,16 @@ impl Message {
                         protobuf::CodedOutputStream::write_double_no_tag,
                         arr,
                         protobuf::wire_format::WireTypeFixed64,
-                        |val| as_variant!(val, Value::Float64),
+                        |val| Ok(as_variant!(val, Value::Float)?.to_f64()),
                     )?,
                     _ => continue,
                 },
                 TYPE_FLOAT => match value {
-                    Value::Float32(v) => write_value(
+                    Value::Float(v) => write_value(
                         field,
                         output,
                         protobuf::CodedOutputStream::write_float_no_tag,
-                        v,
+                        v.to_f32(),
                         protobuf::wire_format::WireTypeFixed64,
                     )?,
                     Value::Array(arr) => write_value_repeated(
@@ -173,16 +173,16 @@ impl Message {
                         protobuf::CodedOutputStream::write_float_no_tag,
                         arr,
                         protobuf::wire_format::WireTypeFixed32,
-                        |val| as_variant!(val, Value::Float32),
+                        |val| Ok(as_variant!(val, Value::Float)?.to_f32()),
                     )?,
                     _ => continue,
                 },
                 TYPE_INT64 => match value {
-                    Value::Int64(v) => write_value(
+                    Value::Int(v) => write_value(
                         field,
                         output,
                         protobuf::CodedOutputStream::write_int64_no_tag,
-                        v,
+                        v.to_i64(),
                         protobuf::wire_format::WireTypeVarint,
                     )?,
                     Value::Array(arr) => write_value_repeated(
@@ -191,16 +191,16 @@ impl Message {
                         protobuf::CodedOutputStream::write_int64_no_tag,
                         arr,
                         protobuf::wire_format::WireTypeVarint,
-                        |val| as_variant!(val, Value::Int64),
+                        |val| Ok(as_variant!(val, Value::Int)?.to_i64()),
                     )?,
                     _ => continue,
                 },
                 TYPE_UINT64 => match value {
-                    Value::UInt64(v) => write_value(
+                    Value::Int(v) => write_value(
                         field,
                         output,
                         protobuf::CodedOutputStream::write_uint64_no_tag,
-                        v,
+                        v.to_u64(),
                         protobuf::wire_format::WireTypeVarint,
                     )?,
                     Value::Array(arr) => write_value_repeated(
@@ -209,16 +209,16 @@ impl Message {
                         protobuf::CodedOutputStream::write_uint64_no_tag,
                         arr,
                         protobuf::wire_format::WireTypeVarint,
-                        |val| as_variant!(val, Value::UInt64),
+                        |val| Ok(as_variant!(val, Value::Int)?.to_u64()),
                     )?,
                     _ => continue,
                 },
                 TYPE_INT32 => match value {
-                    Value::Int32(v) => write_value(
+                    Value::Int(v) => write_value(
                         field,
                         output,
                         protobuf::CodedOutputStream::write_int32_no_tag,
-                        v,
+                        v.to_i32(),
                         protobuf::wire_format::WireTypeVarint,
                     )?,
                     Value::Array(arr) => write_value_repeated(
@@ -227,16 +227,16 @@ impl Message {
                         protobuf::CodedOutputStream::write_int32_no_tag,
                         arr,
                         protobuf::wire_format::WireTypeVarint,
-                        |val| as_variant!(val, Value::Int32),
+                        |val| Ok(as_variant!(val, Value::Int)?.to_i32()),
                     )?,
                     _ => continue,
                 },
                 TYPE_FIXED64 => match value {
-                    Value::UInt64(v) => write_value(
+                    Value::Int(v) => write_value(
                         field,
                         output,
                         protobuf::CodedOutputStream::write_fixed64_no_tag,
-                        v,
+                        v.to_u64(),
                         protobuf::wire_format::WireTypeFixed64,
                     )?,
                     Value::Array(arr) => write_value_repeated(
@@ -245,16 +245,16 @@ impl Message {
                         protobuf::CodedOutputStream::write_fixed64_no_tag,
                         arr,
                         protobuf::wire_format::WireTypeFixed64,
-                        |val| as_variant!(val, Value::UInt64),
+                        |val| Ok(as_variant!(val, Value::Int)?.to_u64()),
                     )?,
                     _ => continue,
                 },
                 TYPE_FIXED32 => match value {
-                    Value::UInt32(v) => write_value(
+                    Value::Int(v) => write_value(
                         field,
                         output,
                         protobuf::CodedOutputStream::write_fixed32_no_tag,
-                        v,
+                        v.to_u32(),
                         protobuf::wire_format::WireTypeFixed32,
                     )?,
                     Value::Array(arr) => write_value_repeated(
@@ -263,7 +263,7 @@ impl Message {
                         protobuf::CodedOutputStream::write_fixed32_no_tag,
                         arr,
                         protobuf::wire_format::WireTypeFixed32,
-                        |val| as_variant!(val, Value::UInt32),
+                        |val| Ok(as_variant!(val, Value::Int)?.to_u32()),
                     )?,
                     _ => continue,
                 },
@@ -330,11 +330,11 @@ impl Message {
                     _ => continue,
                 },
                 TYPE_UINT32 => match value {
-                    Value::UInt32(v) => write_value(
+                    Value::Int(v) => write_value(
                         field,
                         output,
                         protobuf::CodedOutputStream::write_uint32_no_tag,
-                        v,
+                        v.to_u32(),
                         protobuf::wire_format::WireTypeVarint,
                     )?,
                     Value::Array(arr) => write_value_repeated(
@@ -343,16 +343,16 @@ impl Message {
                         protobuf::CodedOutputStream::write_uint32_no_tag,
                         arr,
                         protobuf::wire_format::WireTypeVarint,
-                        |val| as_variant!(val, Value::UInt32),
+                        |val| Ok(as_variant!(val, Value::Int)?.to_u32()),
                     )?,
                     _ => continue,
                 },
                 TYPE_SFIXED32 => match value {
-                    Value::Int32(v) => write_value(
+                    Value::Int(v) => write_value(
                         field,
                         output,
                         protobuf::CodedOutputStream::write_sfixed32_no_tag,
-                        v,
+                        v.to_i32(),
                         protobuf::wire_format::WireTypeVarint,
                     )?,
                     Value::Array(arr) => write_value_repeated(
@@ -361,16 +361,16 @@ impl Message {
                         protobuf::CodedOutputStream::write_sfixed32_no_tag,
                         arr,
                         protobuf::wire_format::WireTypeVarint,
-                        |val| as_variant!(val, Value::Int32),
+                        |val| Ok(as_variant!(val, Value::Int)?.to_i32()),
                     )?,
                     _ => continue,
                 },
                 TYPE_SFIXED64 => match value {
-                    Value::Int64(v) => write_value(
+                    Value::Int(v) => write_value(
                         field,
                         output,
                         protobuf::CodedOutputStream::write_sfixed64_no_tag,
-                        v,
+                        v.to_i64(),
                         protobuf::wire_format::WireTypeVarint,
                     )?,
                     Value::Array(arr) => write_value_repeated(
@@ -379,16 +379,16 @@ impl Message {
                         protobuf::CodedOutputStream::write_sfixed64_no_tag,
                         arr,
                         protobuf::wire_format::WireTypeVarint,
-                        |val| as_variant!(val, Value::Int64),
+                        |val| Ok(as_variant!(val, Value::Int)?.to_i64()),
                     )?,
                     _ => continue,
                 },
                 TYPE_SINT32 => match value {
-                    Value::Int32(v) => write_value(
+                    Value::Int(v) => write_value(
                         field,
                         output,
                         protobuf::CodedOutputStream::write_sint32_no_tag,
-                        v,
+                        v.to_i32(),
                         protobuf::wire_format::WireTypeVarint,
                     )?,
                     Value::Array(arr) => write_value_repeated(
@@ -397,16 +397,16 @@ impl Message {
                         protobuf::CodedOutputStream::write_sint32_no_tag,
                         arr,
                         protobuf::wire_format::WireTypeVarint,
-                        |val| as_variant!(val, Value::Int32),
+                        |val| Ok(as_variant!(val, Value::Int)?.to_i32()),
                     )?,
                     _ => continue,
                 },
                 TYPE_SINT64 => match value {
-                    Value::Int64(v) => write_value(
+                    Value::Int(v) => write_value(
                         field,
                         output,
                         protobuf::CodedOutputStream::write_sint64_no_tag,
-                        v,
+                        v.to_i64(),
                         protobuf::wire_format::WireTypeVarint,
                     )?,
                     Value::Array(arr) => write_value_repeated(
@@ -415,7 +415,7 @@ impl Message {
                         protobuf::CodedOutputStream::write_sint64_no_tag,
                         arr,
                         protobuf::wire_format::WireTypeVarint,
-                        |val| as_variant!(val, Value::Int64),
+                        |val| Ok(as_variant!(val, Value::Int)?.to_i64()),
                     )?,
                     _ => continue,
                 },
@@ -532,37 +532,37 @@ impl Message {
                 TYPE_DOUBLE => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_double_into(wire_type, input, &mut target)?;
-                    parse_vec!(target, field.get_label(), Value::Float64)
+                    parse_vec!(target, field.get_label(), Value::from_float)
                 }
                 TYPE_FLOAT => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_float_into(wire_type, input, &mut target)?;
-                    parse_vec!(target, field.get_label(), Value::Float32)
+                    parse_vec!(target, field.get_label(), Value::from_float)
                 }
                 TYPE_INT64 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_int64_into(wire_type, input, &mut target)?;
-                    parse_vec!(target, field.get_label(), Value::Int64)
+                    parse_vec!(target, field.get_label(), Value::from_int)
                 }
                 TYPE_UINT64 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_uint64_into(wire_type, input, &mut target)?;
-                    parse_vec!(target, field.get_label(), Value::UInt64)
+                    parse_vec!(target, field.get_label(), Value::from_int)
                 }
                 TYPE_INT32 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_int32_into(wire_type, input, &mut target)?;
-                    parse_vec!(target, field.get_label(), Value::Int32)
+                    parse_vec!(target, field.get_label(), Value::from_int)
                 }
                 TYPE_FIXED64 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_fixed64_into(wire_type, input, &mut target)?;
-                    parse_vec!(target, field.get_label(), Value::UInt64)
+                    parse_vec!(target, field.get_label(), Value::from_int)
                 }
                 TYPE_FIXED32 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_fixed32_into(wire_type, input, &mut target)?;
-                    parse_vec!(target, field.get_label(), Value::UInt32)
+                    parse_vec!(target, field.get_label(), Value::from_int)
                 }
                 TYPE_BOOL => {
                     let mut target = Vec::new();
@@ -582,27 +582,27 @@ impl Message {
                 TYPE_UINT32 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_uint32_into(wire_type, input, &mut target)?;
-                    parse_vec!(target, field.get_label(), Value::UInt32)
+                    parse_vec!(target, field.get_label(), Value::from_int)
                 }
                 TYPE_SFIXED32 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_sfixed32_into(wire_type, input, &mut target)?;
-                    parse_vec!(target, field.get_label(), Value::Int32)
+                    parse_vec!(target, field.get_label(), Value::from_int)
                 }
                 TYPE_SFIXED64 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_sfixed64_into(wire_type, input, &mut target)?;
-                    parse_vec!(target, field.get_label(), Value::Int64)
+                    parse_vec!(target, field.get_label(), Value::from_int)
                 }
                 TYPE_SINT32 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_sint32_into(wire_type, input, &mut target)?;
-                    parse_vec!(target, field.get_label(), Value::Int32)
+                    parse_vec!(target, field.get_label(), Value::from_int)
                 }
                 TYPE_SINT64 => {
                     let mut target = Vec::new();
                     protobuf::rt::read_repeated_sint64_into(wire_type, input, &mut target)?;
-                    parse_vec!(target, field.get_label(), Value::Int64)
+                    parse_vec!(target, field.get_label(), Value::from_int)
                 }
                 TYPE_ENUM => {
                     let mut target: Vec<ProtoEnum> = Vec::new();
@@ -663,7 +663,7 @@ mod message_tests {
         let message2_fields: Fields = Fields::new(DashMap::new());
         message2_fields
             .map
-            .insert("varint".to_string(), Some(Value::from_int32(150)));
+            .insert("varint".to_string(), Some(Value::from_int(150)));
 
         struct Table {
             name: String,
@@ -680,7 +680,7 @@ mod message_tests {
                 number: 1,
                 type_name: "".to_string(),
                 label: LABEL_OPTIONAL,
-                value: Value::from_int32(150),
+                value: Value::from_int(150),
             },
             Table {
                 name: "string".to_string(),
@@ -768,7 +768,7 @@ mod message_tests {
         let message2_fields: Fields = Fields::new(DashMap::new());
         message2_fields
             .map
-            .insert("varint".to_string(), Some(Value::from_int32(150)));
+            .insert("varint".to_string(), Some(Value::from_int(150)));
         struct Table {
             name: String,
             field_type: Type,
@@ -784,7 +784,7 @@ mod message_tests {
                 number: 1,
                 type_name: "".to_string(),
                 label: LABEL_OPTIONAL,
-                want: Value::from_int32(150),
+                want: Value::from_int(150),
             },
             Table {
                 name: "string".to_string(),

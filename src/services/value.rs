@@ -1,18 +1,120 @@
+use std::{convert::TryInto, sync::Arc};
+
 use protobuf::reflect::{runtime_types::RuntimeTypeEnum, ProtobufValue};
 use serde::{de::Visitor, Deserialize, Serialize};
 
 use super::{Fields, FieldsMap};
 
+pub trait Integer: Sync + Send + std::fmt::Debug {
+    fn to_i32(&self) -> i32;
+    fn to_i64(&self) -> i64;
+    fn to_u32(&self) -> u32;
+    fn to_u64(&self) -> u64;
+}
+
+impl Integer for i32 {
+    fn to_i32(&self) -> i32 {
+        self.clone()
+    }
+
+    fn to_i64(&self) -> i64 {
+        self.clone().into()
+    }
+
+    fn to_u32(&self) -> u32 {
+        self.clone().try_into().unwrap_or(0)
+    }
+
+    fn to_u64(&self) -> u64 {
+        self.clone().try_into().unwrap_or(0)
+    }
+}
+
+impl Integer for i64 {
+    fn to_i32(&self) -> i32 {
+        self.clone().try_into().unwrap_or(0)
+    }
+
+    fn to_i64(&self) -> i64 {
+        self.clone()
+    }
+
+    fn to_u32(&self) -> u32 {
+        self.clone().try_into().unwrap_or(0)
+    }
+
+    fn to_u64(&self) -> u64 {
+        self.clone().try_into().unwrap_or(0)
+    }
+}
+
+impl Integer for u32 {
+    fn to_i32(&self) -> i32 {
+        self.clone().try_into().unwrap_or(0)
+    }
+
+    fn to_i64(&self) -> i64 {
+        self.clone().try_into().unwrap_or(0)
+    }
+
+    fn to_u32(&self) -> u32 {
+        self.clone()
+    }
+
+    fn to_u64(&self) -> u64 {
+        self.clone().into()
+    }
+}
+
+impl Integer for u64 {
+    fn to_i32(&self) -> i32 {
+        self.clone().try_into().unwrap_or(0)
+    }
+
+    fn to_i64(&self) -> i64 {
+        self.clone().try_into().unwrap_or(0)
+    }
+
+    fn to_u32(&self) -> u32 {
+        self.clone().try_into().unwrap_or(0)
+    }
+
+    fn to_u64(&self) -> u64 {
+        self.clone()
+    }
+}
+
+pub trait Floating: Sync + Send + std::fmt::Debug {
+    fn to_f32(&self) -> f32;
+    fn to_f64(&self) -> f64;
+}
+
+impl Floating for f32 {
+    fn to_f32(&self) -> f32 {
+        self.clone()
+    }
+
+    fn to_f64(&self) -> f64 {
+        self.clone().into()
+    }
+}
+
+impl Floating for f64 {
+    fn to_f32(&self) -> f32 {
+        num::ToPrimitive::to_f32(self).unwrap_or(0f32)
+    }
+
+    fn to_f64(&self) -> f64 {
+        self.clone()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Value {
     String(String),
     Bytes(Vec<u8>),
-    Int32(i32),
-    Int64(i64),
-    UInt32(u32),
-    UInt64(u64),
-    Float64(f64),
-    Float32(f32),
+    Int(Arc<dyn Integer>),
+    Float(Arc<dyn Floating>),
     Bool(bool),
     Enum(ProtoEnum),
     Message(Fields),
@@ -20,26 +122,23 @@ pub enum Value {
     None,
 }
 
-macro_rules! int_cases {
-    ($value:expr, $type:path) => {
-        Value:Int32(v) => type::try_from(v).unwrap(),
-        Value:Int64(v) => type::try_from(v).unwrap(),
-        Value:UInt32(v) => type::try_from(v).unwrap(),
-        Value:UInt64(v) => type::try_from(v).unwrap(),
-    };
-}
-
 impl Value {
     pub fn from_string(val: String) -> Self {
         Self::String(val)
     }
 
-    pub fn from_int32(val: i32) -> Self {
-        Self::Int32(val)
+    pub fn from_int<T>(val: T) -> Self
+    where
+        T: Integer + 'static,
+    {
+        Self::Int(Arc::new(val))
     }
 
-    pub fn from_uint32(val: u32) -> Self {
-        Self::UInt32(val)
+    pub fn from_float<T>(val: T) -> Self
+    where
+        T: Floating + 'static,
+    {
+        Self::Float(Arc::new(val))
     }
 
     pub fn from_message(fields: Fields) -> Self {
@@ -96,12 +195,8 @@ impl Serialize for Value {
         match self {
             Value::String(v) => sr.serialize_str(v.as_str()),
             Value::Bytes(v) => sr.serialize_bytes(&v[..]),
-            Value::Int32(v) => sr.serialize_i32(*v),
-            Value::Int64(v) => sr.serialize_i64(*v),
-            Value::UInt32(v) => sr.serialize_u32(*v),
-            Value::UInt64(v) => sr.serialize_u64(*v),
-            Value::Float64(v) => sr.serialize_f64(*v),
-            Value::Float32(v) => sr.serialize_f32(*v),
+            Value::Int(v) => sr.serialize_i64(v.to_i64()),
+            Value::Float(v) => sr.serialize_f64(v.to_f64()),
             Value::Bool(v) => sr.serialize_bool(*v),
             Value::Enum(v) => sr.serialize_i32(v.value()),
             Value::Message(v) => v.serialize(sr),
@@ -151,37 +246,37 @@ impl<'de> Visitor<'de> for ValueVisitor {
     where
         E: serde::de::Error,
     {
-        Ok(Value::Int32(v))
+        Ok(Value::from_int(v))
     }
     fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        Ok(Value::Int64(v))
+        Ok(Value::from_int(v))
     }
     fn visit_u32<E>(self, v: u32) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        Ok(Value::UInt32(v))
+        Ok(Value::from_int(v))
     }
     fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        Ok(Value::UInt64(v))
+        Ok(Value::from_int(v))
     }
     fn visit_f32<E>(self, v: f32) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        Ok(Value::Float32(v))
+        Ok(Value::from_float(v))
     }
     fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        Ok(Value::Float64(v))
+        Ok(Value::from_float(v))
     }
     fn visit_map<A>(self, mut access: A) -> Result<Self::Value, A::Error>
     where
@@ -216,12 +311,8 @@ impl PartialEq for Value {
         match (self, other) {
             (Self::String(l0), Self::String(r0)) => l0 == r0,
             (Self::Bytes(l0), Self::Bytes(r0)) => l0 == r0,
-            (Self::Int32(l0), Self::Int32(r0)) => l0 == r0,
-            (Self::Int64(l0), Self::Int64(r0)) => l0 == r0,
-            (Self::UInt32(l0), Self::UInt32(r0)) => l0 == r0,
-            (Self::UInt64(l0), Self::UInt64(r0)) => l0 == r0,
-            (Self::Float64(l0), Self::Float64(r0)) => l0 == r0,
-            (Self::Float32(l0), Self::Float32(r0)) => l0 == r0,
+            (Self::Int(l0), Self::Int(r0)) => l0.to_i64() == r0.to_i64(),
+            (Self::Float(l0), Self::Float(r0)) => l0.to_f64() == r0.to_f64(),
             (Self::Bool(l0), Self::Bool(r0)) => l0 == r0,
             (Self::Enum(l0), Self::Enum(r0)) => l0 == r0,
             (Self::Message(l0), Self::Message(r0)) => {
