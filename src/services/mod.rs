@@ -439,7 +439,7 @@ mod tests {
         assert_eq!(
             resp,
             bytes::Bytes::from_static(&[
-                0x08, 0x96, 0x01, // Field varint
+                0x08, 0x01, // Field varint
             ])
         );
     }
