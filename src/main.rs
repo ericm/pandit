@@ -1,6 +1,6 @@
 #![feature(destructuring_assignment)]
 
-pub mod client;
+pub mod broker;
 pub mod handlers;
 pub mod proto;
 pub mod server;
