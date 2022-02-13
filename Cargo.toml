@@ -11,7 +11,6 @@ publish = false
 
 [dependencies]
 access-json = "0.1.0"
-probes = { path = "./probes", package = "probes" }
 clap = "2.34.0"
 config = "0.11.0"
 tonic = "0.6.2"
@@ -25,9 +24,8 @@ bytes = "1.1.0"
 http = "0.2.6"
 tokio = { version = "^1.0.1", features = ["rt", "signal", "time", "io-util", "net", "sync"] }
 tokio-test = "0.4.2"
-redbpf = { version = "2.2.0", features = ["load"] }
-jq-rs = "0.4.1"
 parameterized = "0.3.1"
+http-auth-basic = "0.3.1"
 futures = "0.3"
 tracing = "0.1.26"
 async-trait = "0.1.52"
