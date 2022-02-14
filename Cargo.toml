@@ -25,7 +25,6 @@ http = "0.2.6"
 tokio = { version = "^1.0.1", features = ["rt", "signal", "time", "io-util", "net", "sync"] }
 tokio-test = "0.4.2"
 parameterized = "0.3.1"
-http-auth-basic = "0.3.1"
 futures = "0.3"
 tracing = "0.1.26"
 async-trait = "0.1.52"
@@ -38,7 +37,7 @@ dashmap = "4.0.2"
 protobuf = { git = "https://github.com/stepancheg/rust-protobuf.git", branch = "master", features = ["with-serde"] }
 protoc-rust = "2.25.2"
 protobuf-parse = { git = "https://github.com/stepancheg/rust-protobuf.git", branch = "master" }
-lapin = "2.0.1"
+redis = "0.21.5"
 
 
 [[bin]]

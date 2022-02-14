@@ -1,85 +1,77 @@
-use std::collections::HashMap;
+use std::collections::LinkedList;
 
 use dashmap::DashMap;
-use http_auth_basic::Credentials;
-use hyper::{self, body::HttpBody};
-use lapin::{self, types::FieldTable};
+use redis::{Client, Commands, Connection, PubSubCommands};
 
-use crate::services::ServiceResult;
-use config::Config;
+use crate::services::{message::Message, Fields, ServiceResult};
+
 pub struct Broker {
-    conn: lapin::Connection,
-    config_channel: lapin::Channel,
     cfg: config::Config,
+    client: Client,
+    conn: Connection,
+    message_fields_map: DashMap<String, (Message, LinkedList<Fields>)>,
 }
-impl Broker {
-    pub async fn connect(mut cfg: config::Config) -> ServiceResult<Self> {
-        Self::set_default(&mut cfg)?;
-        let conn = lapin::Connection::connect(
-            cfg.get_str("broker.address")?.as_str(),
-            lapin::ConnectionProperties::default(),
-        )
-        .await?;
-        let config_channel = conn.create_channel().await?;
-        config_channel
-            .exchange_declare(
-                "config",
-                lapin::ExchangeKind::Fanout,
-                lapin::options::ExchangeDeclareOptions::default(),
-                FieldTable::default(),
-            )
-            .await?;
 
+impl Broker {
+    pub fn connect(mut cfg: config::Config) -> ServiceResult<Self> {
+        Self::set_default(&mut cfg)?;
+        let client = redis::Client::open(cfg.get_str("redis.address")?.as_str())?;
+        let mut conn = client.get_connection()?;
+        {
+            let mut pubsub = conn.as_pubsub();
+            pubsub.subscribe("services")?;
+        }
         Ok(Self {
-            conn,
-            config_channel,
             cfg,
+            client,
+            conn,
+            message_fields_map: Default::default(),
         })
     }
 
-    fn set_default(cfg: &mut config::Config) -> ServiceResult<()> {
-        cfg.set_default("broker.rest_api", "http://localhost:15672".to_string())?;
-        cfg.set_default("broker.address", "amqp://127.0.0.1:5672/%2f".to_string())?;
-        cfg.set_default("broker.username", "guest".to_string())?;
-        cfg.set_default("broker.password", "guest".to_string())?;
+    pub fn sub_client(
+        &mut self,
+        name: &str,
+        messages: DashMap<String, Message>,
+    ) -> ServiceResult<()> {
+        let mut pubsub = self.conn.as_pubsub();
+        for (message_name, message) in messages {
+            let name = format!("{}_{}", name, message_name);
+            self.message_fields_map
+                .insert(name, (message, LinkedList::default()));
+        }
+        let name = format!("service_{}", name);
+        pubsub.subscribe(name)?;
         Ok(())
     }
 
-    async fn get(&self, endpoint: &str) -> ServiceResult<serde_json::Value> {
-        let client = hyper::Client::new();
-        let mut uri = self.cfg.get_str("broker.rest_api")?;
-        uri.push_str(endpoint);
-
-        let creds = Credentials::new(
-            self.cfg.get_str("broker.username")?.as_str(),
-            self.cfg.get_str("broker.password")?.as_str(),
-        )
-        .as_http_header();
-        let req = hyper::Request::builder()
-            .method(hyper::Method::GET)
-            .uri(uri.as_str())
-            .header(hyper::header::AUTHORIZATION, creds)
-            .body(hyper::Body::default())?;
-        let mut resp = client.request(req).await?;
-        let mut data = Vec::<u8>::new();
-        while let Some(chunk) = resp.body_mut().data().await {
-            data.extend(chunk?);
+    pub fn receive(&mut self) -> ServiceResult<()> {
+        let mut pubsub = self.conn.as_pubsub();
+        loop {
+            let msg = pubsub.get_message()?;
+            match msg.get_channel_name() {
+                "services" => {}
+                name => {
+                    let name = name.to_string();
+                    let name = name.trim_start_matches("service_").to_string();
+                    let (message, mut fields_list) = match self.message_fields_map.get(&name) {
+                        Some(v) => v.to_owned(),
+                        None => {
+                            eprintln!("received service fields with unknown name: {}", name);
+                            continue;
+                        }
+                    };
+                    let payload = msg.get_payload_bytes();
+                    let fields = message.fields_from_bytes(payload)?;
+                    fields_list.push_back(fields);
+                }
+            }
         }
-
-        Ok(serde_json::from_slice::<serde_json::Value>(&data[..])?)
+        Ok(())
     }
 
-    pub async fn get_nodes(&self) -> ServiceResult<serde_json::Value> {
-        self.get("/api/nodes").await
-    }
-}
-
-mod tests {
-    #[tokio::test]
-    async fn get_nodes() {
-        let broker = super::Broker::connect(config::Config::default())
-            .await
-            .unwrap();
-        println!("{:?}", broker.get_nodes().await.unwrap());
+    fn set_default(cfg: &mut config::Config) -> ServiceResult<()> {
+        cfg.set_default("redis.address", "redis://127.0.0.1/".to_string())?;
+        Ok(())
     }
 }

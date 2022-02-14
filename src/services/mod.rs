@@ -1,5 +1,5 @@
-mod message;
-mod value;
+pub mod message;
+pub mod value;
 
 use crate::handlers::json::JsonHandler;
 use crate::proto;

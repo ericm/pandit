@@ -1,6 +1,7 @@
 use std::{convert::TryInto, sync::Arc};
 
 use protobuf::reflect::{runtime_types::RuntimeTypeEnum, ProtobufValue};
+use redis::FromRedisValue;
 use serde::{de::Visitor, Deserialize, Serialize};
 
 use super::{Fields, FieldsMap};

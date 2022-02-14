@@ -63,7 +63,6 @@ impl Message {
 
     pub fn fields_from_bytes(&self, buf: &[u8]) -> ServiceResult<Fields> {
         use std::convert::TryInto;
-
         let mut input = CodedInputStream::from_bytes(buf);
         self.fields_from_bytes_delimited(&mut input, buf.len().try_into()?)
     }
