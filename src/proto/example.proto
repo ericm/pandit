@@ -18,9 +18,9 @@ message ExampleResponse {
 }
 
 service ExampleService {
-  option (pandit.http.name) = "my_service";
+  option (pandit.name) = "my_service";
   rpc GetExample(ExampleRequest) returns (ExampleResponse) {
-    option (pandit.http.api) = {
+    option (pandit.format.http) = {
       content_type : "application/json"
       get : "/example"
     };

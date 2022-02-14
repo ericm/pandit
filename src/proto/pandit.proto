@@ -1,7 +1,5 @@
 syntax = "proto3";
 import "google/protobuf/descriptor.proto";
-import "handler.proto";
-import "format/http.proto";
 
 package pandit;
 

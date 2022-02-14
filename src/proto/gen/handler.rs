@@ -17,7 +17,7 @@
 #![allow(trivial_casts)]
 #![allow(unused_imports)]
 #![allow(unused_results)]
-//! Generated file from `hander.proto`
+//! Generated file from `handler.proto`
 
 /// Generated files are compatible only with the same version
 /// of protobuf runtime.
@@ -30,9 +30,9 @@ pub mod exts {
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\x0chander.proto\x12\x0epandit.handler\x1a\x20google/protobuf/descript\
-    or.proto:5\n\x04json\x18\xf8\x86\x03\x20\x01(\x08\x12\x1f.google.protobu\
-    f.MessageOptionsR\x04jsonJl\n\x06\x12\x04\0\0\x05<\n\x08\n\x01\x0c\x12\
+    \n\rhandler.proto\x12\x0epandit.handler\x1a\x20google/protobuf/descripto\
+    r.proto:5\n\x04json\x18\xf8\x86\x03\x20\x01(\x08\x12\x1f.google.protobuf\
+    .MessageOptionsR\x04jsonJl\n\x06\x12\x04\0\0\x05<\n\x08\n\x01\x0c\x12\
     \x03\0\0\x12\n\t\n\x02\x03\0\x12\x03\x01\0*\n\x08\n\x01\x02\x12\x03\x03\
     \0\x17\n\x08\n\x01\x07\x12\x03\x05\0<\n\t\n\x02\x07\0\x12\x03\x05(:\n\n\
     \n\x03\x07\0\x02\x12\x03\x05\x07%\n\n\n\x03\x07\0\x05\x12\x03\x05(,\n\n\
