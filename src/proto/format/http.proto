@@ -1,9 +1,9 @@
 syntax = "proto3";
 import "google/protobuf/descriptor.proto";
 
-package pandit.http;
+package pandit.format;
 
-message API {
+message HTTP {
   string content_type = 50000;
   oneof pattern {
     // Maps to HTTP GET. Used for listing and getting information about
@@ -24,14 +24,4 @@ message API {
   }
 }
 
-extend google.protobuf.ServiceOptions {
-  string name = 50010;
-}
-
-extend google.protobuf.MethodOptions  {
-  API api = 50011;
-}
-
-extend google.protobuf.MessageOptions {
-  string format = 50012;
-}
+extend google.protobuf.MethodOptions { HTTP http = 50011; }

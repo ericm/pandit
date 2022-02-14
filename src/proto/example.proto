@@ -1,12 +1,14 @@
 syntax = "proto3";
 
 import "pandit.proto";
-import "http.proto";
+import "format/http.proto";
+import "handler.proto";
 
 package demo;
 
 message ExampleRequest {
   option (pandit.path) = "";
+  option (pandit.handler.json) = true;
   int32 id = 1;
 }
 

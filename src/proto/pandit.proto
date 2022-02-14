@@ -1,15 +1,15 @@
 syntax = "proto3";
 import "google/protobuf/descriptor.proto";
-import "http.proto";
+import "handler.proto";
+import "format/http.proto";
 
 package pandit;
-
 
 extend google.protobuf.FieldOptions {
   string absolute_path = 50020;
   string relative_path = 50021;
 }
 
-extend google.protobuf.MessageOptions {
-  string path = 50030;
-}
+extend google.protobuf.MessageOptions { string path = 50030; }
+
+extend google.protobuf.ServiceOptions { string name = 50010; }
