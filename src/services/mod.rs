@@ -27,9 +27,9 @@ pub enum Protocol {
     HTTP,
 }
 
-pub mod http {
-    pub use crate::proto::http::api;
-    pub use crate::proto::http::API;
+pub mod format {
+    pub use crate::proto::gen::format::http::exts::http;
+    pub use crate::proto::gen::format::http::HTTP;
 }
 
 pub type ServiceResult<T> = Result<T, Box<dyn std::error::Error>>;
@@ -80,7 +80,7 @@ pub trait Handler {
 }
 
 pub union MethodAPI {
-    pub http: ManuallyDrop<http::API>,
+    pub http: ManuallyDrop<format::HTTP>,
 }
 
 pub struct MessageField {
@@ -231,7 +231,7 @@ impl Service {
     // }
 
     fn get_service_type(service: &protobuf::descriptor::ServiceDescriptorProto) -> Protocol {
-        if proto::http::exts::name
+        if crate::proto::gen::pandit::exts::name
             .get(service.options.get_ref())
             .is_some()
         {
@@ -245,7 +245,7 @@ impl Service {
         file: &protobuf::descriptor::FileDescriptorProto,
         writer: WriterRef,
     ) -> Result<Self, ServiceError> {
-        use proto::pandit::exts;
+        use proto::gen::pandit::exts;
         let mut messages: Arc<DashMap<String, Message>> = Arc::new(DashMap::new());
         messages = Arc::new(
             file.message_type
@@ -276,7 +276,7 @@ impl Service {
         &mut self,
         service: &protobuf::descriptor::ServiceDescriptorProto,
     ) -> Result<(), ServiceError> {
-        use proto::http::exts;
+        use proto::gen::pandit::exts;
 
         let opts = service.options.get_ref();
         self.name = exts::name.get(opts).unwrap();
@@ -286,7 +286,7 @@ impl Service {
             .method
             .iter()
             .map(|method| {
-                let api = exts::api.get(method.options.get_ref()).unwrap();
+                let api = format::http.get(method.options.get_ref()).unwrap();
                 let input_message = method.get_input_type().to_string();
                 let input_message = input_message.split('.').last().unwrap().to_string();
                 let output_message = method.get_output_type().to_string();
@@ -311,7 +311,7 @@ impl Service {
     fn handler_from_http_api(
         &self,
         message_name: &String,
-        api: http::API,
+        api: format::HTTP,
     ) -> Box<dyn Handler + Sync + Send + 'static> {
         println!("n{}", *message_name);
         let message = self.messages.get(message_name).unwrap();
@@ -354,24 +354,25 @@ impl Service {
 
     fn context_from_api(api: &MethodAPI) -> ServiceResult<WriterContext> {
         let context = WriterContext::new();
+        use crate::proto::gen::format::http::http::Pattern;
         match unsafe { api.http.pattern.as_ref() }.ok_or(ServiceError::new("no pattern in api"))? {
-            http::api::Pattern::get(s) => {
+            Pattern::get(s) => {
                 context.insert("method".to_string(), "GET".to_string());
                 context.insert("uri".to_string(), s.clone());
             }
-            http::api::Pattern::put(s) => {
+            Pattern::put(s) => {
                 context.insert("method".to_string(), "PUT".to_string());
                 context.insert("uri".to_string(), s.clone());
             }
-            http::api::Pattern::post(s) => {
+            Pattern::post(s) => {
                 context.insert("method".to_string(), "POST".to_string());
                 context.insert("uri".to_string(), s.clone());
             }
-            http::api::Pattern::delete(s) => {
+            Pattern::delete(s) => {
                 context.insert("method".to_string(), "DELETE".to_string());
                 context.insert("uri".to_string(), s.clone());
             }
-            http::api::Pattern::patch(s) => {
+            Pattern::patch(s) => {
                 context.insert("method".to_string(), "PATCH".to_string());
                 context.insert("uri".to_string(), s.clone());
             }
