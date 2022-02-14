@@ -34,9 +34,9 @@ serde-protobuf = "0.8.2"
 serde = "1.0.133"
 httparse = "1.5.1"
 dashmap = "4.0.2"
-protobuf = { git = "https://github.com/stepancheg/rust-protobuf.git", branch = "master", features = ["with-serde"] }
+protobuf = { git = "https://github.com/stepancheg/rust-protobuf.git", tag="v3.0.0-alpha.2", features = ["with-serde"] }
 protoc-rust = "2.25.2"
-protobuf-parse = { git = "https://github.com/stepancheg/rust-protobuf.git", branch = "master" }
+protobuf-parse = { git = "https://github.com/stepancheg/rust-protobuf.git", tag="v3.0.0-alpha.2" }
 redis = { version = "0.21.5", features = [ "cluster"] }
 
 

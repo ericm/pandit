@@ -874,7 +874,7 @@ checksum = "47c327e191621a2158159df97cdbc2e7074bb4e940275e35abf38eb3d2595754"
 [[package]]
 name = "protobuf"
 version = "3.0.0-alpha.2"
-source = "git+https://github.com/stepancheg/rust-protobuf.git?branch=master#aa516f28f26f964c0b5580bf74928d97489418f7"
+source = "git+https://github.com/stepancheg/rust-protobuf.git?tag=v3.0.0-alpha.2#c90154824b4006a8293289b525f28fba66333165"
 dependencies = [
  "serde 1.0.133",
  "serde_derive",
@@ -892,7 +892,7 @@ dependencies = [
 [[package]]
 name = "protobuf-parse"
 version = "3.0.0-alpha.2"
-source = "git+https://github.com/stepancheg/rust-protobuf.git?branch=master#aa516f28f26f964c0b5580bf74928d97489418f7"
+source = "git+https://github.com/stepancheg/rust-protobuf.git?tag=v3.0.0-alpha.2#c90154824b4006a8293289b525f28fba66333165"
 dependencies = [
  "anyhow",
  "protobuf 3.0.0-alpha.2",
@@ -914,7 +914,7 @@ dependencies = [
 [[package]]
 name = "protoc"
 version = "3.0.0-alpha.2"
-source = "git+https://github.com/stepancheg/rust-protobuf.git?branch=master#aa516f28f26f964c0b5580bf74928d97489418f7"
+source = "git+https://github.com/stepancheg/rust-protobuf.git?tag=v3.0.0-alpha.2#c90154824b4006a8293289b525f28fba66333165"
 dependencies = [
  "anyhow",
  "log",
