@@ -1,18 +1,18 @@
 use std::iter::FromIterator;
 
-use crate::services::http;
+use crate::services::format::http;
 use access_json::JSONQuery;
 use async_trait::async_trait;
 
 use crate::services::{Fields, Handler, ServiceError, ServiceResult};
 
 pub struct JsonHandler {
-    pub method: http::api::Pattern,
+    pub method: http::Pattern,
     prog: JSONQuery,
 }
 
 impl JsonHandler {
-    pub fn new(method: http::api::Pattern, path: String) -> Self {
+    pub fn new(method: http::Pattern, path: String) -> Self {
         Self {
             method,
             prog: JSONQuery::parse(path.as_str()).unwrap(),

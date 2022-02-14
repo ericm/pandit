@@ -28,7 +28,8 @@ pub enum Protocol {
 }
 
 pub mod format {
-    pub use crate::proto::gen::format::http::exts::http;
+    pub use crate::proto::gen::format::http::exts::http as http_api;
+    pub use crate::proto::gen::format::http::http;
     pub use crate::proto::gen::format::http::HTTP;
 }
 
@@ -286,7 +287,7 @@ impl Service {
             .method
             .iter()
             .map(|method| {
-                let api = format::http.get(method.options.get_ref()).unwrap();
+                let api = format::http_api.get(method.options.get_ref()).unwrap();
                 let input_message = method.get_input_type().to_string();
                 let input_message = input_message.split('.').last().unwrap().to_string();
                 let output_message = method.get_output_type().to_string();
