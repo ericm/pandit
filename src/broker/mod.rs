@@ -1,6 +1,7 @@
 use std::collections::LinkedList;
 
 use dashmap::DashMap;
+use redis::cluster::ClusterClient;
 use redis::{Client, Commands, Connection, PubSubCommands};
 
 use crate::services::{message::Message, Fields, ServiceResult};
@@ -72,6 +73,7 @@ impl Broker {
 
     fn set_default(cfg: &mut config::Config) -> ServiceResult<()> {
         cfg.set_default("redis.address", "redis://127.0.0.1/".to_string())?;
+        cfg.set_default("cluster.addresses", vec!["redis://127.0.0.1/"])?;
         Ok(())
     }
 }

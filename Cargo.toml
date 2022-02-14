@@ -37,7 +37,7 @@ dashmap = "4.0.2"
 protobuf = { git = "https://github.com/stepancheg/rust-protobuf.git", branch = "master", features = ["with-serde"] }
 protoc-rust = "2.25.2"
 protobuf-parse = { git = "https://github.com/stepancheg/rust-protobuf.git", branch = "master" }
-redis = "0.21.5"
+redis = { version = "0.21.5", features = [ "cluster"] }
 
 
 [[bin]]
