@@ -27,7 +27,6 @@ impl Handler for JsonHandler {
         let json: serde_json::Value = serde_json::from_reader(buf.reader())?;
         let pr = self.prog.execute(&json)?;
         let result = pr.ok_or(ServiceError::new("no result"))?;
-        println!("json");
         Ok(serde_json::value::from_value(result)?)
     }
 

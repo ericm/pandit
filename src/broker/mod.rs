@@ -1,16 +1,20 @@
 use std::collections::LinkedList;
+use std::sync::Arc;
 
+use access_json::JSONQuery;
 use dashmap::DashMap;
+use protobuf::well_known_types::Field;
 use redis::cluster::ClusterClient;
 use redis::{Client, Commands, Connection, PubSubCommands};
 
+use crate::services::ServiceError;
 use crate::services::{message::Message, Fields, ServiceResult};
 
 pub struct Broker {
     cfg: config::Config,
     client: Client,
     conn: Connection,
-    message_fields_map: DashMap<String, (Message, LinkedList<Fields>)>,
+    message_fields_map: Arc<DashMap<String, (Message, Fields)>>,
 }
 
 impl Broker {
@@ -26,8 +30,30 @@ impl Broker {
             cfg,
             client,
             conn,
-            message_fields_map: Default::default(),
+            message_fields_map: Arc::new(Default::default()),
         })
+    }
+
+    pub fn probe_cache(
+        &self,
+        service_name: String,
+        message_name: String,
+        path: String,
+    ) -> ServiceResult<Option<Fields>> {
+        let name = format!("{}_{}", service_name, message_name);
+        let val = self.message_fields_map.get(&name).ok_or(ServiceError::new(
+            format!("no value found for: {}", name).as_str(),
+        ))?;
+        let (_, fields) = val.value();
+        let parse = JSONQuery::parse(path.as_str())?;
+        let res = parse.execute(fields)?;
+        match res {
+            Some(val) => {
+                let fields: Fields = serde_json::value::from_value(val)?;
+                Ok(Some(fields))
+            }
+            None => Ok(None),
+        }
     }
 
     pub fn sub_client(
@@ -39,7 +65,7 @@ impl Broker {
         for (message_name, message) in messages {
             let name = format!("{}_{}", name, message_name);
             self.message_fields_map
-                .insert(name, (message, LinkedList::default()));
+                .insert(name, (message, Fields::new(Default::default())));
         }
         let name = format!("service_{}", name);
         pubsub.subscribe(name)?;
@@ -47,28 +73,41 @@ impl Broker {
     }
 
     pub fn receive(&mut self) -> ServiceResult<()> {
-        let mut pubsub = self.conn.as_pubsub();
         loop {
-            let msg = pubsub.get_message()?;
+            let msg = {
+                let mut pubsub = self.conn.as_pubsub();
+                pubsub.get_message()
+            }?;
             match msg.get_channel_name() {
                 "services" => {}
-                name => {
-                    let name = name.to_string();
-                    let name = name.trim_start_matches("service_").to_string();
-                    let (message, mut fields_list) = match self.message_fields_map.get(&name) {
-                        Some(v) => v.to_owned(),
-                        None => {
-                            eprintln!("received service fields with unknown name: {}", name);
-                            continue;
-                        }
-                    };
-                    let payload = msg.get_payload_bytes();
-                    let fields = message.fields_from_bytes(payload)?;
-                    fields_list.push_back(fields);
-                }
+                name => match self.parse_service_fields(name, &msg) {
+                    Ok(_) => continue,
+                    Err(err) => {
+                        eprintln!(
+                            "error occured parsing service with name {}: {:?}",
+                            name, err
+                        );
+                    }
+                },
             }
         }
         Ok(())
+    }
+
+    fn parse_service_fields(&mut self, name: &str, msg: &redis::Msg) -> ServiceResult<()> {
+        let name = name.to_string();
+        let name = name.trim_start_matches("service_").to_string();
+        match self.message_fields_map.get_mut(&name) {
+            Some(mut v) => {
+                let (message, fields) = v.value_mut();
+                let payload = msg.get_payload_bytes();
+                *fields = message.fields_from_bytes(payload)?;
+                Ok(())
+            }
+            None => Err(ServiceError::new(
+                format!("received service fields with unknown name: {}", name).as_str(),
+            )),
+        }
     }
 
     fn set_default(cfg: &mut config::Config) -> ServiceResult<()> {
