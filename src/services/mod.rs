@@ -8,7 +8,8 @@ use access_json::JSONQuery;
 use async_trait::async_trait;
 use config;
 use dashmap::DashMap;
-use protobuf;
+use protobuf::descriptor::{MethodDescriptorProto, MethodOptions};
+use protobuf::{self};
 use protobuf_parse;
 use serde::de::Visitor;
 use serde::{Deserialize, Serialize};
@@ -31,6 +32,7 @@ pub mod format {
     pub use crate::proto::gen::format::http::exts::http as http_api;
     pub use crate::proto::gen::format::http::http;
     pub use crate::proto::gen::format::http::HTTP;
+    pub use crate::proto::gen::handler::exts as handlers;
 }
 
 pub type ServiceResult<T> = Result<T, Box<dyn std::error::Error>>;
@@ -186,11 +188,15 @@ pub struct Service {
 }
 
 impl Service {
-    pub fn from_file(path: &str, writer: WriterRef) -> Result<Self, ServiceError> {
+    pub fn from_file(
+        path: &str,
+        include: &[&str],
+        writer: WriterRef,
+    ) -> Result<Self, ServiceError> {
         let path_buf = &PathBuf::from(path);
-        let include = PathBuf::from("./src/proto");
+        let include: Vec<PathBuf> = include.iter().map(|v| PathBuf::from(v)).collect();
         let parsed =
-            protobuf_parse::pure::parse_and_typecheck(&[include], &[path_buf.clone()]).unwrap();
+            protobuf_parse::pure::parse_and_typecheck(&include[..], &[path_buf.clone()]).unwrap();
         let filename = path_buf.file_name().unwrap();
         let file = parsed
             .file_descriptors
@@ -199,7 +205,7 @@ impl Service {
             .unwrap();
         let service = file.service.first().unwrap();
 
-        let mut output = Self::get_service_attrs_base(file, writer)?;
+        let mut output = Self::get_service_attrs_base(file, writer, &service)?;
         match Self::get_service_type(service) {
             Protocol::HTTP => output.get_service_attrs_http(service)?,
             _ => panic!("unknown protocol"),
@@ -207,29 +213,6 @@ impl Service {
 
         Ok(output)
     }
-
-    // pub fn from_config(cfg: config::Config) -> Result<Services<'w>, ServiceError> {
-    //     let services = cfg.get_table("service").unwrap();
-    //     Ok(services
-    //         .iter()
-    //         .map(|(name, value)| {
-    //             (
-    //                 name.clone(),
-    //                 Self::service_from_config_value(name, value.clone()),
-    //             )
-    //         })
-    //         .collect())
-    // }
-
-    // fn service_from_config_value(name: &String, value: config::Value) -> Self {
-    //     let service = value.into_table().unwrap();
-    //     let proto = {
-    //         let p = service.get("proto").unwrap().clone();
-    //         let p = p.into_str().unwrap();
-    //         p
-    //     };
-    //     Self::from_file(proto.as_str()).unwrap()
-    // }
 
     fn get_service_type(service: &protobuf::descriptor::ServiceDescriptorProto) -> Protocol {
         if crate::proto::gen::pandit::exts::name
@@ -245,6 +228,7 @@ impl Service {
     fn get_service_attrs_base(
         file: &protobuf::descriptor::FileDescriptorProto,
         writer: WriterRef,
+        service: &protobuf::descriptor::ServiceDescriptorProto,
     ) -> Result<Self, ServiceError> {
         use proto::gen::pandit::exts;
         let mut messages: Arc<DashMap<String, Message>> = Arc::new(DashMap::new());
@@ -297,7 +281,7 @@ impl Service {
                     Method {
                         input_message: input_message.clone(),
                         output_message: output_message.clone(),
-                        handler: self.handler_from_http_api(&output_message, api.clone()),
+                        handler: self.handler_for_method(&method).unwrap(),
                         api: MethodAPI {
                             http: ManuallyDrop::new(api),
                         },
@@ -309,19 +293,22 @@ impl Service {
         Ok(())
     }
 
-    fn handler_from_http_api(
+    fn handler_for_method(
         &self,
-        message_name: &String,
-        api: format::HTTP,
-    ) -> Box<dyn Handler + Sync + Send + 'static> {
-        println!("n{}", *message_name);
-        let message = self.messages.get(message_name).unwrap();
-        match api.content_type.as_str() {
-            "application/json" => {
-                Box::new(JsonHandler::new(api.pattern.unwrap(), message.path.clone()))
-            }
-            e => panic!("unknown http api content type: {}", e),
-        }
+        method: &MethodDescriptorProto,
+    ) -> Option<Box<dyn Handler + Sync + Send + 'static>> {
+        let message = {
+            let name = method.get_output_type().to_string();
+            let name = name.split('.').last().unwrap().to_string();
+            self.messages.get(&name).unwrap()
+        };
+        let options = method.options.get_ref();
+        use format::handlers;
+        return if handlers::json.get(options).is_some() {
+            Some(Box::new(JsonHandler::new(message.path.clone())))
+        } else {
+            None
+        };
     }
 
     pub async fn send_proto_to_local(
@@ -430,7 +417,12 @@ mod tests {
             fields: None,
         };
         let writer_ref = Box::new(Mutex::new(writer));
-        let mut service = Service::from_file("./src/proto/example.proto", writer_ref).unwrap();
+        let mut service = Service::from_file(
+            "./src/proto/examples/example1.proto",
+            &["./src/proto"],
+            writer_ref,
+        )
+        .unwrap();
         let buf: &[u8] = &[
             0x08, 0x96, 0x01, // Field varint
         ];
