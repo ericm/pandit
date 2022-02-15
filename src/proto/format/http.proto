@@ -4,7 +4,7 @@ import "google/protobuf/descriptor.proto";
 package pandit.format;
 
 message HTTP {
-  string content_type = 50000;
+  map<string, string> headers = 50000;
   oneof pattern {
     // Maps to HTTP GET. Used for listing and getting information about
     // resources.
@@ -25,3 +25,5 @@ message HTTP {
 }
 
 extend google.protobuf.MethodOptions { HTTP http = 50011; }
+
+extend google.protobuf.ServiceOptions { string http_hostname = 50012; }

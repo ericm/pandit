@@ -4,24 +4,28 @@ import "pandit.proto";
 import "format/http.proto";
 import "handler.proto";
 
-package demo;
+package http_demo;
 
 message ExampleRequest {
-  option (pandit.handler.json) = true;
   int32 id = 1;
+  string user = 2;
 }
 
 message ExampleResponse {
-  option (pandit.handler.json) = true;
+  option (pandit.path) = ".obj";
   int32 id = 1;
+  string user = 2;
 }
 
 service ExampleService {
   option (pandit.name) = "my_service";
+  option (pandit.http_hostname) = "%hostname%";
+
   rpc GetExample(ExampleRequest) returns (ExampleResponse) {
     option (pandit.format.http) = {
-      content_type : "application/json"
+      headers : [ {key : "Content-Type", value : "application/json"} ]
       get : "/example"
     };
+    option (pandit.handler.json) = true;
   }
 }

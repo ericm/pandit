@@ -3,4 +3,8 @@ import "google/protobuf/descriptor.proto";
 
 package pandit.handler;
 
-extend google.protobuf.MessageOptions { bool json = 50040; }
+extend google.protobuf.MethodOptions {
+  oneof handler { bool json = 50040; }
+}
+
+extend google.protobuf.ServiceOptions { bool all_json = 50050; }

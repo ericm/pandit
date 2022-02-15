@@ -25,6 +25,191 @@
 /// of protobuf runtime.
 const _PROTOBUF_VERSION_CHECK: () = ::protobuf::VERSION_3_0_0_ALPHA_2;
 
+#[derive(PartialEq,Clone,Default)]
+pub struct CacheOptions {
+    // message fields
+    pub do_not_cache: bool,
+    pub cache_time: i32,
+    pub read_only_cache: bool,
+    pub update_every: i32,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::rt::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a CacheOptions {
+    fn default() -> &'a CacheOptions {
+        <CacheOptions as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl CacheOptions {
+    pub fn new() -> CacheOptions {
+        ::std::default::Default::default()
+    }
+
+    fn generated_message_descriptor_data() -> ::protobuf::reflect::GeneratedMessageDescriptorData {
+        let mut fields = ::std::vec::Vec::new();
+        fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
+            "do_not_cache",
+            |m: &CacheOptions| { &m.do_not_cache },
+            |m: &mut CacheOptions| { &mut m.do_not_cache },
+        ));
+        fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
+            "cache_time",
+            |m: &CacheOptions| { &m.cache_time },
+            |m: &mut CacheOptions| { &mut m.cache_time },
+        ));
+        fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
+            "read_only_cache",
+            |m: &CacheOptions| { &m.read_only_cache },
+            |m: &mut CacheOptions| { &mut m.read_only_cache },
+        ));
+        fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
+            "update_every",
+            |m: &CacheOptions| { &m.update_every },
+            |m: &mut CacheOptions| { &mut m.update_every },
+        ));
+        ::protobuf::reflect::GeneratedMessageDescriptorData::new_2::<CacheOptions>(
+            "CacheOptions",
+            0,
+            fields,
+        )
+    }
+}
+
+impl ::protobuf::Message for CacheOptions {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                60031 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    self.do_not_cache = is.read_bool()?;
+                },
+                60032 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    self.cache_time = is.read_int32()?;
+                },
+                60033 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    self.read_only_cache = is.read_bool()?;
+                },
+                60034 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    self.update_every = is.read_int32()?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if self.do_not_cache != false {
+            my_size += 4;
+        }
+        if self.cache_time != 0 {
+            my_size += ::protobuf::rt::value_size(60032, self.cache_time, ::protobuf::wire_format::WireTypeVarint);
+        }
+        if self.read_only_cache != false {
+            my_size += 4;
+        }
+        if self.update_every != 0 {
+            my_size += ::protobuf::rt::value_size(60034, self.update_every, ::protobuf::wire_format::WireTypeVarint);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if self.do_not_cache != false {
+            os.write_bool(60031, self.do_not_cache)?;
+        }
+        if self.cache_time != 0 {
+            os.write_int32(60032, self.cache_time)?;
+        }
+        if self.read_only_cache != false {
+            os.write_bool(60033, self.read_only_cache)?;
+        }
+        if self.update_every != 0 {
+            os.write_int32(60034, self.update_every)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn new() -> CacheOptions {
+        CacheOptions::new()
+    }
+
+    fn descriptor_static() -> ::protobuf::reflect::MessageDescriptor {
+        ::protobuf::reflect::MessageDescriptor::new_generated_2(file_descriptor(), 0)
+    }
+
+    fn default_instance() -> &'static CacheOptions {
+        static instance: CacheOptions = CacheOptions {
+            do_not_cache: false,
+            cache_time: 0,
+            read_only_cache: false,
+            update_every: 0,
+            unknown_fields: ::protobuf::UnknownFields::new(),
+            cached_size: ::protobuf::rt::CachedSize::new(),
+        };
+        &instance
+    }
+}
+
+impl ::protobuf::Clear for CacheOptions {
+    fn clear(&mut self) {
+        self.do_not_cache = false;
+        self.cache_time = 0;
+        self.read_only_cache = false;
+        self.update_every = 0;
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for CacheOptions {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for CacheOptions {
+    type RuntimeType = ::protobuf::reflect::runtime_types::RuntimeTypeMessage<Self>;
+}
+
 /// Extension fields
 pub mod exts {
 
@@ -32,33 +217,69 @@ pub mod exts {
 
     pub const relative_path: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::FieldOptions, ::protobuf::reflect::types::ProtobufTypeString> = ::protobuf::ext::ExtFieldOptional { field_number: 50021, phantom: ::std::marker::PhantomData };
 
+    pub const field_cache: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::FieldOptions, ::protobuf::reflect::types::ProtobufTypeMessage<super::CacheOptions>> = ::protobuf::ext::ExtFieldOptional { field_number: 50036, phantom: ::std::marker::PhantomData };
+
     pub const path: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::MessageOptions, ::protobuf::reflect::types::ProtobufTypeString> = ::protobuf::ext::ExtFieldOptional { field_number: 50030, phantom: ::std::marker::PhantomData };
 
+    pub const cache: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::MessageOptions, ::protobuf::reflect::types::ProtobufTypeMessage<super::CacheOptions>> = ::protobuf::ext::ExtFieldOptional { field_number: 50034, phantom: ::std::marker::PhantomData };
+
     pub const name: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::ServiceOptions, ::protobuf::reflect::types::ProtobufTypeString> = ::protobuf::ext::ExtFieldOptional { field_number: 50010, phantom: ::std::marker::PhantomData };
+
+    pub const default_cache: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::ServiceOptions, ::protobuf::reflect::types::ProtobufTypeMessage<super::CacheOptions>> = ::protobuf::ext::ExtFieldOptional { field_number: 50035, phantom: ::std::marker::PhantomData };
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n\x0cpandit.proto\x12\x06pandit\x1a\x20google/protobuf/descriptor.proto\
-    :D\n\rabsolute_path\x18\xe4\x86\x03\x20\x01(\t\x12\x1d.google.protobuf.F\
-    ieldOptionsR\x0cabsolutePath:D\n\rrelative_path\x18\xe5\x86\x03\x20\x01(\
-    \t\x12\x1d.google.protobuf.FieldOptionsR\x0crelativePath:5\n\x04path\x18\
-    \xee\x86\x03\x20\x01(\t\x12\x1f.google.protobuf.MessageOptionsR\x04path:\
-    5\n\x04name\x18\xda\x86\x03\x20\x01(\t\x12\x1f.google.protobuf.ServiceOp\
-    tionsR\x04nameJ\xb2\x02\n\x06\x12\x04\0\0\x0c>\n\x08\n\x01\x0c\x12\x03\0\
-    \0\x12\n\t\n\x02\x03\0\x12\x03\x01\0*\n\x08\n\x01\x02\x12\x03\x03\0\x0f\
-    \n\t\n\x01\x07\x12\x04\x05\0\x08\x01\n\t\n\x02\x07\0\x12\x03\x06\x02\x1f\
-    \n\n\n\x03\x07\0\x02\x12\x03\x05\x07#\n\n\n\x03\x07\0\x05\x12\x03\x06\
-    \x02\x08\n\n\n\x03\x07\0\x01\x12\x03\x06\t\x16\n\n\n\x03\x07\0\x03\x12\
-    \x03\x06\x19\x1e\n\t\n\x02\x07\x01\x12\x03\x07\x02\x1f\n\n\n\x03\x07\x01\
-    \x02\x12\x03\x05\x07#\n\n\n\x03\x07\x01\x05\x12\x03\x07\x02\x08\n\n\n\
-    \x03\x07\x01\x01\x12\x03\x07\t\x16\n\n\n\x03\x07\x01\x03\x12\x03\x07\x19\
-    \x1e\n\x08\n\x01\x07\x12\x03\n\0>\n\t\n\x02\x07\x02\x12\x03\n(<\n\n\n\
-    \x03\x07\x02\x02\x12\x03\n\x07%\n\n\n\x03\x07\x02\x05\x12\x03\n(.\n\n\n\
-    \x03\x07\x02\x01\x12\x03\n/3\n\n\n\x03\x07\x02\x03\x12\x03\n6;\n\x08\n\
-    \x01\x07\x12\x03\x0c\0>\n\t\n\x02\x07\x03\x12\x03\x0c(<\n\n\n\x03\x07\
-    \x03\x02\x12\x03\x0c\x07%\n\n\n\x03\x07\x03\x05\x12\x03\x0c(.\n\n\n\x03\
-    \x07\x03\x01\x12\x03\x0c/3\n\n\n\x03\x07\x03\x03\x12\x03\x0c6;b\x06proto\
-    3\
+    \"\xa2\x01\n\x0cCacheOptions\x12\"\n\x0cdo_not_cache\x18\xff\xd4\x03\x20\
+    \x01(\x08R\ndoNotCache\x12\x1f\n\ncache_time\x18\x80\xd5\x03\x20\x01(\
+    \x05R\tcacheTime\x12(\n\x0fread_only_cache\x18\x81\xd5\x03\x20\x01(\x08R\
+    \rreadOnlyCache\x12#\n\x0cupdate_every\x18\x82\xd5\x03\x20\x01(\x05R\x0b\
+    updateEvery:D\n\rabsolute_path\x18\xe4\x86\x03\x20\x01(\t\x12\x1d.google\
+    .protobuf.FieldOptionsR\x0cabsolutePath:D\n\rrelative_path\x18\xe5\x86\
+    \x03\x20\x01(\t\x12\x1d.google.protobuf.FieldOptionsR\x0crelativePath:V\
+    \n\x0bfield_cache\x18\xf4\x86\x03\x20\x01(\x0b2\x14.pandit.CacheOptions\
+    \x12\x1d.google.protobuf.FieldOptionsR\nfieldCache:5\n\x04path\x18\xee\
+    \x86\x03\x20\x01(\t\x12\x1f.google.protobuf.MessageOptionsR\x04path:M\n\
+    \x05cache\x18\xf2\x86\x03\x20\x01(\x0b2\x14.pandit.CacheOptions\x12\x1f.\
+    google.protobuf.MessageOptionsR\x05cache:5\n\x04name\x18\xda\x86\x03\x20\
+    \x01(\t\x12\x1f.google.protobuf.ServiceOptionsR\x04name:\\\n\rdefault_ca\
+    che\x18\xf3\x86\x03\x20\x01(\x0b2\x14.pandit.CacheOptions\x12\x1f.google\
+    .protobuf.ServiceOptionsR\x0cdefaultCacheJ\xd9\x05\n\x06\x12\x04\0\0\x1a\
+    \x01\n\x08\n\x01\x0c\x12\x03\0\0\x12\n\t\n\x02\x03\0\x12\x03\x01\0*\n\
+    \x08\n\x01\x02\x12\x03\x03\0\x0f\n\n\n\x02\x04\0\x12\x04\x05\0\n\x01\n\n\
+    \n\x03\x04\0\x01\x12\x03\x05\x08\x14\n\x0b\n\x04\x04\0\x02\0\x12\x03\x06\
+    \x02\x1c\n\x0c\n\x05\x04\0\x02\0\x05\x12\x03\x06\x02\x06\n\x0c\n\x05\x04\
+    \0\x02\0\x01\x12\x03\x06\x07\x13\n\x0c\n\x05\x04\0\x02\0\x03\x12\x03\x06\
+    \x16\x1b\n\x0b\n\x04\x04\0\x02\x01\x12\x03\x07\x02\x1b\n\x0c\n\x05\x04\0\
+    \x02\x01\x05\x12\x03\x07\x02\x07\n\x0c\n\x05\x04\0\x02\x01\x01\x12\x03\
+    \x07\x08\x12\n\x0c\n\x05\x04\0\x02\x01\x03\x12\x03\x07\x15\x1a\n\x0b\n\
+    \x04\x04\0\x02\x02\x12\x03\x08\x02\x1f\n\x0c\n\x05\x04\0\x02\x02\x05\x12\
+    \x03\x08\x02\x06\n\x0c\n\x05\x04\0\x02\x02\x01\x12\x03\x08\x07\x16\n\x0c\
+    \n\x05\x04\0\x02\x02\x03\x12\x03\x08\x19\x1e\n\x0b\n\x04\x04\0\x02\x03\
+    \x12\x03\t\x02\x1d\n\x0c\n\x05\x04\0\x02\x03\x05\x12\x03\t\x02\x07\n\x0c\
+    \n\x05\x04\0\x02\x03\x01\x12\x03\t\x08\x14\n\x0c\n\x05\x04\0\x02\x03\x03\
+    \x12\x03\t\x17\x1c\n\t\n\x01\x07\x12\x04\x0c\0\x10\x01\n\t\n\x02\x07\0\
+    \x12\x03\r\x02\x1f\n\n\n\x03\x07\0\x02\x12\x03\x0c\x07#\n\n\n\x03\x07\0\
+    \x05\x12\x03\r\x02\x08\n\n\n\x03\x07\0\x01\x12\x03\r\t\x16\n\n\n\x03\x07\
+    \0\x03\x12\x03\r\x19\x1e\n\t\n\x02\x07\x01\x12\x03\x0e\x02\x1f\n\n\n\x03\
+    \x07\x01\x02\x12\x03\x0c\x07#\n\n\n\x03\x07\x01\x05\x12\x03\x0e\x02\x08\
+    \n\n\n\x03\x07\x01\x01\x12\x03\x0e\t\x16\n\n\n\x03\x07\x01\x03\x12\x03\
+    \x0e\x19\x1e\n\t\n\x02\x07\x02\x12\x03\x0f\x02#\n\n\n\x03\x07\x02\x02\
+    \x12\x03\x0c\x07#\n\n\n\x03\x07\x02\x06\x12\x03\x0f\x02\x0e\n\n\n\x03\
+    \x07\x02\x01\x12\x03\x0f\x0f\x1a\n\n\n\x03\x07\x02\x03\x12\x03\x0f\x1d\"\
+    \n\t\n\x01\x07\x12\x04\x12\0\x15\x01\n\t\n\x02\x07\x03\x12\x03\x13\x02\
+    \x16\n\n\n\x03\x07\x03\x02\x12\x03\x12\x07%\n\n\n\x03\x07\x03\x05\x12\
+    \x03\x13\x02\x08\n\n\n\x03\x07\x03\x01\x12\x03\x13\t\r\n\n\n\x03\x07\x03\
+    \x03\x12\x03\x13\x10\x15\n\t\n\x02\x07\x04\x12\x03\x14\x02\x1d\n\n\n\x03\
+    \x07\x04\x02\x12\x03\x12\x07%\n\n\n\x03\x07\x04\x06\x12\x03\x14\x02\x0e\
+    \n\n\n\x03\x07\x04\x01\x12\x03\x14\x0f\x14\n\n\n\x03\x07\x04\x03\x12\x03\
+    \x14\x17\x1c\n\t\n\x01\x07\x12\x04\x17\0\x1a\x01\n\t\n\x02\x07\x05\x12\
+    \x03\x18\x02\x16\n\n\n\x03\x07\x05\x02\x12\x03\x17\x07%\n\n\n\x03\x07\
+    \x05\x05\x12\x03\x18\x02\x08\n\n\n\x03\x07\x05\x01\x12\x03\x18\t\r\n\n\n\
+    \x03\x07\x05\x03\x12\x03\x18\x10\x15\n\t\n\x02\x07\x06\x12\x03\x19\x02%\
+    \n\n\n\x03\x07\x06\x02\x12\x03\x17\x07%\n\n\n\x03\x07\x06\x06\x12\x03\
+    \x19\x02\x0e\n\n\n\x03\x07\x06\x01\x12\x03\x19\x0f\x1c\n\n\n\x03\x07\x06\
+    \x03\x12\x03\x19\x1f$b\x06proto3\
 ";
 
 /// `FileDescriptorProto` object which was a source for this generated file
@@ -76,6 +297,7 @@ pub fn file_descriptor() -> ::protobuf::reflect::FileDescriptor {
         let mut deps = ::std::vec::Vec::new();
         deps.push(::protobuf::descriptor::file_descriptor());
         let mut messages = ::std::vec::Vec::new();
+        messages.push(CacheOptions::generated_message_descriptor_data());
         let mut enums = ::std::vec::Vec::new();
         ::protobuf::reflect::GeneratedFileDescriptor::new_generated(
             file_descriptor_proto(),

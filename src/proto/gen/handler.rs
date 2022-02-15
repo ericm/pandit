@@ -28,18 +28,24 @@ const _PROTOBUF_VERSION_CHECK: () = ::protobuf::VERSION_3_0_0_ALPHA_2;
 /// Extension fields
 pub mod exts {
 
-    pub const json: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::MessageOptions, ::protobuf::reflect::types::ProtobufTypeBool> = ::protobuf::ext::ExtFieldOptional { field_number: 50040, phantom: ::std::marker::PhantomData };
+    pub const json: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::MethodOptions, ::protobuf::reflect::types::ProtobufTypeBool> = ::protobuf::ext::ExtFieldOptional { field_number: 50040, phantom: ::std::marker::PhantomData };
+
+    pub const all_json: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::ServiceOptions, ::protobuf::reflect::types::ProtobufTypeBool> = ::protobuf::ext::ExtFieldOptional { field_number: 50050, phantom: ::std::marker::PhantomData };
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n\rhandler.proto\x12\x0epandit.handler\x1a\x20google/protobuf/descripto\
-    r.proto:5\n\x04json\x18\xf8\x86\x03\x20\x01(\x08\x12\x1f.google.protobuf\
-    .MessageOptionsR\x04jsonJl\n\x06\x12\x04\0\0\x05<\n\x08\n\x01\x0c\x12\
-    \x03\0\0\x12\n\t\n\x02\x03\0\x12\x03\x01\0*\n\x08\n\x01\x02\x12\x03\x03\
-    \0\x17\n\x08\n\x01\x07\x12\x03\x05\0<\n\t\n\x02\x07\0\x12\x03\x05(:\n\n\
-    \n\x03\x07\0\x02\x12\x03\x05\x07%\n\n\n\x03\x07\0\x05\x12\x03\x05(,\n\n\
-    \n\x03\x07\0\x01\x12\x03\x05-1\n\n\n\x03\x07\0\x03\x12\x03\x0549b\x06pro\
-    to3\
+    r.proto:4\n\x04json\x18\xf8\x86\x03\x20\x01(\x08\x12\x1e.google.protobuf\
+    .MethodOptionsR\x04json:<\n\x08all_json\x18\x82\x87\x03\x20\x01(\x08\x12\
+    \x1f.google.protobuf.ServiceOptionsR\x07allJsonJ\xb1\x01\n\x06\x12\x04\0\
+    \0\x07@\n\x08\n\x01\x0c\x12\x03\0\0\x12\n\t\n\x02\x03\0\x12\x03\x01\0*\n\
+    \x08\n\x01\x02\x12\x03\x03\0\x17\n\x08\n\x01\x07\x12\x03\x05\0;\n\t\n\
+    \x02\x07\0\x12\x03\x05'9\n\n\n\x03\x07\0\x02\x12\x03\x05\x07$\n\n\n\x03\
+    \x07\0\x05\x12\x03\x05'+\n\n\n\x03\x07\0\x01\x12\x03\x05,0\n\n\n\x03\x07\
+    \0\x03\x12\x03\x0538\n\x08\n\x01\x07\x12\x03\x07\0@\n\t\n\x02\x07\x01\
+    \x12\x03\x07(>\n\n\n\x03\x07\x01\x02\x12\x03\x07\x07%\n\n\n\x03\x07\x01\
+    \x05\x12\x03\x07(,\n\n\n\x03\x07\x01\x01\x12\x03\x07-5\n\n\n\x03\x07\x01\
+    \x03\x12\x03\x078=b\x06proto3\
 ";
 
 /// `FileDescriptorProto` object which was a source for this generated file
