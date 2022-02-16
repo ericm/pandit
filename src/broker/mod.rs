@@ -44,10 +44,10 @@ impl Broker {
     pub fn probe_cache(
         &self,
         service_name: String,
-        message_name: String,
+        method_name: String,
         path: String,
     ) -> ServiceResult<Option<Fields>> {
-        let name = format!("{}_{}", service_name, message_name);
+        let name = format!("{}_{}", service_name, method_name);
         let val = self.method_fields_map.get(&name).ok_or(ServiceError::new(
             format!("no value found for: {}", name).as_str(),
         ))?;
@@ -80,6 +80,36 @@ impl Broker {
         let name = format!("service_{}", service.name);
         pubsub.subscribe(name)?;
         Ok(())
+    }
+
+    pub fn publish_cache(
+        &mut self,
+        service_name: String,
+        method_name: String,
+        fields: Fields,
+    ) -> ServiceResult<()> {
+        let name = format!("{}_{}", service_name, method_name);
+        let fields = self.filter_fields(&fields);
+        let cached = self.method_fields_map.get(&name).ok_or(ServiceError::new(
+            format!("no value found for: {}", name).as_str(),
+        ))?;
+
+        let buf: Vec<u8> = Vec::with_capacity(1000);
+        use bytes::BufMut;
+        let mut buf = buf.writer();
+        {
+            let mut output = protobuf::CodedOutputStream::new(&mut buf);
+            cached
+                .message
+                .write_bytes_from_fields(&mut output, &fields)?;
+        }
+        let buf = buf.into_inner();
+        self.conn.publish(name, buf)?;
+        Ok(())
+    }
+
+    fn filter_fields(&self, fields: &Fields) -> Fields {
+        todo!()
     }
 
     pub fn receive(&mut self) -> ServiceResult<()> {
