@@ -170,7 +170,7 @@ impl Serialize for Fields {
 
 pub struct Method {
     pub api: MethodAPI,
-    pub handler: Box<dyn Handler + Sync + Send + 'static>,
+    pub handler: Option<Arc<dyn Handler + Sync + Send + 'static>>,
     pub input_message: String,
     pub output_message: String,
 }
@@ -185,6 +185,7 @@ pub struct Service {
     pub methods: DashMap<String, Method>,
     pub messages: Arc<DashMap<String, Message>>,
     pub writer: WriterRef,
+    pub default_handler: Option<Arc<dyn Handler + Sync + Send + 'static>>,
 }
 
 impl Service {
@@ -197,11 +198,14 @@ impl Service {
         let include: Vec<PathBuf> = include.iter().map(|v| PathBuf::from(v)).collect();
         let parsed =
             protobuf_parse::pure::parse_and_typecheck(&include[..], &[path_buf.clone()]).unwrap();
-        let filename = path_buf.file_name().unwrap();
+        let filename = path_buf.file_name().unwrap().to_str().unwrap();
         let file = parsed
             .file_descriptors
             .iter()
-            .find(|&x| x.get_name() == filename)
+            .find(|&x| {
+                let name = x.get_name().to_string();
+                name.ends_with(filename)
+            })
             .unwrap();
         let service = file.service.first().unwrap();
 
@@ -248,12 +252,25 @@ impl Service {
         messages
             .iter_mut()
             .for_each(|mut m| m.parent = messages.clone());
+
+        let default_handler = {
+            let handler = format::handlers::default_handler.get(service.options.get_ref());
+            match handler {
+                Some(v) => {
+                    let val = v.enum_value().unwrap();
+                    Some(Self::handler(val, ".".to_string()))
+                }
+                None => None,
+            }
+        };
+
         Ok(Self {
             name: Default::default(),
             methods: Default::default(),
             protocol: Protocol::None,
             messages,
             writer,
+            default_handler,
         })
     }
 
@@ -281,7 +298,7 @@ impl Service {
                     Method {
                         input_message: input_message.clone(),
                         output_message: output_message.clone(),
-                        handler: self.handler_for_method(&method).unwrap(),
+                        handler: self.handler_for_method(&method),
                         api: MethodAPI {
                             http: ManuallyDrop::new(api),
                         },
@@ -296,19 +313,33 @@ impl Service {
     fn handler_for_method(
         &self,
         method: &MethodDescriptorProto,
-    ) -> Option<Box<dyn Handler + Sync + Send + 'static>> {
+    ) -> Option<Arc<dyn Handler + Sync + Send + 'static>> {
         let message = {
             let name = method.get_output_type().to_string();
             let name = name.split('.').last().unwrap().to_string();
             self.messages.get(&name).unwrap()
         };
         let options = method.options.get_ref();
-        use format::handlers;
-        return if handlers::json.get(options).is_some() {
-            Some(Box::new(JsonHandler::new(message.path.clone())))
-        } else {
-            None
-        };
+        {
+            use format::handlers;
+            match handlers::handler.get(options) {
+                Some(val) => {
+                    let val = val.enum_value().unwrap();
+                    Some(Self::handler(val, message.path.clone()))
+                }
+                None => None,
+            }
+        }
+    }
+
+    fn handler(
+        handler: proto::gen::handler::Handler,
+        path: String,
+    ) -> Arc<dyn Handler + Sync + Send + 'static> {
+        use proto::gen::handler::Handler::*;
+        Arc::new(match handler {
+            JSON => JsonHandler::new(path),
+        })
     }
 
     pub async fn send_proto_to_local(
@@ -324,11 +355,22 @@ impl Service {
         let writer = self.writer.get_mut();
         let context = Self::context_from_api(&method.api)?;
 
-        let resp = writer
-            .write_request(context, &fields, &method.handler)
-            .await?;
+        let handler = method
+            .handler
+            .as_ref()
+            .or(self.default_handler.as_ref())
+            .ok_or(ServiceError::new(
+                format!(
+                    "unable to find handler or default handler for {}.{}",
+                    self.name,
+                    method.key()
+                )
+                .as_str(),
+            ))?;
 
-        let resp_fields = method.handler.from_payload(resp)?;
+        let resp = writer.write_request(context, &fields, handler).await?;
+
+        let resp_fields = handler.from_payload(resp)?;
         let buf: Vec<u8> = Vec::with_capacity(1000);
         use bytes::BufMut;
         let mut buf = buf.writer();
@@ -377,7 +419,7 @@ pub trait Writer: Sync + Send {
         &mut self,
         context: WriterContext,
         fields: &Fields,
-        handler: &Box<dyn Handler + Send + Sync>,
+        handler: &Arc<dyn Handler + Send + Sync>,
     ) -> ServiceResult<bytes::Bytes>;
 }
 
@@ -401,11 +443,11 @@ mod tests {
             &mut self,
             context: WriterContext,
             fields: &Fields,
-            handler: &Box<dyn Handler + Send + Sync>,
+            handler: &Arc<dyn Handler + Send + Sync>,
         ) -> ServiceResult<bytes::Bytes> {
             self.context = Some(context);
             self.fields = Some(fields.clone());
-            Ok(bytes::Bytes::from_static(b"{\"id\": 1}"))
+            Ok(bytes::Bytes::from_static(b"{\"obj\":{\"id\": 1}}"))
         }
     }
 

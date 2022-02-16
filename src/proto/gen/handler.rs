@@ -25,27 +25,76 @@
 /// of protobuf runtime.
 const _PROTOBUF_VERSION_CHECK: () = ::protobuf::VERSION_3_0_0_ALPHA_2;
 
+#[derive(Clone,Copy,PartialEq,Eq,Debug,Hash)]
+pub enum Handler {
+    JSON = 0,
+}
+
+impl ::protobuf::ProtobufEnum for Handler {
+    fn value(&self) -> i32 {
+        *self as i32
+    }
+
+    fn from_i32(value: i32) -> ::std::option::Option<Handler> {
+        match value {
+            0 => ::std::option::Option::Some(Handler::JSON),
+            _ => ::std::option::Option::None
+        }
+    }
+
+    fn values() -> &'static [Self] {
+        static values: &'static [Handler] = &[
+            Handler::JSON,
+        ];
+        values
+    }
+
+    fn enum_descriptor_static() -> ::protobuf::reflect::EnumDescriptor {
+        ::protobuf::reflect::EnumDescriptor::new_generated_2(file_descriptor(), 0)
+    }
+}
+
+impl ::std::default::Default for Handler {
+    fn default() -> Self {
+        Handler::JSON
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for Handler {
+    type RuntimeType = ::protobuf::reflect::runtime_types::RuntimeTypeEnum<Self>;
+}
+
+impl Handler {
+    fn generated_enum_descriptor_data() -> ::protobuf::reflect::GeneratedEnumDescriptorData {
+        ::protobuf::reflect::GeneratedEnumDescriptorData::new_2::<Handler>("Handler", 0)
+    }
+}
+
 /// Extension fields
 pub mod exts {
 
-    pub const json: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::MethodOptions, ::protobuf::reflect::types::ProtobufTypeBool> = ::protobuf::ext::ExtFieldOptional { field_number: 50040, phantom: ::std::marker::PhantomData };
+    pub const handler: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::MethodOptions, ::protobuf::reflect::types::ProtobufTypeEnumOrUnknown<super::Handler>> = ::protobuf::ext::ExtFieldOptional { field_number: 50051, phantom: ::std::marker::PhantomData };
 
-    pub const all_json: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::ServiceOptions, ::protobuf::reflect::types::ProtobufTypeBool> = ::protobuf::ext::ExtFieldOptional { field_number: 50050, phantom: ::std::marker::PhantomData };
+    pub const default_handler: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::ServiceOptions, ::protobuf::reflect::types::ProtobufTypeEnumOrUnknown<super::Handler>> = ::protobuf::ext::ExtFieldOptional { field_number: 50051, phantom: ::std::marker::PhantomData };
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\rhandler.proto\x12\x0epandit.handler\x1a\x20google/protobuf/descripto\
-    r.proto:4\n\x04json\x18\xf8\x86\x03\x20\x01(\x08\x12\x1e.google.protobuf\
-    .MethodOptionsR\x04json:<\n\x08all_json\x18\x82\x87\x03\x20\x01(\x08\x12\
-    \x1f.google.protobuf.ServiceOptionsR\x07allJsonJ\xb1\x01\n\x06\x12\x04\0\
-    \0\x07@\n\x08\n\x01\x0c\x12\x03\0\0\x12\n\t\n\x02\x03\0\x12\x03\x01\0*\n\
-    \x08\n\x01\x02\x12\x03\x03\0\x17\n\x08\n\x01\x07\x12\x03\x05\0;\n\t\n\
-    \x02\x07\0\x12\x03\x05'9\n\n\n\x03\x07\0\x02\x12\x03\x05\x07$\n\n\n\x03\
-    \x07\0\x05\x12\x03\x05'+\n\n\n\x03\x07\0\x01\x12\x03\x05,0\n\n\n\x03\x07\
-    \0\x03\x12\x03\x0538\n\x08\n\x01\x07\x12\x03\x07\0@\n\t\n\x02\x07\x01\
-    \x12\x03\x07(>\n\n\n\x03\x07\x01\x02\x12\x03\x07\x07%\n\n\n\x03\x07\x01\
-    \x05\x12\x03\x07(,\n\n\n\x03\x07\x01\x01\x12\x03\x07-5\n\n\n\x03\x07\x01\
-    \x03\x12\x03\x078=b\x06proto3\
+    \n\rhandler.proto\x12\x06pandit\x1a\x20google/protobuf/descriptor.proto*\
+    \x13\n\x07Handler\x12\x08\n\x04JSON\x10\0:K\n\x07handler\x18\x83\x87\x03\
+    \x20\x01(\x0e2\x0f.pandit.Handler\x12\x1e.google.protobuf.MethodOptionsR\
+    \x07handler:[\n\x0fdefault_handler\x18\x83\x87\x03\x20\x01(\x0e2\x0f.pan\
+    dit.Handler\x12\x1f.google.protobuf.ServiceOptionsR\x0edefaultHandlerJ\
+    \xf1\x01\n\x06\x12\x04\0\0\tJ\n\x08\n\x01\x0c\x12\x03\0\0\x12\n\t\n\x02\
+    \x03\0\x12\x03\x01\0*\n\x08\n\x01\x02\x12\x03\x03\0\x0f\n\t\n\x02\x05\0\
+    \x12\x03\x05\0\x1a\n\n\n\x03\x05\0\x01\x12\x03\x05\x05\x0c\n\x0b\n\x04\
+    \x05\0\x02\0\x12\x03\x05\x0f\x18\n\x0c\n\x05\x05\0\x02\0\x01\x12\x03\x05\
+    \x0f\x13\n\x0c\n\x05\x05\0\x02\0\x02\x12\x03\x05\x16\x17\n\x08\n\x01\x07\
+    \x12\x03\x07\0A\n\t\n\x02\x07\0\x12\x03\x07'?\n\n\n\x03\x07\0\x02\x12\
+    \x03\x07\x07$\n\n\n\x03\x07\0\x06\x12\x03\x07'.\n\n\n\x03\x07\0\x01\x12\
+    \x03\x07/6\n\n\n\x03\x07\0\x03\x12\x03\x079>\n\x08\n\x01\x07\x12\x03\t\0\
+    J\n\t\n\x02\x07\x01\x12\x03\t(H\n\n\n\x03\x07\x01\x02\x12\x03\t\x07%\n\n\
+    \n\x03\x07\x01\x06\x12\x03\t(/\n\n\n\x03\x07\x01\x01\x12\x03\t0?\n\n\n\
+    \x03\x07\x01\x03\x12\x03\tBGb\x06proto3\
 ";
 
 /// `FileDescriptorProto` object which was a source for this generated file
@@ -64,6 +113,7 @@ pub fn file_descriptor() -> ::protobuf::reflect::FileDescriptor {
         deps.push(::protobuf::descriptor::file_descriptor());
         let mut messages = ::std::vec::Vec::new();
         let mut enums = ::std::vec::Vec::new();
+        enums.push(Handler::generated_enum_descriptor_data());
         ::protobuf::reflect::GeneratedFileDescriptor::new_generated(
             file_descriptor_proto(),
             deps,

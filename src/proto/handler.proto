@@ -1,10 +1,10 @@
 syntax = "proto3";
 import "google/protobuf/descriptor.proto";
 
-package pandit.handler;
+package pandit;
 
-extend google.protobuf.MethodOptions {
-  oneof handler { bool json = 50040; }
-}
+enum Handler { JSON = 0; };
 
-extend google.protobuf.ServiceOptions { bool all_json = 50050; }
+extend google.protobuf.MethodOptions { Handler handler = 50051; }
+
+extend google.protobuf.ServiceOptions { Handler default_handler = 50051; }

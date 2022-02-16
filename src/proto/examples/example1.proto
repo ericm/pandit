@@ -19,13 +19,12 @@ message ExampleResponse {
 
 service ExampleService {
   option (pandit.name) = "my_service";
-  option (pandit.http_hostname) = "%hostname%";
+  option (pandit.format.http_hostname) = "%hostname%";
 
   rpc GetExample(ExampleRequest) returns (ExampleResponse) {
     option (pandit.format.http) = {
-      headers : [ {key : "Content-Type", value : "application/json"} ]
       get : "/example"
     };
-    option (pandit.handler.json) = true;
+    option (pandit.handler) = JSON;
   }
 }

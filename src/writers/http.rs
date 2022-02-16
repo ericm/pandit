@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
 use tokio::sync::Mutex;
@@ -21,7 +21,7 @@ impl Writer for Http2Writer {
         &mut self,
         context: WriterContext,
         fields: &Fields,
-        handler: &Box<dyn Handler + Send + Sync>,
+        handler: &Arc<dyn Handler + Send + Sync>,
     ) -> ServiceResult<bytes::Bytes> {
         let stream = self.stream.get_mut();
         let (send, _) = h2::client::handshake(stream).await?;
