@@ -7,14 +7,21 @@ use protobuf::well_known_types::Field;
 use redis::cluster::ClusterClient;
 use redis::{Client, Commands, Connection, PubSubCommands};
 
+use crate::services::base::CacheOptions;
 use crate::services::ServiceError;
 use crate::services::{message::Message, Fields, ServiceResult};
+
+struct CachedMessage {
+    message: Message,
+    cache: Option<CacheOptions>,
+    fields: Fields,
+}
 
 pub struct Broker {
     cfg: config::Config,
     client: Client,
     conn: Connection,
-    message_fields_map: Arc<DashMap<String, (Message, Fields)>>,
+    method_fields_map: Arc<DashMap<String, CachedMessage>>,
 }
 
 impl Broker {
@@ -30,7 +37,7 @@ impl Broker {
             cfg,
             client,
             conn,
-            message_fields_map: Arc::new(Default::default()),
+            method_fields_map: Arc::new(Default::default()),
         })
     }
 
@@ -41,12 +48,12 @@ impl Broker {
         path: String,
     ) -> ServiceResult<Option<Fields>> {
         let name = format!("{}_{}", service_name, message_name);
-        let val = self.message_fields_map.get(&name).ok_or(ServiceError::new(
+        let val = self.method_fields_map.get(&name).ok_or(ServiceError::new(
             format!("no value found for: {}", name).as_str(),
         ))?;
-        let (_, fields) = val.value();
+        let message = val.value();
         let parse = JSONQuery::parse(path.as_str())?;
-        let res = parse.execute(fields)?;
+        let res = parse.execute(&message.fields)?;
         match res {
             Some(val) => {
                 let fields: Fields = serde_json::value::from_value(val)?;
@@ -56,18 +63,21 @@ impl Broker {
         }
     }
 
-    pub fn sub_client(
-        &mut self,
-        name: &str,
-        messages: DashMap<String, Message>,
-    ) -> ServiceResult<()> {
+    pub fn sub_service(&mut self, service: crate::services::Service) -> ServiceResult<()> {
         let mut pubsub = self.conn.as_pubsub();
-        for (message_name, message) in messages {
-            let name = format!("{}_{}", name, message_name);
-            self.message_fields_map
-                .insert(name, (message, Fields::new(Default::default())));
+        for (method_name, method) in service.methods {
+            let message = service.messages.get(&method.output_message).unwrap();
+            let name = format!("{}_{}", service.name, method_name);
+            self.method_fields_map.insert(
+                name,
+                CachedMessage {
+                    message: message.to_owned(),
+                    cache: method.cache,
+                    fields: Fields::new(Default::default()),
+                },
+            );
         }
-        let name = format!("service_{}", name);
+        let name = format!("service_{}", service.name);
         pubsub.subscribe(name)?;
         Ok(())
     }
@@ -97,11 +107,11 @@ impl Broker {
     fn parse_service_fields(&mut self, name: &str, msg: &redis::Msg) -> ServiceResult<()> {
         let name = name.to_string();
         let name = name.trim_start_matches("service_").to_string();
-        match self.message_fields_map.get_mut(&name) {
+        match self.method_fields_map.get_mut(&name) {
             Some(mut v) => {
-                let (message, fields) = v.value_mut();
+                let cached = v.value_mut();
                 let payload = msg.get_payload_bytes();
-                *fields = message.fields_from_bytes(payload)?;
+                cached.fields = cached.message.fields_from_bytes(payload)?;
                 Ok(())
             }
             None => Err(ServiceError::new(
