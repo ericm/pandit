@@ -4,9 +4,9 @@ import "google/protobuf/descriptor.proto";
 package pandit;
 
 message CacheOptions {
-  bool do_not_cache = 60031;
+  bool disable = 60031;
   int32 cache_time = 60032;
-  bool read_only_cache = 60033;
+  bool read_only = 60033;
   int32 update_every = 60034;
 }
 
@@ -16,10 +16,9 @@ extend google.protobuf.FieldOptions {
   CacheOptions field_cache = 50036;
 }
 
-extend google.protobuf.MessageOptions {
-  string path = 50030;
-  CacheOptions cache = 50034;
-}
+extend google.protobuf.MessageOptions { string path = 50030; }
+
+extend google.protobuf.MethodOptions { CacheOptions cache = 50034; }
 
 extend google.protobuf.ServiceOptions {
   string name = 50010;

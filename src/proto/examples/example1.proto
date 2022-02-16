@@ -26,5 +26,9 @@ service ExampleService {
       get : "/example"
     };
     option (pandit.handler) = JSON;
+    option (pandit.cache) = {
+      update_every : 5
+      read_only : true
+    };
   }
 }

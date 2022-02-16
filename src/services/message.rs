@@ -11,11 +11,17 @@ use crate::services::{
 use super::{Fields, FieldsMap, ServiceResult};
 use std::convert::TryFrom;
 
+#[derive(Clone)]
+pub struct Field {
+    pub descriptor: FieldDescriptorProto,
+    pub cache: Option<super::base::CacheOptions>,
+}
+
 pub struct Message {
     pub path: String,
     pub parent: Arc<DashMap<String, Message>>,
-    fields: DashMap<u32, FieldDescriptorProto>,
-    fields_by_name: DashMap<String, FieldDescriptorProto>,
+    fields: DashMap<u32, Field>,
+    fields_by_name: DashMap<String, Field>,
     message: protobuf::descriptor::DescriptorProto,
 }
 
@@ -36,20 +42,36 @@ impl Message {
         path: String,
         parent: Arc<DashMap<String, Message>>,
     ) -> Self {
-        let fields: DashMap<u32, FieldDescriptorProto> = message
+        let fields: DashMap<u32, Field> = message
             .field
             .iter()
             .map(|field| {
                 let number = u32::try_from(field.get_number()).unwrap();
-                (number, field.clone())
+                let cache =
+                    super::base::field_cache.get(field.options.as_ref().unwrap_or_default());
+                (
+                    number,
+                    Field {
+                        descriptor: field.clone(),
+                        cache,
+                    },
+                )
             })
             .collect();
-        let fields_by_name: DashMap<String, FieldDescriptorProto> = message
+        let fields_by_name: DashMap<String, Field> = message
             .field
             .iter()
             .map(|field| {
                 let name = field.get_name().to_string();
-                (name, field.clone())
+                let cache =
+                    super::base::field_cache.get(field.options.as_ref().unwrap_or_default());
+                (
+                    name,
+                    Field {
+                        descriptor: field.clone(),
+                        cache,
+                    },
+                )
             })
             .collect();
         Self {
@@ -108,7 +130,7 @@ impl Message {
             use protobuf::descriptor::field_descriptor_proto::Label;
             use protobuf::descriptor::field_descriptor_proto::Type::*;
             fn write_value<'b, T: Clone>(
-                field: Ref<String, FieldDescriptorProto>,
+                field: &FieldDescriptorProto,
                 output: &mut protobuf::CodedOutputStream<'b>,
                 write: fn(&mut protobuf::CodedOutputStream<'b>, T) -> protobuf::ProtobufResult<()>,
                 value: T,
@@ -121,7 +143,7 @@ impl Message {
             }
 
             fn write_value_repeated<'b, T: Clone>(
-                field: Ref<String, FieldDescriptorProto>,
+                field: &FieldDescriptorProto,
                 output: &mut protobuf::CodedOutputStream<'b>,
                 write: fn(&mut protobuf::CodedOutputStream<'b>, T) -> protobuf::ProtobufResult<()>,
                 value: Vec<Value>,
@@ -138,6 +160,7 @@ impl Message {
                 Ok(())
             }
 
+            let field = &field.descriptor;
             println!("match {} {:?}", field.get_name(), value);
             match field.get_field_type() {
                 TYPE_DOUBLE => match value {
@@ -510,6 +533,7 @@ impl Message {
         let field = self.fields.get(&number).ok_or(ServiceError::new(
             format!("field unknown: number({})", number).as_str(),
         ))?;
+        let field = &field.descriptor;
         macro_rules! parse_vec {
             ($value:expr, $label:expr, $variant:path) => {
                 if $label == Label::LABEL_REPEATED {
@@ -625,7 +649,7 @@ impl Message {
         &self,
         input: &mut CodedInputStream,
         message_name: &String,
-        field: Ref<u32, FieldDescriptorProto>,
+        field: &FieldDescriptorProto,
     ) -> ServiceResult<Vec<Fields>> {
         use protobuf::descriptor::field_descriptor_proto::Label::*;
         let parent = self.parent.clone();

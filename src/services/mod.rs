@@ -35,6 +35,13 @@ pub mod format {
     pub use crate::proto::gen::handler::exts as handlers;
 }
 
+pub mod base {
+    pub use crate::proto::gen::pandit::exts::cache as method_cache;
+    pub use crate::proto::gen::pandit::exts::default_cache;
+    pub use crate::proto::gen::pandit::exts::field_cache;
+    pub use crate::proto::gen::pandit::CacheOptions;
+}
+
 pub type ServiceResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 impl FromStr for Protocol {
@@ -173,6 +180,7 @@ pub struct Method {
     pub handler: Option<Arc<dyn Handler + Sync + Send + 'static>>,
     pub input_message: String,
     pub output_message: String,
+    pub cache: Option<base::CacheOptions>,
 }
 
 pub type Services = DashMap<String, Service>;
@@ -186,6 +194,7 @@ pub struct Service {
     pub messages: Arc<DashMap<String, Message>>,
     pub writer: WriterRef,
     pub default_handler: Option<Arc<dyn Handler + Sync + Send + 'static>>,
+    pub default_cache: base::CacheOptions,
 }
 
 impl Service {
@@ -264,6 +273,10 @@ impl Service {
             }
         };
 
+        let default_cache = base::default_cache
+            .get(service.options.get_ref())
+            .unwrap_or_default();
+
         Ok(Self {
             name: Default::default(),
             methods: Default::default(),
@@ -271,6 +284,7 @@ impl Service {
             messages,
             writer,
             default_handler,
+            default_cache,
         })
     }
 
@@ -302,6 +316,7 @@ impl Service {
                         api: MethodAPI {
                             http: ManuallyDrop::new(api),
                         },
+                        cache: base::method_cache.get(method.options.get_ref()),
                     },
                 )
             })
