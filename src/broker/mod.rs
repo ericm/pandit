@@ -44,8 +44,8 @@ impl Broker {
 
     pub fn probe_cache(
         &self,
-        service_name: String,
-        method_name: String,
+        service_name: &String,
+        method_name: &String,
         path: String,
     ) -> ServiceResult<Option<Fields>> {
         let name = format!("{}_{}", service_name, method_name);

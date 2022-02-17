@@ -1,6 +1,7 @@
 pub mod message;
 pub mod value;
 
+use crate::broker::Broker;
 use crate::handlers::json::JsonHandler;
 use crate::proto;
 use crate::services::message::Message;
@@ -195,6 +196,7 @@ pub struct Service {
     pub writer: WriterRef,
     pub default_handler: Option<Arc<dyn Handler + Sync + Send + 'static>>,
     pub default_cache: base::CacheOptions,
+    pub broker: Arc<Mutex<Broker>>,
 }
 
 impl Service {
@@ -202,6 +204,7 @@ impl Service {
         path: &str,
         include: &[&str],
         writer: WriterRef,
+        broker: Arc<Mutex<Broker>>,
     ) -> Result<Self, ServiceError> {
         let path_buf = &PathBuf::from(path);
         let include: Vec<PathBuf> = include.iter().map(|v| PathBuf::from(v)).collect();
@@ -218,7 +221,7 @@ impl Service {
             .unwrap();
         let service = file.service.first().unwrap();
 
-        let mut output = Self::get_service_attrs_base(file, writer, &service)?;
+        let mut output = Self::get_service_attrs_base(file, writer, broker, &service)?;
         match Self::get_service_type(service) {
             Protocol::HTTP => output.get_service_attrs_http(service)?,
             _ => panic!("unknown protocol"),
@@ -241,6 +244,7 @@ impl Service {
     fn get_service_attrs_base(
         file: &protobuf::descriptor::FileDescriptorProto,
         writer: WriterRef,
+        broker: Arc<Mutex<Broker>>,
         service: &protobuf::descriptor::ServiceDescriptorProto,
     ) -> Result<Self, ServiceError> {
         use proto::gen::pandit::exts;
@@ -281,6 +285,7 @@ impl Service {
             name: Default::default(),
             methods: Default::default(),
             protocol: Protocol::None,
+            broker,
             messages,
             writer,
             default_handler,
@@ -367,25 +372,33 @@ impl Service {
         let message = messages.get(&method.input_message).unwrap();
 
         let fields = message.fields_from_bytes(data)?;
-        let writer = self.writer.get_mut();
-        let context = Self::context_from_api(&method.api)?;
+        let broker = self.broker.lock().await;
+        let cached = broker.probe_cache(&self.name, method.key(), ".".to_string())?;
 
-        let handler = method
-            .handler
-            .as_ref()
-            .or(self.default_handler.as_ref())
-            .ok_or(ServiceError::new(
-                format!(
-                    "unable to find handler or default handler for {}.{}",
-                    self.name,
-                    method.key()
-                )
-                .as_str(),
-            ))?;
+        let resp_fields = match cached {
+            Some(cached_fields) => cached_fields,
+            None => {
+                let writer = self.writer.get_mut();
+                let context = Self::context_from_api(&method.api)?;
 
-        let resp = writer.write_request(context, &fields, handler).await?;
+                let handler = method
+                    .handler
+                    .as_ref()
+                    .or(self.default_handler.as_ref())
+                    .ok_or(ServiceError::new(
+                        format!(
+                            "unable to find handler or default handler for {}.{}",
+                            self.name,
+                            method.key()
+                        )
+                        .as_str(),
+                    ))?;
 
-        let resp_fields = handler.from_payload(resp)?;
+                let resp = writer.write_request(context, &fields, handler).await?;
+                handler.from_payload(resp)?
+            }
+        };
+
         let buf: Vec<u8> = Vec::with_capacity(1000);
         use bytes::BufMut;
         let mut buf = buf.writer();
@@ -478,6 +491,7 @@ mod tests {
             "./src/proto/examples/example1.proto",
             &["./src/proto"],
             writer_ref,
+            todo!(),
         )
         .unwrap();
         let buf: &[u8] = &[
