@@ -83,8 +83,8 @@ impl Broker {
 
     pub fn publish_cache(
         &mut self,
-        service_name: String,
-        method_name: String,
+        service_name: &String,
+        method_name: &String,
         fields: Fields,
     ) -> ServiceResult<()> {
         let name = format!("{}_{}", service_name, method_name);

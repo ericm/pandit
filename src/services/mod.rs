@@ -372,7 +372,7 @@ impl Service {
         let message = messages.get(&method.input_message).unwrap();
 
         let fields = message.fields_from_bytes(data)?;
-        let broker = self.broker.lock().await;
+        let mut broker = self.broker.lock().await;
         let cached = broker.probe_cache(&self.name, method.key(), ".".to_string())?;
 
         let resp_fields = match cached {
@@ -406,6 +406,9 @@ impl Service {
             let mut output = protobuf::CodedOutputStream::new(&mut buf);
             message.write_bytes_from_fields(&mut output, &resp_fields)?;
         }
+
+        broker.publish_cache(&self.name, method.key(), resp_fields)?;
+
         let buf = buf.into_inner();
         Ok(bytes::Bytes::copy_from_slice(&buf[..]))
     }
