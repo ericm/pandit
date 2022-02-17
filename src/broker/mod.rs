@@ -2,14 +2,15 @@ use std::collections::LinkedList;
 use std::sync::Arc;
 
 use access_json::JSONQuery;
+use dashmap::mapref::one::Ref;
 use dashmap::DashMap;
 use protobuf::well_known_types::Field;
 use redis::cluster::ClusterClient;
 use redis::{Client, Commands, Connection, PubSubCommands};
 
 use crate::services::base::CacheOptions;
-use crate::services::ServiceError;
 use crate::services::{message::Message, Fields, ServiceResult};
+use crate::services::{FieldsMap, ServiceError};
 
 struct CachedMessage {
     message: Message,
@@ -48,9 +49,7 @@ impl Broker {
         path: String,
     ) -> ServiceResult<Option<Fields>> {
         let name = format!("{}_{}", service_name, method_name);
-        let val = self.method_fields_map.get(&name).ok_or(ServiceError::new(
-            format!("no value found for: {}", name).as_str(),
-        ))?;
+        let val = self.get_entry(&name)?;
         let message = val.value();
         let parse = JSONQuery::parse(path.as_str())?;
         let res = parse.execute(&message.fields)?;
@@ -89,27 +88,68 @@ impl Broker {
         fields: Fields,
     ) -> ServiceResult<()> {
         let name = format!("{}_{}", service_name, method_name);
-        let fields = self.filter_fields(&fields);
-        let cached = self.method_fields_map.get(&name).ok_or(ServiceError::new(
-            format!("no value found for: {}", name).as_str(),
-        ))?;
-
         let buf: Vec<u8> = Vec::with_capacity(1000);
         use bytes::BufMut;
         let mut buf = buf.writer();
         {
-            let mut output = protobuf::CodedOutputStream::new(&mut buf);
-            cached
-                .message
-                .write_bytes_from_fields(&mut output, &fields)?;
+            let cached = self.get_entry(&name)?;
+            let fields = self.filter_fields(&fields, &cached.value().message)?;
+
+            {
+                let mut output = protobuf::CodedOutputStream::new(&mut buf);
+                cached
+                    .message
+                    .write_bytes_from_fields(&mut output, &fields)?;
+            }
         }
         let buf = buf.into_inner();
         self.conn.publish(name, buf)?;
         Ok(())
     }
 
-    fn filter_fields(&self, fields: &Fields) -> Fields {
-        todo!()
+    fn filter_fields(&self, fields: &Fields, cached: &Message) -> ServiceResult<Fields> {
+        use crate::services::value::Value;
+        let map: FieldsMap = FieldsMap::new();
+        let proto = &cached.fields_by_name;
+        for entry in &fields.map {
+            let value = match entry.value() {
+                Some(v) => v,
+                None => continue,
+            };
+            let field_proto = proto.get(entry.key()).ok_or(ServiceError::new(
+                format!("no value found for: {}", entry.key()).as_str(),
+            ))?;
+            match &field_proto.cache {
+                Some(opts) => {
+                    if opts.do_not_cache {
+                        continue;
+                    }
+                }
+                None => todo!(),
+            }
+            match value {
+                Value::Message(fields) => {
+                    let message_type = field_proto.descriptor.get_type_name().to_string();
+                    let cached = cached.parent.get(&message_type).ok_or(ServiceError::new(
+                        format!("no message found for type: {}", entry.key()).as_str(),
+                    ))?;
+                    map.insert(
+                        entry.key().clone(),
+                        Some(Value::Message(self.filter_fields(fields, cached.value())?)),
+                    );
+                }
+                v => {
+                    map.insert(entry.key().clone(), Some(v.clone()));
+                }
+            };
+        }
+        Ok(Fields::new(map))
+    }
+
+    fn get_entry(&self, name: &String) -> ServiceResult<Ref<String, CachedMessage>> {
+        self.method_fields_map.get(name).ok_or(ServiceError::new(
+            format!("no value found for: {}", name).as_str(),
+        ))
     }
 
     pub fn receive(&mut self) -> ServiceResult<()> {

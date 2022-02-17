@@ -21,7 +21,7 @@ pub struct Message {
     pub path: String,
     pub parent: Arc<DashMap<String, Message>>,
     fields: DashMap<u32, Field>,
-    fields_by_name: DashMap<String, Field>,
+    pub fields_by_name: DashMap<String, Field>,
     message: protobuf::descriptor::DescriptorProto,
 }
 

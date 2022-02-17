@@ -113,7 +113,7 @@ pub type FieldsMap = DashMap<String, Option<Value>>;
 
 #[derive(Debug, Clone)]
 pub struct Fields {
-    map: FieldsMap,
+    pub map: FieldsMap,
 }
 
 struct FieldsVisitor {}
