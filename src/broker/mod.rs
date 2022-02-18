@@ -201,7 +201,7 @@ impl Broker {
             Some(mut v) => {
                 let cached = v.value_mut();
                 let payload = msg.get_payload_bytes();
-                cached.set_fields_from_bytes(payload)?;
+                cached.fields = cached.message.fields_from_bytes(payload)?;
                 Ok(())
             }
             None => Err(ServiceError::new(
