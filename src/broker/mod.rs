@@ -97,16 +97,23 @@ impl Broker {
         }
     }
 
-    pub fn sub_service(&mut self, service: crate::services::Service) -> ServiceResult<()> {
+    pub fn sub_service(&mut self, service: &crate::services::Service) -> ServiceResult<()> {
         let mut pubsub = self.conn.as_pubsub();
-        for (method_name, method) in service.methods {
-            let message = service.messages.get(&method.output_message).unwrap();
-            let name = format!("{}_{}", service.name, method_name);
+        for method in service.methods.iter() {
+            let message = service
+                .messages
+                .get(&method.value().output_message)
+                .unwrap();
+            let name = format!("{}_{}", service.name, method.key());
             self.method_fields_map.insert(
                 name,
                 CachedMessage {
                     message: message.to_owned(),
-                    cache: method.cache.or(Some(service.default_cache.clone())),
+                    cache: method
+                        .value()
+                        .cache
+                        .clone()
+                        .or(Some(service.default_cache.clone())),
                     fields: Fields::new(Default::default()),
                     timestamp: None,
                 },

@@ -490,13 +490,17 @@ mod tests {
             fields: None,
         };
         let writer_ref = Box::new(Mutex::new(writer));
+        let broker = Broker::connect(Default::default()).unwrap();
+        let broker = Arc::new(Mutex::new(broker));
         let mut service = Service::from_file(
             "./src/proto/examples/example1.proto",
             &["./src/proto"],
             writer_ref,
-            todo!(),
+            broker.clone(),
         )
         .unwrap();
+        let mut broker = broker.lock().await;
+        broker.sub_service(&service).unwrap();
         let buf: &[u8] = &[
             0x08, 0x96, 0x01, // Field varint
         ];
