@@ -1,5 +1,6 @@
 use std::collections::LinkedList;
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use access_json::JSONQuery;
 use dashmap::mapref::one::Ref;
@@ -16,26 +17,27 @@ struct CachedMessage {
     message: Message,
     cache: Option<CacheOptions>,
     fields: Fields,
+    timestamp: Option<SystemTime>,
 }
 
 impl CachedMessage {
-    pub fn set_fields_from_bytes(&mut self, buf: &[u8]) -> ServiceResult<()> {
-        let fields = self.message.fields_from_bytes(buf)?;
-        for (key, value) in fields.map {
-            let proto = self.message.fields_by_name.get(&key);
-            let proto = proto.ok_or(ServiceError::new(
-                format!("no field named: {}", key).as_str(),
-            ))?;
-            let proto = proto.value();
-            let cache = self
-                .cache
-                .as_ref()
-                .or(proto.cache.as_ref())
-                .unwrap_or_default();
-            if !cache.do_not_cache {}
-        }
-        Ok(())
-    }
+    // pub fn set_fields_from_bytes(&mut self, buf: &[u8]) -> ServiceResult<()> {
+    //     let fields = self.message.fields_from_bytes(buf)?;
+    //     for (key, value) in fields.map {
+    //         let proto = self.message.fields_by_name.get(&key);
+    //         let proto = proto.ok_or(ServiceError::new(
+    //             format!("no field named: {}", key).as_str(),
+    //         ))?;
+    //         let proto = proto.value();
+    //         let cache = self
+    //             .cache
+    //             .as_ref()
+    //             .or(proto.cache.as_ref())
+    //             .unwrap_or_default();
+    //         if !cache. {}
+    //     }
+    //     Ok(())
+    // }
 }
 
 pub struct Broker {
@@ -71,6 +73,19 @@ impl Broker {
         let name = format!("{}_{}", service_name, method_name);
         let val = self.get_entry(&name)?;
         let message = val.value();
+        let now = SystemTime::now();
+        let time = match message.timestamp {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+        let cached = match &message.cache {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+        let diff = now.duration_since(time)?;
+        if diff.as_secs() > cached.cache_time {
+            return Ok(None);
+        }
         let parse = JSONQuery::parse(path.as_str())?;
         let res = parse.execute(&message.fields)?;
         match res {
@@ -91,8 +106,9 @@ impl Broker {
                 name,
                 CachedMessage {
                     message: message.to_owned(),
-                    cache: method.cache.or(Some(service.default_cache)),
+                    cache: method.cache.or(Some(service.default_cache.clone())),
                     fields: Fields::new(Default::default()),
+                    timestamp: None,
                 },
             );
         }
@@ -141,7 +157,7 @@ impl Broker {
             ))?;
             match &field_proto.cache {
                 Some(opts) => {
-                    if opts.do_not_cache {
+                    if opts.disable {
                         continue;
                     }
                 }
@@ -202,6 +218,7 @@ impl Broker {
                 let cached = v.value_mut();
                 let payload = msg.get_payload_bytes();
                 cached.fields = cached.message.fields_from_bytes(payload)?;
+                cached.timestamp = Some(SystemTime::now());
                 Ok(())
             }
             None => Err(ServiceError::new(

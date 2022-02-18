@@ -5,7 +5,7 @@ package pandit;
 
 message CacheOptions {
   bool disable = 60031;
-  int32 cache_time = 60032;
+  uint64 cache_time = 60032;
   bool read_only = 60033;
   int32 update_every = 60034;
 }

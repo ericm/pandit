@@ -28,9 +28,9 @@ const _PROTOBUF_VERSION_CHECK: () = ::protobuf::VERSION_3_0_0_ALPHA_2;
 #[derive(PartialEq,Clone,Default)]
 pub struct CacheOptions {
     // message fields
-    pub do_not_cache: bool,
-    pub cache_time: i32,
-    pub read_only_cache: bool,
+    pub disable: bool,
+    pub cache_time: u64,
+    pub read_only: bool,
     pub update_every: i32,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
@@ -51,9 +51,9 @@ impl CacheOptions {
     fn generated_message_descriptor_data() -> ::protobuf::reflect::GeneratedMessageDescriptorData {
         let mut fields = ::std::vec::Vec::new();
         fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
-            "do_not_cache",
-            |m: &CacheOptions| { &m.do_not_cache },
-            |m: &mut CacheOptions| { &mut m.do_not_cache },
+            "disable",
+            |m: &CacheOptions| { &m.disable },
+            |m: &mut CacheOptions| { &mut m.disable },
         ));
         fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
             "cache_time",
@@ -61,9 +61,9 @@ impl CacheOptions {
             |m: &mut CacheOptions| { &mut m.cache_time },
         ));
         fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
-            "read_only_cache",
-            |m: &CacheOptions| { &m.read_only_cache },
-            |m: &mut CacheOptions| { &mut m.read_only_cache },
+            "read_only",
+            |m: &CacheOptions| { &m.read_only },
+            |m: &mut CacheOptions| { &mut m.read_only },
         ));
         fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
             "update_every",
@@ -91,19 +91,19 @@ impl ::protobuf::Message for CacheOptions {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
-                    self.do_not_cache = is.read_bool()?;
+                    self.disable = is.read_bool()?;
                 },
                 60032 => {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
-                    self.cache_time = is.read_int32()?;
+                    self.cache_time = is.read_uint64()?;
                 },
                 60033 => {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
-                    self.read_only_cache = is.read_bool()?;
+                    self.read_only = is.read_bool()?;
                 },
                 60034 => {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
@@ -123,13 +123,13 @@ impl ::protobuf::Message for CacheOptions {
     #[allow(unused_variables)]
     fn compute_size(&self) -> u32 {
         let mut my_size = 0;
-        if self.do_not_cache != false {
+        if self.disable != false {
             my_size += 4;
         }
         if self.cache_time != 0 {
             my_size += ::protobuf::rt::value_size(60032, self.cache_time, ::protobuf::wire_format::WireTypeVarint);
         }
-        if self.read_only_cache != false {
+        if self.read_only != false {
             my_size += 4;
         }
         if self.update_every != 0 {
@@ -141,14 +141,14 @@ impl ::protobuf::Message for CacheOptions {
     }
 
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
-        if self.do_not_cache != false {
-            os.write_bool(60031, self.do_not_cache)?;
+        if self.disable != false {
+            os.write_bool(60031, self.disable)?;
         }
         if self.cache_time != 0 {
-            os.write_int32(60032, self.cache_time)?;
+            os.write_uint64(60032, self.cache_time)?;
         }
-        if self.read_only_cache != false {
-            os.write_bool(60033, self.read_only_cache)?;
+        if self.read_only != false {
+            os.write_bool(60033, self.read_only)?;
         }
         if self.update_every != 0 {
             os.write_int32(60034, self.update_every)?;
@@ -179,9 +179,9 @@ impl ::protobuf::Message for CacheOptions {
 
     fn default_instance() -> &'static CacheOptions {
         static instance: CacheOptions = CacheOptions {
-            do_not_cache: false,
+            disable: false,
             cache_time: 0,
-            read_only_cache: false,
+            read_only: false,
             update_every: 0,
             unknown_fields: ::protobuf::UnknownFields::new(),
             cached_size: ::protobuf::rt::CachedSize::new(),
@@ -192,9 +192,9 @@ impl ::protobuf::Message for CacheOptions {
 
 impl ::protobuf::Clear for CacheOptions {
     fn clear(&mut self) {
-        self.do_not_cache = false;
+        self.disable = false;
         self.cache_time = 0;
-        self.read_only_cache = false;
+        self.read_only = false;
         self.update_every = 0;
         self.unknown_fields.clear();
     }
@@ -230,56 +230,56 @@ pub mod exts {
 
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n\x0cpandit.proto\x12\x06pandit\x1a\x20google/protobuf/descriptor.proto\
-    \"\xa2\x01\n\x0cCacheOptions\x12\"\n\x0cdo_not_cache\x18\xff\xd4\x03\x20\
-    \x01(\x08R\ndoNotCache\x12\x1f\n\ncache_time\x18\x80\xd5\x03\x20\x01(\
-    \x05R\tcacheTime\x12(\n\x0fread_only_cache\x18\x81\xd5\x03\x20\x01(\x08R\
-    \rreadOnlyCache\x12#\n\x0cupdate_every\x18\x82\xd5\x03\x20\x01(\x05R\x0b\
-    updateEvery:D\n\rabsolute_path\x18\xe4\x86\x03\x20\x01(\t\x12\x1d.google\
-    .protobuf.FieldOptionsR\x0cabsolutePath:D\n\rrelative_path\x18\xe5\x86\
-    \x03\x20\x01(\t\x12\x1d.google.protobuf.FieldOptionsR\x0crelativePath:V\
-    \n\x0bfield_cache\x18\xf4\x86\x03\x20\x01(\x0b2\x14.pandit.CacheOptions\
-    \x12\x1d.google.protobuf.FieldOptionsR\nfieldCache:5\n\x04path\x18\xee\
-    \x86\x03\x20\x01(\t\x12\x1f.google.protobuf.MessageOptionsR\x04path:L\n\
-    \x05cache\x18\xf2\x86\x03\x20\x01(\x0b2\x14.pandit.CacheOptions\x12\x1e.\
-    google.protobuf.MethodOptionsR\x05cache:5\n\x04name\x18\xda\x86\x03\x20\
-    \x01(\t\x12\x1f.google.protobuf.ServiceOptionsR\x04name:\\\n\rdefault_ca\
-    che\x18\xf3\x86\x03\x20\x01(\x0b2\x14.pandit.CacheOptions\x12\x1f.google\
-    .protobuf.ServiceOptionsR\x0cdefaultCacheJ\xe2\x05\n\x06\x12\x04\0\0\x19\
-    \x01\n\x08\n\x01\x0c\x12\x03\0\0\x12\n\t\n\x02\x03\0\x12\x03\x01\0*\n\
-    \x08\n\x01\x02\x12\x03\x03\0\x0f\n\n\n\x02\x04\0\x12\x04\x05\0\n\x01\n\n\
-    \n\x03\x04\0\x01\x12\x03\x05\x08\x14\n\x0b\n\x04\x04\0\x02\0\x12\x03\x06\
-    \x02\x1c\n\x0c\n\x05\x04\0\x02\0\x05\x12\x03\x06\x02\x06\n\x0c\n\x05\x04\
-    \0\x02\0\x01\x12\x03\x06\x07\x13\n\x0c\n\x05\x04\0\x02\0\x03\x12\x03\x06\
-    \x16\x1b\n\x0b\n\x04\x04\0\x02\x01\x12\x03\x07\x02\x1b\n\x0c\n\x05\x04\0\
-    \x02\x01\x05\x12\x03\x07\x02\x07\n\x0c\n\x05\x04\0\x02\x01\x01\x12\x03\
-    \x07\x08\x12\n\x0c\n\x05\x04\0\x02\x01\x03\x12\x03\x07\x15\x1a\n\x0b\n\
-    \x04\x04\0\x02\x02\x12\x03\x08\x02\x1f\n\x0c\n\x05\x04\0\x02\x02\x05\x12\
-    \x03\x08\x02\x06\n\x0c\n\x05\x04\0\x02\x02\x01\x12\x03\x08\x07\x16\n\x0c\
-    \n\x05\x04\0\x02\x02\x03\x12\x03\x08\x19\x1e\n\x0b\n\x04\x04\0\x02\x03\
-    \x12\x03\t\x02\x1d\n\x0c\n\x05\x04\0\x02\x03\x05\x12\x03\t\x02\x07\n\x0c\
-    \n\x05\x04\0\x02\x03\x01\x12\x03\t\x08\x14\n\x0c\n\x05\x04\0\x02\x03\x03\
-    \x12\x03\t\x17\x1c\n\t\n\x01\x07\x12\x04\x0c\0\x10\x01\n\t\n\x02\x07\0\
-    \x12\x03\r\x02\x1f\n\n\n\x03\x07\0\x02\x12\x03\x0c\x07#\n\n\n\x03\x07\0\
-    \x05\x12\x03\r\x02\x08\n\n\n\x03\x07\0\x01\x12\x03\r\t\x16\n\n\n\x03\x07\
-    \0\x03\x12\x03\r\x19\x1e\n\t\n\x02\x07\x01\x12\x03\x0e\x02\x1f\n\n\n\x03\
-    \x07\x01\x02\x12\x03\x0c\x07#\n\n\n\x03\x07\x01\x05\x12\x03\x0e\x02\x08\
-    \n\n\n\x03\x07\x01\x01\x12\x03\x0e\t\x16\n\n\n\x03\x07\x01\x03\x12\x03\
-    \x0e\x19\x1e\n\t\n\x02\x07\x02\x12\x03\x0f\x02#\n\n\n\x03\x07\x02\x02\
-    \x12\x03\x0c\x07#\n\n\n\x03\x07\x02\x06\x12\x03\x0f\x02\x0e\n\n\n\x03\
-    \x07\x02\x01\x12\x03\x0f\x0f\x1a\n\n\n\x03\x07\x02\x03\x12\x03\x0f\x1d\"\
-    \n\x08\n\x01\x07\x12\x03\x12\0>\n\t\n\x02\x07\x03\x12\x03\x12(<\n\n\n\
-    \x03\x07\x03\x02\x12\x03\x12\x07%\n\n\n\x03\x07\x03\x05\x12\x03\x12(.\n\
-    \n\n\x03\x07\x03\x01\x12\x03\x12/3\n\n\n\x03\x07\x03\x03\x12\x03\x126;\n\
-    \x08\n\x01\x07\x12\x03\x14\0D\n\t\n\x02\x07\x04\x12\x03\x14'B\n\n\n\x03\
-    \x07\x04\x02\x12\x03\x14\x07$\n\n\n\x03\x07\x04\x06\x12\x03\x14'3\n\n\n\
-    \x03\x07\x04\x01\x12\x03\x1449\n\n\n\x03\x07\x04\x03\x12\x03\x14<A\n\t\n\
-    \x01\x07\x12\x04\x16\0\x19\x01\n\t\n\x02\x07\x05\x12\x03\x17\x02\x16\n\n\
-    \n\x03\x07\x05\x02\x12\x03\x16\x07%\n\n\n\x03\x07\x05\x05\x12\x03\x17\
-    \x02\x08\n\n\n\x03\x07\x05\x01\x12\x03\x17\t\r\n\n\n\x03\x07\x05\x03\x12\
-    \x03\x17\x10\x15\n\t\n\x02\x07\x06\x12\x03\x18\x02%\n\n\n\x03\x07\x06\
-    \x02\x12\x03\x16\x07%\n\n\n\x03\x07\x06\x06\x12\x03\x18\x02\x0e\n\n\n\
-    \x03\x07\x06\x01\x12\x03\x18\x0f\x1c\n\n\n\x03\x07\x06\x03\x12\x03\x18\
-    \x1f$b\x06proto3\
+    \"\x8f\x01\n\x0cCacheOptions\x12\x1a\n\x07disable\x18\xff\xd4\x03\x20\
+    \x01(\x08R\x07disable\x12\x1f\n\ncache_time\x18\x80\xd5\x03\x20\x01(\x04\
+    R\tcacheTime\x12\x1d\n\tread_only\x18\x81\xd5\x03\x20\x01(\x08R\x08readO\
+    nly\x12#\n\x0cupdate_every\x18\x82\xd5\x03\x20\x01(\x05R\x0bupdateEvery:\
+    D\n\rabsolute_path\x18\xe4\x86\x03\x20\x01(\t\x12\x1d.google.protobuf.Fi\
+    eldOptionsR\x0cabsolutePath:D\n\rrelative_path\x18\xe5\x86\x03\x20\x01(\
+    \t\x12\x1d.google.protobuf.FieldOptionsR\x0crelativePath:V\n\x0bfield_ca\
+    che\x18\xf4\x86\x03\x20\x01(\x0b2\x14.pandit.CacheOptions\x12\x1d.google\
+    .protobuf.FieldOptionsR\nfieldCache:5\n\x04path\x18\xee\x86\x03\x20\x01(\
+    \t\x12\x1f.google.protobuf.MessageOptionsR\x04path:L\n\x05cache\x18\xf2\
+    \x86\x03\x20\x01(\x0b2\x14.pandit.CacheOptions\x12\x1e.google.protobuf.M\
+    ethodOptionsR\x05cache:5\n\x04name\x18\xda\x86\x03\x20\x01(\t\x12\x1f.go\
+    ogle.protobuf.ServiceOptionsR\x04name:\\\n\rdefault_cache\x18\xf3\x86\
+    \x03\x20\x01(\x0b2\x14.pandit.CacheOptions\x12\x1f.google.protobuf.Servi\
+    ceOptionsR\x0cdefaultCacheJ\xe2\x05\n\x06\x12\x04\0\0\x19\x01\n\x08\n\
+    \x01\x0c\x12\x03\0\0\x12\n\t\n\x02\x03\0\x12\x03\x01\0*\n\x08\n\x01\x02\
+    \x12\x03\x03\0\x0f\n\n\n\x02\x04\0\x12\x04\x05\0\n\x01\n\n\n\x03\x04\0\
+    \x01\x12\x03\x05\x08\x14\n\x0b\n\x04\x04\0\x02\0\x12\x03\x06\x02\x17\n\
+    \x0c\n\x05\x04\0\x02\0\x05\x12\x03\x06\x02\x06\n\x0c\n\x05\x04\0\x02\0\
+    \x01\x12\x03\x06\x07\x0e\n\x0c\n\x05\x04\0\x02\0\x03\x12\x03\x06\x11\x16\
+    \n\x0b\n\x04\x04\0\x02\x01\x12\x03\x07\x02\x1c\n\x0c\n\x05\x04\0\x02\x01\
+    \x05\x12\x03\x07\x02\x08\n\x0c\n\x05\x04\0\x02\x01\x01\x12\x03\x07\t\x13\
+    \n\x0c\n\x05\x04\0\x02\x01\x03\x12\x03\x07\x16\x1b\n\x0b\n\x04\x04\0\x02\
+    \x02\x12\x03\x08\x02\x19\n\x0c\n\x05\x04\0\x02\x02\x05\x12\x03\x08\x02\
+    \x06\n\x0c\n\x05\x04\0\x02\x02\x01\x12\x03\x08\x07\x10\n\x0c\n\x05\x04\0\
+    \x02\x02\x03\x12\x03\x08\x13\x18\n\x0b\n\x04\x04\0\x02\x03\x12\x03\t\x02\
+    \x1d\n\x0c\n\x05\x04\0\x02\x03\x05\x12\x03\t\x02\x07\n\x0c\n\x05\x04\0\
+    \x02\x03\x01\x12\x03\t\x08\x14\n\x0c\n\x05\x04\0\x02\x03\x03\x12\x03\t\
+    \x17\x1c\n\t\n\x01\x07\x12\x04\x0c\0\x10\x01\n\t\n\x02\x07\0\x12\x03\r\
+    \x02\x1f\n\n\n\x03\x07\0\x02\x12\x03\x0c\x07#\n\n\n\x03\x07\0\x05\x12\
+    \x03\r\x02\x08\n\n\n\x03\x07\0\x01\x12\x03\r\t\x16\n\n\n\x03\x07\0\x03\
+    \x12\x03\r\x19\x1e\n\t\n\x02\x07\x01\x12\x03\x0e\x02\x1f\n\n\n\x03\x07\
+    \x01\x02\x12\x03\x0c\x07#\n\n\n\x03\x07\x01\x05\x12\x03\x0e\x02\x08\n\n\
+    \n\x03\x07\x01\x01\x12\x03\x0e\t\x16\n\n\n\x03\x07\x01\x03\x12\x03\x0e\
+    \x19\x1e\n\t\n\x02\x07\x02\x12\x03\x0f\x02#\n\n\n\x03\x07\x02\x02\x12\
+    \x03\x0c\x07#\n\n\n\x03\x07\x02\x06\x12\x03\x0f\x02\x0e\n\n\n\x03\x07\
+    \x02\x01\x12\x03\x0f\x0f\x1a\n\n\n\x03\x07\x02\x03\x12\x03\x0f\x1d\"\n\
+    \x08\n\x01\x07\x12\x03\x12\0>\n\t\n\x02\x07\x03\x12\x03\x12(<\n\n\n\x03\
+    \x07\x03\x02\x12\x03\x12\x07%\n\n\n\x03\x07\x03\x05\x12\x03\x12(.\n\n\n\
+    \x03\x07\x03\x01\x12\x03\x12/3\n\n\n\x03\x07\x03\x03\x12\x03\x126;\n\x08\
+    \n\x01\x07\x12\x03\x14\0D\n\t\n\x02\x07\x04\x12\x03\x14'B\n\n\n\x03\x07\
+    \x04\x02\x12\x03\x14\x07$\n\n\n\x03\x07\x04\x06\x12\x03\x14'3\n\n\n\x03\
+    \x07\x04\x01\x12\x03\x1449\n\n\n\x03\x07\x04\x03\x12\x03\x14<A\n\t\n\x01\
+    \x07\x12\x04\x16\0\x19\x01\n\t\n\x02\x07\x05\x12\x03\x17\x02\x16\n\n\n\
+    \x03\x07\x05\x02\x12\x03\x16\x07%\n\n\n\x03\x07\x05\x05\x12\x03\x17\x02\
+    \x08\n\n\n\x03\x07\x05\x01\x12\x03\x17\t\r\n\n\n\x03\x07\x05\x03\x12\x03\
+    \x17\x10\x15\n\t\n\x02\x07\x06\x12\x03\x18\x02%\n\n\n\x03\x07\x06\x02\
+    \x12\x03\x16\x07%\n\n\n\x03\x07\x06\x06\x12\x03\x18\x02\x0e\n\n\n\x03\
+    \x07\x06\x01\x12\x03\x18\x0f\x1c\n\n\n\x03\x07\x06\x03\x12\x03\x18\x1f$b\
+    \x06proto3\
 ";
 
 /// `FileDescriptorProto` object which was a source for this generated file
