@@ -210,9 +210,9 @@ impl FromRedisValue for Value {
 
 impl PartialOrd for Value {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        let s_hash = DefaultHasher::new();
+        let mut s_hash = DefaultHasher::new();
         self.hash(&mut s_hash);
-        let o_hash = DefaultHasher::new();
+        let mut o_hash = DefaultHasher::new();
         other.hash(&mut o_hash);
         let s_hash = s_hash.finish();
         let o_hash = o_hash.finish();

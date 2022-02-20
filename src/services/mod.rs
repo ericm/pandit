@@ -128,16 +128,16 @@ impl std::hash::Hash for Fields {
             .filter_map(|entry| entry.value().clone())
             .collect();
         for val in vals.into_iter_sorted() {
-            val.hash(&mut state);
+            val.hash(state);
         }
     }
 }
 
 impl PartialEq for Fields {
     fn eq(&self, other: &Self) -> bool {
-        let s_hash = DefaultHasher::new();
+        let mut s_hash = DefaultHasher::new();
         self.hash(&mut s_hash);
-        let o_hash = DefaultHasher::new();
+        let mut o_hash = DefaultHasher::new();
         other.hash(&mut o_hash);
         s_hash.finish() == o_hash.finish()
     }
@@ -416,7 +416,22 @@ impl Service {
 
         let fields = message.fields_from_bytes(data)?;
         let mut broker = self.broker.lock().await;
-        let cached = broker.probe_cache(&self.name, method.key(), ".".to_string())?;
+
+        let primary_key = {
+            let key = method
+                .primary_key
+                .as_ref()
+                .ok_or(ServiceError::new("no primary key for method"))?;
+            let val = fields.map.get(key);
+            let val = val.ok_or(ServiceError::new(
+                format!("error finding entry for primary key: {}", key).as_str(),
+            ))?;
+            let val = val.value().to_owned();
+            val.ok_or(ServiceError::new(
+                format!("no entry for primary key: {}", key).as_str(),
+            ))?
+        };
+        let cached = broker.probe_cache(&self.name, method.key(), &primary_key, ".".to_string())?;
 
         let resp_fields = match cached {
             Some(cached_fields) => cached_fields,

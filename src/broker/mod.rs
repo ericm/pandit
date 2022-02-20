@@ -74,26 +74,31 @@ impl Broker {
         &self,
         service_name: &String,
         method_name: &String,
+        primary_key: &Value,
         path: String,
     ) -> ServiceResult<Option<Fields>> {
         let name = format!("{}_{}", service_name, method_name);
         let val = self.get_entry(&name)?;
         let message = val.value();
-        let now = SystemTime::now();
-        let time = match message.timestamp {
-            Some(t) => t,
-            None => return Ok(None),
+
+        let entry = {
+            let val = message.fields_for_key.get(primary_key);
+            val.ok_or(ServiceError::new(
+                format!("no primary key entry for: {:?}", primary_key).as_str(),
+            ))?
         };
+
+        let now = SystemTime::now();
         let cached = match &message.cache {
             Some(v) => v,
             None => return Ok(None),
         };
-        let diff = now.duration_since(time)?;
+        let diff = now.duration_since(entry.timestamp)?;
         if diff.as_secs() > cached.cache_time {
             return Ok(None);
         }
         let parse = JSONQuery::parse(path.as_str())?;
-        let res = parse.execute(&message.fields)?;
+        let res = parse.execute(&entry.fields)?;
         match res {
             Some(val) => {
                 let fields: Fields = serde_json::value::from_value(val)?;
@@ -122,6 +127,7 @@ impl Broker {
                         .or(Some(service.default_cache.clone())),
                     primary_key: method
                         .primary_key
+                        .to_owned()
                         .ok_or(ServiceError::new(format!("no primary key").as_str()))?,
                     fields_for_key: Arc::new(DashMap::new()),
                 },
@@ -151,7 +157,7 @@ impl Broker {
                 .ok_or(ServiceError::new(
                     format!("no primary key entry: {}", cached.primary_key).as_str(),
                 ))?
-                .value()
+                .to_owned()
                 .ok_or(ServiceError::new(
                     format!("no value for primary key entry: {}", cached.primary_key).as_str(),
                 ))?;
@@ -170,7 +176,6 @@ impl Broker {
     }
 
     fn filter_fields(&self, fields: &Fields, cached: &Message) -> ServiceResult<Fields> {
-        use crate::services::value::Value;
         let map: FieldsMap = FieldsMap::new();
         let proto = &cached.fields_by_name;
         for entry in &fields.map {
