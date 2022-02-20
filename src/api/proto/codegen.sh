@@ -1,0 +1,1 @@
+protoc --rust_out=gen --grpc_out=gen --plugin=protoc-gen-grpc=`which grpc_rust_plugin` api.proto    
