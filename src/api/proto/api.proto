@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package api;
+
+service API {
+  // Sends a greeting
+  rpc StartService(StartServiceRequest) returns (StartServiceReply) {}
+}
+
+message StartServiceRequest {
+  string name = 1;
+  bytes config = 2;
+}
+
+message StartServiceReply {}
