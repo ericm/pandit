@@ -10,14 +10,20 @@ use redis::cluster::ClusterClient;
 use redis::{Client, Commands, Connection, PubSubCommands};
 
 use crate::services::base::CacheOptions;
+use crate::services::value::Value;
 use crate::services::{message::Message, Fields, ServiceResult};
-use crate::services::{FieldsMap, ServiceError};
+use crate::services::{FieldsMap, Method, ServiceError};
+
+struct CachedFields {
+    fields: Fields,
+    timestamp: SystemTime,
+}
 
 struct CachedMessage {
     message: Message,
     cache: Option<CacheOptions>,
-    fields: Fields,
-    timestamp: Option<SystemTime>,
+    fields_for_key: Arc<DashMap<Value, CachedFields>>,
+    primary_key: String,
 }
 
 impl CachedMessage {
@@ -114,8 +120,10 @@ impl Broker {
                         .cache
                         .clone()
                         .or(Some(service.default_cache.clone())),
-                    fields: Fields::new(Default::default()),
-                    timestamp: None,
+                    primary_key: method
+                        .primary_key
+                        .ok_or(ServiceError::new(format!("no primary key").as_str()))?,
+                    fields_for_key: Arc::new(DashMap::new()),
                 },
             );
         }
@@ -134,10 +142,20 @@ impl Broker {
         let buf: Vec<u8> = Vec::with_capacity(1000);
         use bytes::BufMut;
         let mut buf = buf.writer();
+        let primary_key: Value;
         {
             let cached = self.get_entry(&name)?;
+            primary_key = fields
+                .map
+                .get(&cached.primary_key)
+                .ok_or(ServiceError::new(
+                    format!("no primary key entry: {}", cached.primary_key).as_str(),
+                ))?
+                .value()
+                .ok_or(ServiceError::new(
+                    format!("no value for primary key entry: {}", cached.primary_key).as_str(),
+                ))?;
             let fields = self.filter_fields(&fields, &cached.value().message)?;
-
             {
                 let mut output = protobuf::CodedOutputStream::new(&mut buf);
                 cached
@@ -146,7 +164,8 @@ impl Broker {
             }
         }
         let buf = buf.into_inner();
-        self.conn.publish(name, buf)?;
+        let to_publish = (primary_key, buf);
+        self.conn.publish(name, to_publish)?;
         Ok(())
     }
 
@@ -224,8 +243,13 @@ impl Broker {
             Some(mut v) => {
                 let cached = v.value_mut();
                 let payload = msg.get_payload_bytes();
-                cached.fields = cached.message.fields_from_bytes(payload)?;
-                cached.timestamp = Some(SystemTime::now());
+                let (primary_key, payload) = msg.get_payload::<(Value, Vec<u8>)>()?;
+                let fields_map = cached.fields_for_key.clone();
+                let cached_fields = CachedFields {
+                    fields: cached.message.fields_from_bytes(&payload[..])?,
+                    timestamp: SystemTime::now(),
+                };
+                fields_map.insert(primary_key, cached_fields);
                 Ok(())
             }
             None => Err(ServiceError::new(

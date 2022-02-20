@@ -14,6 +14,9 @@ use protobuf::{self};
 use protobuf_parse;
 use serde::de::Visitor;
 use serde::{Deserialize, Serialize};
+use std::collections::hash_map::DefaultHasher;
+use std::collections::BinaryHeap;
+use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 use std::mem::ManuallyDrop;
 use std::str;
@@ -117,6 +120,31 @@ pub struct Fields {
     pub map: FieldsMap,
 }
 
+impl std::hash::Hash for Fields {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let vals: BinaryHeap<Value> = self
+            .map
+            .iter()
+            .filter_map(|entry| entry.value().clone())
+            .collect();
+        for val in vals.into_iter_sorted() {
+            val.hash(&mut state);
+        }
+    }
+}
+
+impl PartialEq for Fields {
+    fn eq(&self, other: &Self) -> bool {
+        let s_hash = DefaultHasher::new();
+        self.hash(&mut s_hash);
+        let o_hash = DefaultHasher::new();
+        other.hash(&mut o_hash);
+        s_hash.finish() == o_hash.finish()
+    }
+}
+
+impl Eq for Fields {}
+
 struct FieldsVisitor {}
 
 impl<'de> Visitor<'de> for FieldsVisitor {
@@ -182,6 +210,7 @@ pub struct Method {
     pub input_message: String,
     pub output_message: String,
     pub cache: Option<base::CacheOptions>,
+    pub primary_key: Option<String>,
 }
 
 pub type Services = DashMap<String, Service>;
@@ -322,12 +351,26 @@ impl Service {
                             http: ManuallyDrop::new(api),
                         },
                         cache: base::method_cache.get(method.options.get_ref()),
+                        primary_key: self.primary_key_for_method(&input_message),
                     },
                 )
             })
             .collect();
 
         Ok(())
+    }
+
+    fn primary_key_for_method(&self, message_name: &String) -> Option<String> {
+        let message = self.messages.get(message_name).unwrap();
+        let message = message.value();
+        for entry in message.fields_by_name.iter() {
+            let opts = entry.value().descriptor.options.get_ref();
+            let is_key = proto::gen::pandit::exts::key.get(opts);
+            if is_key.unwrap_or_default() {
+                return Some(entry.key().clone());
+            }
+        }
+        None
     }
 
     fn handler_for_method(

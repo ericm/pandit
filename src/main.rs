@@ -1,4 +1,6 @@
 #![feature(destructuring_assignment)]
+#![feature(ptr_to_from_bits)]
+#![feature(binary_heap_into_iter_sorted)]
 
 pub mod broker;
 pub mod handlers;

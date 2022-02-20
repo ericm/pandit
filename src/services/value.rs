@@ -1,7 +1,15 @@
-use std::{convert::TryInto, sync::Arc};
+use std::{
+    cmp::Ordering,
+    collections::hash_map::DefaultHasher,
+    convert::TryInto,
+    hash::{Hash, Hasher},
+    io::ErrorKind,
+    str::Utf8Error,
+    sync::Arc,
+};
 
 use protobuf::reflect::{runtime_types::RuntimeTypeEnum, ProtobufValue};
-use redis::FromRedisValue;
+use redis::{FromRedisValue, ToRedisArgs};
 use serde::{de::Visitor, Deserialize, Serialize};
 
 use super::{Fields, FieldsMap};
@@ -85,6 +93,20 @@ impl Integer for u64 {
     }
 }
 
+impl Hash for dyn Integer {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_i64(self.to_i64())
+    }
+}
+
+impl PartialEq for dyn Integer {
+    fn eq(&self, other: &Self) -> bool {
+        self.to_i64() == other.to_i64()
+    }
+}
+
+impl Eq for dyn Integer {}
+
 pub trait Floating: Sync + Send + std::fmt::Debug {
     fn to_f32(&self) -> f32;
     fn to_f64(&self) -> f64;
@@ -110,7 +132,21 @@ impl Floating for f64 {
     }
 }
 
-#[derive(Debug, Clone)]
+impl Hash for dyn Floating {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write(&self.to_f64().to_be_bytes())
+    }
+}
+
+impl PartialEq for dyn Floating {
+    fn eq(&self, other: &Self) -> bool {
+        self.to_f64().to_bits() == other.to_f64().to_bits()
+    }
+}
+
+impl Eq for dyn Floating {}
+
+#[derive(Debug, Clone, Hash, Eq)]
 pub enum Value {
     String(String),
     Bytes(Vec<u8>),
@@ -144,6 +180,55 @@ impl Value {
 
     pub fn from_message(fields: Fields) -> Self {
         Self::Message(fields)
+    }
+}
+
+impl ToRedisArgs for Value {
+    fn write_redis_args<W>(&self, out: &mut W)
+    where
+        W: ?Sized + redis::RedisWrite,
+    {
+        let buf = serde_json::to_vec(self).unwrap();
+        out.write_arg(&buf[..]);
+    }
+}
+
+impl FromRedisValue for Value {
+    fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
+        match v {
+            redis::Value::Data(v) => {
+                let result: serde_json::Value = serde_json::from_slice(&v[..]).unwrap();
+                Ok(serde_json::value::from_value(result).unwrap())
+            }
+            _ => Err(redis::RedisError::from(std::io::Error::new(
+                ErrorKind::Other,
+                "byte vec required",
+            ))),
+        }
+    }
+}
+
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let s_hash = DefaultHasher::new();
+        self.hash(&mut s_hash);
+        let o_hash = DefaultHasher::new();
+        other.hash(&mut o_hash);
+        let s_hash = s_hash.finish();
+        let o_hash = o_hash.finish();
+        if s_hash == o_hash {
+            Some(Ordering::Equal)
+        } else if s_hash > o_hash {
+            Some(Ordering::Greater)
+        } else {
+            Some(Ordering::Less)
+        }
+    }
+}
+
+impl Ord for Value {
+    fn cmp(&self, other: &Self) -> Ordering {
+        return self.partial_cmp(other).unwrap();
     }
 }
 

@@ -6,14 +6,13 @@ package pandit;
 message CacheOptions {
   bool disable = 60031;
   uint64 cache_time = 60032;
-  bool read_only = 60033;
-  int32 update_every = 60034;
 }
 
 extend google.protobuf.FieldOptions {
   string absolute_path = 50020;
   string relative_path = 50021;
   CacheOptions field_cache = 50036;
+  bool key = 50037;
 }
 
 extend google.protobuf.MessageOptions { string path = 50030; }

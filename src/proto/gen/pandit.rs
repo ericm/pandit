@@ -30,8 +30,6 @@ pub struct CacheOptions {
     // message fields
     pub disable: bool,
     pub cache_time: u64,
-    pub read_only: bool,
-    pub update_every: i32,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::rt::CachedSize,
@@ -59,16 +57,6 @@ impl CacheOptions {
             "cache_time",
             |m: &CacheOptions| { &m.cache_time },
             |m: &mut CacheOptions| { &mut m.cache_time },
-        ));
-        fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
-            "read_only",
-            |m: &CacheOptions| { &m.read_only },
-            |m: &mut CacheOptions| { &mut m.read_only },
-        ));
-        fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
-            "update_every",
-            |m: &CacheOptions| { &m.update_every },
-            |m: &mut CacheOptions| { &mut m.update_every },
         ));
         ::protobuf::reflect::GeneratedMessageDescriptorData::new_2::<CacheOptions>(
             "CacheOptions",
@@ -99,18 +87,6 @@ impl ::protobuf::Message for CacheOptions {
                     }
                     self.cache_time = is.read_uint64()?;
                 },
-                60033 => {
-                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
-                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
-                    }
-                    self.read_only = is.read_bool()?;
-                },
-                60034 => {
-                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
-                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
-                    }
-                    self.update_every = is.read_int32()?;
-                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -129,12 +105,6 @@ impl ::protobuf::Message for CacheOptions {
         if self.cache_time != 0 {
             my_size += ::protobuf::rt::value_size(60032, self.cache_time, ::protobuf::wire_format::WireTypeVarint);
         }
-        if self.read_only != false {
-            my_size += 4;
-        }
-        if self.update_every != 0 {
-            my_size += ::protobuf::rt::value_size(60034, self.update_every, ::protobuf::wire_format::WireTypeVarint);
-        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -146,12 +116,6 @@ impl ::protobuf::Message for CacheOptions {
         }
         if self.cache_time != 0 {
             os.write_uint64(60032, self.cache_time)?;
-        }
-        if self.read_only != false {
-            os.write_bool(60033, self.read_only)?;
-        }
-        if self.update_every != 0 {
-            os.write_int32(60034, self.update_every)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -181,8 +145,6 @@ impl ::protobuf::Message for CacheOptions {
         static instance: CacheOptions = CacheOptions {
             disable: false,
             cache_time: 0,
-            read_only: false,
-            update_every: 0,
             unknown_fields: ::protobuf::UnknownFields::new(),
             cached_size: ::protobuf::rt::CachedSize::new(),
         };
@@ -194,8 +156,6 @@ impl ::protobuf::Clear for CacheOptions {
     fn clear(&mut self) {
         self.disable = false;
         self.cache_time = 0;
-        self.read_only = false;
-        self.update_every = 0;
         self.unknown_fields.clear();
     }
 }
@@ -219,6 +179,8 @@ pub mod exts {
 
     pub const field_cache: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::FieldOptions, ::protobuf::reflect::types::ProtobufTypeMessage<super::CacheOptions>> = ::protobuf::ext::ExtFieldOptional { field_number: 50036, phantom: ::std::marker::PhantomData };
 
+    pub const key: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::FieldOptions, ::protobuf::reflect::types::ProtobufTypeBool> = ::protobuf::ext::ExtFieldOptional { field_number: 50037, phantom: ::std::marker::PhantomData };
+
     pub const path: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::MessageOptions, ::protobuf::reflect::types::ProtobufTypeString> = ::protobuf::ext::ExtFieldOptional { field_number: 50030, phantom: ::std::marker::PhantomData };
 
     pub const cache: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::MethodOptions, ::protobuf::reflect::types::ProtobufTypeMessage<super::CacheOptions>> = ::protobuf::ext::ExtFieldOptional { field_number: 50034, phantom: ::std::marker::PhantomData };
@@ -230,56 +192,52 @@ pub mod exts {
 
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n\x0cpandit.proto\x12\x06pandit\x1a\x20google/protobuf/descriptor.proto\
-    \"\x8f\x01\n\x0cCacheOptions\x12\x1a\n\x07disable\x18\xff\xd4\x03\x20\
-    \x01(\x08R\x07disable\x12\x1f\n\ncache_time\x18\x80\xd5\x03\x20\x01(\x04\
-    R\tcacheTime\x12\x1d\n\tread_only\x18\x81\xd5\x03\x20\x01(\x08R\x08readO\
-    nly\x12#\n\x0cupdate_every\x18\x82\xd5\x03\x20\x01(\x05R\x0bupdateEvery:\
-    D\n\rabsolute_path\x18\xe4\x86\x03\x20\x01(\t\x12\x1d.google.protobuf.Fi\
-    eldOptionsR\x0cabsolutePath:D\n\rrelative_path\x18\xe5\x86\x03\x20\x01(\
-    \t\x12\x1d.google.protobuf.FieldOptionsR\x0crelativePath:V\n\x0bfield_ca\
-    che\x18\xf4\x86\x03\x20\x01(\x0b2\x14.pandit.CacheOptions\x12\x1d.google\
-    .protobuf.FieldOptionsR\nfieldCache:5\n\x04path\x18\xee\x86\x03\x20\x01(\
-    \t\x12\x1f.google.protobuf.MessageOptionsR\x04path:L\n\x05cache\x18\xf2\
-    \x86\x03\x20\x01(\x0b2\x14.pandit.CacheOptions\x12\x1e.google.protobuf.M\
-    ethodOptionsR\x05cache:5\n\x04name\x18\xda\x86\x03\x20\x01(\t\x12\x1f.go\
-    ogle.protobuf.ServiceOptionsR\x04name:\\\n\rdefault_cache\x18\xf3\x86\
-    \x03\x20\x01(\x0b2\x14.pandit.CacheOptions\x12\x1f.google.protobuf.Servi\
-    ceOptionsR\x0cdefaultCacheJ\xe2\x05\n\x06\x12\x04\0\0\x19\x01\n\x08\n\
-    \x01\x0c\x12\x03\0\0\x12\n\t\n\x02\x03\0\x12\x03\x01\0*\n\x08\n\x01\x02\
-    \x12\x03\x03\0\x0f\n\n\n\x02\x04\0\x12\x04\x05\0\n\x01\n\n\n\x03\x04\0\
-    \x01\x12\x03\x05\x08\x14\n\x0b\n\x04\x04\0\x02\0\x12\x03\x06\x02\x17\n\
-    \x0c\n\x05\x04\0\x02\0\x05\x12\x03\x06\x02\x06\n\x0c\n\x05\x04\0\x02\0\
-    \x01\x12\x03\x06\x07\x0e\n\x0c\n\x05\x04\0\x02\0\x03\x12\x03\x06\x11\x16\
-    \n\x0b\n\x04\x04\0\x02\x01\x12\x03\x07\x02\x1c\n\x0c\n\x05\x04\0\x02\x01\
-    \x05\x12\x03\x07\x02\x08\n\x0c\n\x05\x04\0\x02\x01\x01\x12\x03\x07\t\x13\
-    \n\x0c\n\x05\x04\0\x02\x01\x03\x12\x03\x07\x16\x1b\n\x0b\n\x04\x04\0\x02\
-    \x02\x12\x03\x08\x02\x19\n\x0c\n\x05\x04\0\x02\x02\x05\x12\x03\x08\x02\
-    \x06\n\x0c\n\x05\x04\0\x02\x02\x01\x12\x03\x08\x07\x10\n\x0c\n\x05\x04\0\
-    \x02\x02\x03\x12\x03\x08\x13\x18\n\x0b\n\x04\x04\0\x02\x03\x12\x03\t\x02\
-    \x1d\n\x0c\n\x05\x04\0\x02\x03\x05\x12\x03\t\x02\x07\n\x0c\n\x05\x04\0\
-    \x02\x03\x01\x12\x03\t\x08\x14\n\x0c\n\x05\x04\0\x02\x03\x03\x12\x03\t\
-    \x17\x1c\n\t\n\x01\x07\x12\x04\x0c\0\x10\x01\n\t\n\x02\x07\0\x12\x03\r\
-    \x02\x1f\n\n\n\x03\x07\0\x02\x12\x03\x0c\x07#\n\n\n\x03\x07\0\x05\x12\
-    \x03\r\x02\x08\n\n\n\x03\x07\0\x01\x12\x03\r\t\x16\n\n\n\x03\x07\0\x03\
-    \x12\x03\r\x19\x1e\n\t\n\x02\x07\x01\x12\x03\x0e\x02\x1f\n\n\n\x03\x07\
-    \x01\x02\x12\x03\x0c\x07#\n\n\n\x03\x07\x01\x05\x12\x03\x0e\x02\x08\n\n\
-    \n\x03\x07\x01\x01\x12\x03\x0e\t\x16\n\n\n\x03\x07\x01\x03\x12\x03\x0e\
-    \x19\x1e\n\t\n\x02\x07\x02\x12\x03\x0f\x02#\n\n\n\x03\x07\x02\x02\x12\
-    \x03\x0c\x07#\n\n\n\x03\x07\x02\x06\x12\x03\x0f\x02\x0e\n\n\n\x03\x07\
-    \x02\x01\x12\x03\x0f\x0f\x1a\n\n\n\x03\x07\x02\x03\x12\x03\x0f\x1d\"\n\
-    \x08\n\x01\x07\x12\x03\x12\0>\n\t\n\x02\x07\x03\x12\x03\x12(<\n\n\n\x03\
-    \x07\x03\x02\x12\x03\x12\x07%\n\n\n\x03\x07\x03\x05\x12\x03\x12(.\n\n\n\
-    \x03\x07\x03\x01\x12\x03\x12/3\n\n\n\x03\x07\x03\x03\x12\x03\x126;\n\x08\
-    \n\x01\x07\x12\x03\x14\0D\n\t\n\x02\x07\x04\x12\x03\x14'B\n\n\n\x03\x07\
-    \x04\x02\x12\x03\x14\x07$\n\n\n\x03\x07\x04\x06\x12\x03\x14'3\n\n\n\x03\
-    \x07\x04\x01\x12\x03\x1449\n\n\n\x03\x07\x04\x03\x12\x03\x14<A\n\t\n\x01\
-    \x07\x12\x04\x16\0\x19\x01\n\t\n\x02\x07\x05\x12\x03\x17\x02\x16\n\n\n\
-    \x03\x07\x05\x02\x12\x03\x16\x07%\n\n\n\x03\x07\x05\x05\x12\x03\x17\x02\
-    \x08\n\n\n\x03\x07\x05\x01\x12\x03\x17\t\r\n\n\n\x03\x07\x05\x03\x12\x03\
-    \x17\x10\x15\n\t\n\x02\x07\x06\x12\x03\x18\x02%\n\n\n\x03\x07\x06\x02\
-    \x12\x03\x16\x07%\n\n\n\x03\x07\x06\x06\x12\x03\x18\x02\x0e\n\n\n\x03\
-    \x07\x06\x01\x12\x03\x18\x0f\x1c\n\n\n\x03\x07\x06\x03\x12\x03\x18\x1f$b\
-    \x06proto3\
+    \"K\n\x0cCacheOptions\x12\x1a\n\x07disable\x18\xff\xd4\x03\x20\x01(\x08R\
+    \x07disable\x12\x1f\n\ncache_time\x18\x80\xd5\x03\x20\x01(\x04R\tcacheTi\
+    me:D\n\rabsolute_path\x18\xe4\x86\x03\x20\x01(\t\x12\x1d.google.protobuf\
+    .FieldOptionsR\x0cabsolutePath:D\n\rrelative_path\x18\xe5\x86\x03\x20\
+    \x01(\t\x12\x1d.google.protobuf.FieldOptionsR\x0crelativePath:V\n\x0bfie\
+    ld_cache\x18\xf4\x86\x03\x20\x01(\x0b2\x14.pandit.CacheOptions\x12\x1d.g\
+    oogle.protobuf.FieldOptionsR\nfieldCache:1\n\x03key\x18\xf5\x86\x03\x20\
+    \x01(\x08\x12\x1d.google.protobuf.FieldOptionsR\x03key:5\n\x04path\x18\
+    \xee\x86\x03\x20\x01(\t\x12\x1f.google.protobuf.MessageOptionsR\x04path:\
+    L\n\x05cache\x18\xf2\x86\x03\x20\x01(\x0b2\x14.pandit.CacheOptions\x12\
+    \x1e.google.protobuf.MethodOptionsR\x05cache:5\n\x04name\x18\xda\x86\x03\
+    \x20\x01(\t\x12\x1f.google.protobuf.ServiceOptionsR\x04name:\\\n\rdefaul\
+    t_cache\x18\xf3\x86\x03\x20\x01(\x0b2\x14.pandit.CacheOptions\x12\x1f.go\
+    ogle.protobuf.ServiceOptionsR\x0cdefaultCacheJ\xaf\x05\n\x06\x12\x04\0\0\
+    \x18\x01\n\x08\n\x01\x0c\x12\x03\0\0\x12\n\t\n\x02\x03\0\x12\x03\x01\0*\
+    \n\x08\n\x01\x02\x12\x03\x03\0\x0f\n\n\n\x02\x04\0\x12\x04\x05\0\x08\x01\
+    \n\n\n\x03\x04\0\x01\x12\x03\x05\x08\x14\n\x0b\n\x04\x04\0\x02\0\x12\x03\
+    \x06\x02\x17\n\x0c\n\x05\x04\0\x02\0\x05\x12\x03\x06\x02\x06\n\x0c\n\x05\
+    \x04\0\x02\0\x01\x12\x03\x06\x07\x0e\n\x0c\n\x05\x04\0\x02\0\x03\x12\x03\
+    \x06\x11\x16\n\x0b\n\x04\x04\0\x02\x01\x12\x03\x07\x02\x1c\n\x0c\n\x05\
+    \x04\0\x02\x01\x05\x12\x03\x07\x02\x08\n\x0c\n\x05\x04\0\x02\x01\x01\x12\
+    \x03\x07\t\x13\n\x0c\n\x05\x04\0\x02\x01\x03\x12\x03\x07\x16\x1b\n\t\n\
+    \x01\x07\x12\x04\n\0\x0f\x01\n\t\n\x02\x07\0\x12\x03\x0b\x02\x1f\n\n\n\
+    \x03\x07\0\x02\x12\x03\n\x07#\n\n\n\x03\x07\0\x05\x12\x03\x0b\x02\x08\n\
+    \n\n\x03\x07\0\x01\x12\x03\x0b\t\x16\n\n\n\x03\x07\0\x03\x12\x03\x0b\x19\
+    \x1e\n\t\n\x02\x07\x01\x12\x03\x0c\x02\x1f\n\n\n\x03\x07\x01\x02\x12\x03\
+    \n\x07#\n\n\n\x03\x07\x01\x05\x12\x03\x0c\x02\x08\n\n\n\x03\x07\x01\x01\
+    \x12\x03\x0c\t\x16\n\n\n\x03\x07\x01\x03\x12\x03\x0c\x19\x1e\n\t\n\x02\
+    \x07\x02\x12\x03\r\x02#\n\n\n\x03\x07\x02\x02\x12\x03\n\x07#\n\n\n\x03\
+    \x07\x02\x06\x12\x03\r\x02\x0e\n\n\n\x03\x07\x02\x01\x12\x03\r\x0f\x1a\n\
+    \n\n\x03\x07\x02\x03\x12\x03\r\x1d\"\n\t\n\x02\x07\x03\x12\x03\x0e\x02\
+    \x13\n\n\n\x03\x07\x03\x02\x12\x03\n\x07#\n\n\n\x03\x07\x03\x05\x12\x03\
+    \x0e\x02\x06\n\n\n\x03\x07\x03\x01\x12\x03\x0e\x07\n\n\n\n\x03\x07\x03\
+    \x03\x12\x03\x0e\r\x12\n\x08\n\x01\x07\x12\x03\x11\0>\n\t\n\x02\x07\x04\
+    \x12\x03\x11(<\n\n\n\x03\x07\x04\x02\x12\x03\x11\x07%\n\n\n\x03\x07\x04\
+    \x05\x12\x03\x11(.\n\n\n\x03\x07\x04\x01\x12\x03\x11/3\n\n\n\x03\x07\x04\
+    \x03\x12\x03\x116;\n\x08\n\x01\x07\x12\x03\x13\0D\n\t\n\x02\x07\x05\x12\
+    \x03\x13'B\n\n\n\x03\x07\x05\x02\x12\x03\x13\x07$\n\n\n\x03\x07\x05\x06\
+    \x12\x03\x13'3\n\n\n\x03\x07\x05\x01\x12\x03\x1349\n\n\n\x03\x07\x05\x03\
+    \x12\x03\x13<A\n\t\n\x01\x07\x12\x04\x15\0\x18\x01\n\t\n\x02\x07\x06\x12\
+    \x03\x16\x02\x16\n\n\n\x03\x07\x06\x02\x12\x03\x15\x07%\n\n\n\x03\x07\
+    \x06\x05\x12\x03\x16\x02\x08\n\n\n\x03\x07\x06\x01\x12\x03\x16\t\r\n\n\n\
+    \x03\x07\x06\x03\x12\x03\x16\x10\x15\n\t\n\x02\x07\x07\x12\x03\x17\x02%\
+    \n\n\n\x03\x07\x07\x02\x12\x03\x15\x07%\n\n\n\x03\x07\x07\x06\x12\x03\
+    \x17\x02\x0e\n\n\n\x03\x07\x07\x01\x12\x03\x17\x0f\x1c\n\n\n\x03\x07\x07\
+    \x03\x12\x03\x17\x1f$b\x06proto3\
 ";
 
 /// `FileDescriptorProto` object which was a source for this generated file
