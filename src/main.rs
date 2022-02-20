@@ -2,6 +2,7 @@
 #![feature(ptr_to_from_bits)]
 #![feature(binary_heap_into_iter_sorted)]
 
+pub mod api;
 pub mod broker;
 pub mod handlers;
 pub mod proto;
