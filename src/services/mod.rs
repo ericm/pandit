@@ -572,5 +572,6 @@ mod tests {
                 0x08, 0x01, // Field varint
             ])
         );
+        return;
     }
 }

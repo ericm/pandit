@@ -7,7 +7,7 @@ import "handler.proto";
 package http_demo;
 
 message ExampleRequest {
-  int32 id = 1;
+  int32 id = 1 [ (pandit.key) = true ];
   string user = 2;
 }
 
@@ -27,8 +27,7 @@ service ExampleService {
     };
     option (pandit.handler) = JSON;
     option (pandit.cache) = {
-      update_every : 5
-      read_only : true
+      cache_time : 3000
     };
   }
 }
