@@ -247,7 +247,6 @@ impl Broker {
         match self.method_fields_map.get_mut(&name) {
             Some(mut v) => {
                 let cached = v.value_mut();
-                let payload = msg.get_payload_bytes();
                 let (primary_key, payload) = msg.get_payload::<(Value, Vec<u8>)>()?;
                 let fields_map = cached.fields_for_key.clone();
                 let cached_fields = CachedFields {
