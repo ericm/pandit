@@ -59,6 +59,10 @@ impl Server for IntraServer {
 }
 
 impl IntraServer {
+    pub fn add_servivce(&mut self, service: services::Service) {
+        self.services.insert(service.name.clone(), service);
+    }
+
     async fn handle_request(
         services: Arc<services::Services>,
         mut request: Request<RecvStream>,

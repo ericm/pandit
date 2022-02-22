@@ -27,8 +27,8 @@
 pub struct StartServiceRequest {
     // message fields
     pub name: ::std::string::String,
-    pub config: ::std::vec::Vec<u8>,
     pub proto: ::std::vec::Vec<u8>,
+    pub addr: ::std::string::String,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -71,33 +71,7 @@ impl StartServiceRequest {
         ::std::mem::replace(&mut self.name, ::std::string::String::new())
     }
 
-    // bytes config = 2;
-
-
-    pub fn get_config(&self) -> &[u8] {
-        &self.config
-    }
-    pub fn clear_config(&mut self) {
-        self.config.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_config(&mut self, v: ::std::vec::Vec<u8>) {
-        self.config = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_config(&mut self) -> &mut ::std::vec::Vec<u8> {
-        &mut self.config
-    }
-
-    // Take field
-    pub fn take_config(&mut self) -> ::std::vec::Vec<u8> {
-        ::std::mem::replace(&mut self.config, ::std::vec::Vec::new())
-    }
-
-    // bytes proto = 3;
+    // bytes proto = 2;
 
 
     pub fn get_proto(&self) -> &[u8] {
@@ -122,6 +96,32 @@ impl StartServiceRequest {
     pub fn take_proto(&mut self) -> ::std::vec::Vec<u8> {
         ::std::mem::replace(&mut self.proto, ::std::vec::Vec::new())
     }
+
+    // string addr = 3;
+
+
+    pub fn get_addr(&self) -> &str {
+        &self.addr
+    }
+    pub fn clear_addr(&mut self) {
+        self.addr.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_addr(&mut self, v: ::std::string::String) {
+        self.addr = v;
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_addr(&mut self) -> &mut ::std::string::String {
+        &mut self.addr
+    }
+
+    // Take field
+    pub fn take_addr(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.addr, ::std::string::String::new())
+    }
 }
 
 impl ::protobuf::Message for StartServiceRequest {
@@ -137,10 +137,10 @@ impl ::protobuf::Message for StartServiceRequest {
                     ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.name)?;
                 },
                 2 => {
-                    ::protobuf::rt::read_singular_proto3_bytes_into(wire_type, is, &mut self.config)?;
+                    ::protobuf::rt::read_singular_proto3_bytes_into(wire_type, is, &mut self.proto)?;
                 },
                 3 => {
-                    ::protobuf::rt::read_singular_proto3_bytes_into(wire_type, is, &mut self.proto)?;
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.addr)?;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -157,11 +157,11 @@ impl ::protobuf::Message for StartServiceRequest {
         if !self.name.is_empty() {
             my_size += ::protobuf::rt::string_size(1, &self.name);
         }
-        if !self.config.is_empty() {
-            my_size += ::protobuf::rt::bytes_size(2, &self.config);
-        }
         if !self.proto.is_empty() {
-            my_size += ::protobuf::rt::bytes_size(3, &self.proto);
+            my_size += ::protobuf::rt::bytes_size(2, &self.proto);
+        }
+        if !self.addr.is_empty() {
+            my_size += ::protobuf::rt::string_size(3, &self.addr);
         }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
@@ -172,11 +172,11 @@ impl ::protobuf::Message for StartServiceRequest {
         if !self.name.is_empty() {
             os.write_string(1, &self.name)?;
         }
-        if !self.config.is_empty() {
-            os.write_bytes(2, &self.config)?;
-        }
         if !self.proto.is_empty() {
-            os.write_bytes(3, &self.proto)?;
+            os.write_bytes(2, &self.proto)?;
+        }
+        if !self.addr.is_empty() {
+            os.write_string(3, &self.addr)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -222,14 +222,14 @@ impl ::protobuf::Message for StartServiceRequest {
                 |m: &mut StartServiceRequest| { &mut m.name },
             ));
             fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBytes>(
-                "config",
-                |m: &StartServiceRequest| { &m.config },
-                |m: &mut StartServiceRequest| { &mut m.config },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBytes>(
                 "proto",
                 |m: &StartServiceRequest| { &m.proto },
                 |m: &mut StartServiceRequest| { &mut m.proto },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "addr",
+                |m: &StartServiceRequest| { &m.addr },
+                |m: &mut StartServiceRequest| { &mut m.addr },
             ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<StartServiceRequest>(
                 "StartServiceRequest",
@@ -248,8 +248,8 @@ impl ::protobuf::Message for StartServiceRequest {
 impl ::protobuf::Clear for StartServiceRequest {
     fn clear(&mut self) {
         self.name.clear();
-        self.config.clear();
         self.proto.clear();
+        self.addr.clear();
         self.unknown_fields.clear();
     }
 }
@@ -383,11 +383,11 @@ impl ::protobuf::reflect::ProtobufValue for StartServiceReply {
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\tapi.proto\x12\x03api\"W\n\x13StartServiceRequest\x12\x12\n\x04name\
-    \x18\x01\x20\x01(\tR\x04name\x12\x16\n\x06config\x18\x02\x20\x01(\x0cR\
-    \x06config\x12\x14\n\x05proto\x18\x03\x20\x01(\x0cR\x05proto\"\x13\n\x11\
-    StartServiceReply2I\n\x03API\x12B\n\x0cStartService\x12\x18.api.StartSer\
-    viceRequest\x1a\x16.api.StartServiceReply\"\0b\x06proto3\
+    \n\tapi.proto\x12\x03api\"S\n\x13StartServiceRequest\x12\x12\n\x04name\
+    \x18\x01\x20\x01(\tR\x04name\x12\x14\n\x05proto\x18\x02\x20\x01(\x0cR\
+    \x05proto\x12\x12\n\x04addr\x18\x03\x20\x01(\tR\x04addr\"\x13\n\x11Start\
+    ServiceReply2I\n\x03API\x12B\n\x0cStartService\x12\x18.api.StartServiceR\
+    equest\x1a\x16.api.StartServiceReply\"\0b\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

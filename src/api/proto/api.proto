@@ -9,8 +9,8 @@ service API {
 
 message StartServiceRequest {
   string name = 1;
-  bytes config = 2;
-  bytes proto = 3;
+  bytes proto = 2;
+  string addr = 3;
 }
 
 message StartServiceReply {}

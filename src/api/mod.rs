@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use api_proto::api;
 use api_proto::api_grpc;
+use dashmap::DashMap;
 use grpcio::RpcStatus;
 use grpcio::RpcStatusCode;
 use std::io::prelude::*;
@@ -10,12 +11,14 @@ use tempfile::tempdir;
 use tokio::sync::Mutex;
 
 use crate::broker::Broker;
+use crate::server::IntraServer;
 use crate::services::Service;
 use crate::services::ServiceResult;
 use crate::writers::writer_from_proto;
 
 struct ApiServer {
     broker: Arc<Mutex<Broker>>,
+    server: Arc<Mutex<IntraServer>>,
 }
 
 impl api_grpc::Api for ApiServer {
@@ -25,16 +28,16 @@ impl api_grpc::Api for ApiServer {
         req: api::StartServiceRequest,
         sink: grpcio::UnarySink<api::StartServiceReply>,
     ) {
-        let cfg = match config::Config::try_from(&req.config) {
-            Ok(c) => c,
-            Err(err) => {
-                sink.fail(RpcStatus::with_message(
-                    RpcStatusCode::INVALID_ARGUMENT,
-                    format!("Config file unable to be parsed: {}", err),
-                ));
-                return;
-            }
-        };
+        // let cfg = match config::Config::try_from(&req.config) {
+        //     Ok(c) => c,
+        //     Err(err) => {
+        //         sink.fail(RpcStatus::with_message(
+        //             RpcStatusCode::INVALID_ARGUMENT,
+        //             format!("Config file unable to be parsed: {}", err),
+        //         ));
+        //         return;
+        //     }
+        // };
         match self.handle_start_service(&req) {
             Ok(_) => {}
             Err(err) => {
@@ -56,17 +59,20 @@ impl ApiServer {
             let mut proto_file = File::create(proto_path.clone())?;
             proto_file.write_all(&req.proto[..])?;
         }
-
         let service = Service::from_file(
             proto_path.to_str().unwrap_or_default(),
             &[proto_dir.path().to_str().unwrap_or_default()],
-            writer_from_proto(&proto_path)?,
+            writer_from_proto(&proto_path, req.addr.as_str())?,
             self.broker.clone(),
         )?;
+
         let broker = self.broker.clone();
+        let server = self.server.clone();
         tokio::spawn(async move {
             let mut broker = broker.lock().await;
             broker.sub_service(&service).unwrap();
+            let mut server = server.lock().await;
+            server.add_servivce(service);
         });
         Ok(())
     }
