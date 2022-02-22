@@ -10,6 +10,7 @@ service API {
 message StartServiceRequest {
   string name = 1;
   bytes config = 2;
+  bytes proto = 3;
 }
 
 message StartServiceReply {}

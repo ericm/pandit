@@ -215,7 +215,7 @@ pub struct Method {
 
 pub type Services = DashMap<String, Service>;
 
-type WriterRef = Box<Mutex<dyn Writer>>;
+pub type WriterRef = Box<Mutex<dyn Writer>>;
 
 pub struct Service {
     pub name: String,

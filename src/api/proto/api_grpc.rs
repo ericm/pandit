@@ -56,9 +56,7 @@ impl ApiClient {
 }
 
 pub trait Api {
-    fn start_service(&mut self, ctx: ::grpcio::RpcContext, _req: super::api::StartServiceRequest, sink: ::grpcio::UnarySink<super::api::StartServiceReply>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
+    fn start_service(&mut self, ctx: ::grpcio::RpcContext, req: super::api::StartServiceRequest, sink: ::grpcio::UnarySink<super::api::StartServiceReply>);
 }
 
 pub fn create_api<S: Api + Send + Clone + 'static>(s: S) -> ::grpcio::Service {

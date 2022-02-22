@@ -11,6 +11,7 @@ publish = false
 
 [dependencies]
 access-json = "0.1.0"
+api_proto = { path = "./src/api/proto", package = "api" }
 clap = "2.34.0"
 config = "0.11.0"
 tonic = "0.6.2"
@@ -20,6 +21,8 @@ libc = "0.2"
 tower = "0.4.11"
 hyper = "0.14.6"
 tonic-reflection = "0.2.0"
+grpcio = "0.9.1"
+tempfile = "3.3.0"
 bytes = "1.1.0"
 http = "0.2.6"
 tokio = { version = "^1.0.1", features = ["rt", "signal", "time", "io-util", "net", "sync"] }
@@ -38,7 +41,6 @@ protobuf = { git = "https://github.com/stepancheg/rust-protobuf.git", tag="v3.0.
 protoc-rust = "2.25.2"
 protobuf-parse = { git = "https://github.com/stepancheg/rust-protobuf.git", tag="v3.0.0-alpha.2" }
 redis = { version = "0.21.5", features = [ "cluster"] }
-grpcio = "0.9.1"
 
 [[bin]]
 name = "pandit"
