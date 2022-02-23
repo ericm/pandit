@@ -10,9 +10,14 @@ pub mod server;
 pub mod services;
 pub mod writers;
 
+use api_proto::api_grpc::create_api;
 use clap;
 use dashmap::DashMap;
 use futures::stream::StreamExt;
+use grpcio::ChannelBuilder;
+use grpcio::Environment;
+use grpcio::ResourceQuota;
+use grpcio::ServerBuilder;
 use httparse::Response;
 use httparse::EMPTY_HEADER;
 use serde_json;
@@ -26,15 +31,20 @@ use std::os::unix::prelude::FromRawFd;
 use std::process;
 use std::ptr;
 use std::str;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio;
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 use tokio::signal::ctrl_c;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use tokio_test;
 use tracing::{error, Level};
 use tracing_subscriber::FmtSubscriber;
+
+use crate::api::ApiServer;
+use crate::broker::Broker;
+use crate::server::IntraServer;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -50,6 +60,29 @@ async fn main() {
     let app = new_app();
 
     let cfg = services::new_config(app.get_matches().value_of("config").unwrap());
+    let broker = Broker::connect(cfg.clone()).unwrap();
+    let broker = Arc::new(Mutex::new(broker));
+
+    let intra_server = Arc::new(Mutex::new(IntraServer::default()));
+
+    let api_service = create_api(ApiServer::new(broker.clone(), intra_server.clone()));
+
+    let env = Arc::new(Environment::new(1));
+    let quota = ResourceQuota::new(Some("ApiServerQuota")).resize_memory(1024 * 1024);
+    let ch_builder = ChannelBuilder::new(env.clone()).set_resource_quota(quota);
+    let mut server = ServerBuilder::new(env)
+        .register_service(api_service)
+        .bind(
+            "127.0.0.1",
+            cfg.get_int("admin.port")
+                .unwrap_or(50121)
+                .try_into()
+                .unwrap(),
+        )
+        .channel_args(ch_builder.build_args())
+        .build()
+        .unwrap();
+    server.start();
 
     let iface = "lo";
     println!("Attaching socket to interface {}", iface);

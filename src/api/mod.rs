@@ -16,7 +16,7 @@ use crate::services::Service;
 use crate::services::ServiceResult;
 use crate::writers::writer_from_proto;
 
-struct ApiServer {
+pub struct ApiServer {
     broker: Arc<Mutex<Broker>>,
     server: Arc<Mutex<IntraServer>>,
 }
@@ -24,7 +24,7 @@ struct ApiServer {
 impl api_grpc::Api for ApiServer {
     fn start_service(
         &mut self,
-        ctx: grpcio::RpcContext,
+        _ctx: grpcio::RpcContext,
         req: api::StartServiceRequest,
         sink: grpcio::UnarySink<api::StartServiceReply>,
     ) {
@@ -51,7 +51,20 @@ impl api_grpc::Api for ApiServer {
     }
 }
 
+impl Clone for ApiServer {
+    fn clone(&self) -> Self {
+        Self {
+            broker: self.broker.clone(),
+            server: self.server.clone(),
+        }
+    }
+}
+
 impl ApiServer {
+    pub fn new(broker: Arc<Mutex<Broker>>, server: Arc<Mutex<IntraServer>>) -> Self {
+        Self { broker, server }
+    }
+
     fn handle_start_service(&mut self, req: &api::StartServiceRequest) -> ServiceResult<()> {
         let proto_dir = tempdir()?;
         let proto_path = proto_dir.path().join("api.proto");

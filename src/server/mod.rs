@@ -41,6 +41,14 @@ pub struct IntraServer {
     services: Arc<services::Services>,
 }
 
+impl Default for IntraServer {
+    fn default() -> Self {
+        Self {
+            services: Arc::new(services::Services::default()),
+        }
+    }
+}
+
 #[async_trait]
 impl Server for IntraServer {
     async fn serve(&self, socket: TcpStream) -> Result<(), Box<dyn Error + Send + Sync + '_>> {
