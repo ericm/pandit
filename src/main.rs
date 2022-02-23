@@ -12,39 +12,22 @@ pub mod writers;
 
 use api_proto::api_grpc::create_api;
 use clap;
-use dashmap::DashMap;
-use futures::stream::StreamExt;
 use grpcio::ChannelBuilder;
 use grpcio::Environment;
 use grpcio::ResourceQuota;
 use grpcio::ServerBuilder;
-use httparse::Response;
-use httparse::EMPTY_HEADER;
-use serde_json;
-use std::collections::HashMap;
 use std::convert::TryInto;
-use std::env;
-use std::fs::OpenOptions;
-use std::net::Ipv4Addr;
-use std::net::TcpStream as StdStream;
-use std::os::unix::prelude::FromRawFd;
-use std::process;
-use std::ptr;
-use std::str;
 use std::sync::Arc;
 use tokio;
-use tokio::io::AsyncReadExt;
-use tokio::net::TcpStream;
 use tokio::signal::ctrl_c;
-use tokio::sync::mpsc;
-use tokio::sync::Mutex;
-use tokio_test;
+use tokio::sync::RwLock;
 use tracing::{error, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use crate::api::ApiServer;
 use crate::broker::Broker;
 use crate::server::IntraServer;
+use crate::server::Server;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -52,18 +35,28 @@ async fn main() {
         .with_max_level(Level::TRACE)
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
-    if unsafe { libc::geteuid() != 0 } {
-        error!("You must be root to use eBPF!");
-        process::exit(1);
-    }
 
     let app = new_app();
 
     let cfg = services::new_config(app.get_matches().value_of("config").unwrap());
     let broker = Broker::connect(cfg.clone()).unwrap();
-    let broker = Arc::new(Mutex::new(broker));
+    let broker = Arc::new(RwLock::new(broker));
 
-    let intra_server = Arc::new(Mutex::new(IntraServer::default()));
+    let intra_server = {
+        let server = IntraServer::default();
+        let server = Arc::new(RwLock::new(server));
+        let addr = cfg
+            .get_str("server.address")
+            .unwrap_or("localhost:50122".to_string());
+        {
+            let server = server.clone();
+            tokio::spawn(async move {
+                let server = server.read().await;
+                server.run(addr).await.unwrap();
+            });
+        }
+        server
+    };
 
     let api_service = create_api(ApiServer::new(broker.clone(), intra_server.clone()));
 

@@ -10,6 +10,7 @@ use grpcio::RpcStatusCode;
 use std::io::prelude::*;
 use tempfile::tempdir;
 use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 use crate::broker::Broker;
 use crate::server::IntraServer;
@@ -18,8 +19,8 @@ use crate::services::ServiceResult;
 use crate::writers::writer_from_proto;
 
 pub struct ApiServer {
-    broker: Arc<Mutex<Broker>>,
-    server: Arc<Mutex<IntraServer>>,
+    broker: Arc<RwLock<Broker>>,
+    server: Arc<RwLock<IntraServer>>,
 }
 
 impl api_grpc::Api for ApiServer {
@@ -64,7 +65,7 @@ impl Clone for ApiServer {
 }
 
 impl ApiServer {
-    pub fn new(broker: Arc<Mutex<Broker>>, server: Arc<Mutex<IntraServer>>) -> Self {
+    pub fn new(broker: Arc<RwLock<Broker>>, server: Arc<RwLock<IntraServer>>) -> Self {
         Self { broker, server }
     }
 
@@ -98,10 +99,14 @@ impl ApiServer {
         let broker = self.broker.clone();
         let server = self.server.clone();
         tokio::spawn(async move {
-            let mut broker = broker.lock().await;
-            broker.sub_service(&service).unwrap();
-            let mut server = server.lock().await;
-            server.add_servivce(service);
+            {
+                let mut broker = broker.write().await;
+                broker.sub_service(&service).unwrap();
+            }
+            {
+                let mut server = server.write().await;
+                server.add_servivce(service);
+            }
         });
         Ok(())
     }

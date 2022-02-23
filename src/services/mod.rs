@@ -23,7 +23,7 @@ use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{fmt::Display, path::PathBuf};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use value::Value;
 
 #[derive(Debug, PartialEq)]
@@ -225,7 +225,7 @@ pub struct Service {
     pub writer: WriterRef,
     pub default_handler: Option<Arc<dyn Handler + Sync + Send + 'static>>,
     pub default_cache: base::CacheOptions,
-    pub broker: Arc<Mutex<Broker>>,
+    pub broker: Arc<RwLock<Broker>>,
 }
 
 impl Service {
@@ -233,7 +233,7 @@ impl Service {
         path: &str,
         include: &[&str],
         writer: WriterRef,
-        broker: Arc<Mutex<Broker>>,
+        broker: Arc<RwLock<Broker>>,
     ) -> Result<Self, ServiceError> {
         let path_buf = &PathBuf::from(path);
         let include: Vec<PathBuf> = include.iter().map(|v| PathBuf::from(v)).collect();
@@ -273,7 +273,7 @@ impl Service {
     fn get_service_attrs_base(
         file: &protobuf::descriptor::FileDescriptorProto,
         writer: WriterRef,
-        broker: Arc<Mutex<Broker>>,
+        broker: Arc<RwLock<Broker>>,
         service: &protobuf::descriptor::ServiceDescriptorProto,
     ) -> Result<Self, ServiceError> {
         use proto::gen::pandit::exts;
@@ -415,7 +415,6 @@ impl Service {
         let message = messages.get(&method.input_message).unwrap();
 
         let fields = message.fields_from_bytes(data)?;
-        let mut broker = self.broker.lock().await;
 
         let primary_key = {
             let key = method
@@ -431,7 +430,10 @@ impl Service {
                 format!("no entry for primary key: {}", key).as_str(),
             ))?
         };
-        let cached = broker.probe_cache(&self.name, method.key(), &primary_key, ".".to_string())?;
+        let cached = {
+            let broker = self.broker.read().await;
+            broker.probe_cache(&self.name, method.key(), &primary_key, ".".to_string())?
+        };
 
         let resp_fields = match cached {
             Some(cached_fields) => cached_fields,
@@ -464,8 +466,10 @@ impl Service {
             let mut output = protobuf::CodedOutputStream::new(&mut buf);
             message.write_bytes_from_fields(&mut output, &resp_fields)?;
         }
-
-        broker.publish_cache(&self.name, method.key(), resp_fields)?;
+        {
+            let mut broker = self.broker.write().await;
+            broker.publish_cache(&self.name, method.key(), resp_fields)?;
+        }
 
         let buf = buf.into_inner();
         Ok(bytes::Bytes::copy_from_slice(&buf[..]))

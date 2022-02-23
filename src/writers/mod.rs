@@ -1,7 +1,11 @@
 use std::path::PathBuf;
 
+use tokio::sync::Mutex;
+
 use crate::proto::gen::format;
 use crate::services::{ServiceError, ServiceResult, WriterRef};
+
+use self::http::HttpWriter;
 
 pub mod http;
 
@@ -21,12 +25,13 @@ pub fn writer_from_proto(
         })
         .unwrap();
     let service = file.service.first().unwrap();
+
+    // Generate writer.
     match format::http::exts::http_service.get(&service.options.as_ref().unwrap_or_default()) {
-        Some(service) => match service.version.unwrap() {
-            format::http::HTTPVersion::VERSION_1_0 => {}
-            format::http::HTTPVersion::VERSION_1_1 => todo!(),
-            format::http::HTTPVersion::VERSION_2_0 => todo!(),
-        },
+        Some(service) => {
+            let version = service.version.unwrap();
+            return Ok(Box::new(Mutex::new(HttpWriter::new(addr, version))));
+        }
         None => {}
     };
 
