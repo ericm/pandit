@@ -66,6 +66,12 @@ impl ApiServer {
             self.broker.clone(),
         )?;
 
+        for (name, file) in proto_libraries() {
+            let proto_path = proto_dir.path().join(*name);
+            let mut proto_file = File::create(proto_path.clone())?;
+            proto_file.write_all(*file)?;
+        }
+
         let broker = self.broker.clone();
         let server = self.server.clone();
         tokio::spawn(async move {
@@ -76,4 +82,11 @@ impl ApiServer {
         });
         Ok(())
     }
+}
+
+fn proto_libraries() -> &'static [(&'static str, &'static [u8])] {
+    &[
+        ("pandit", include_bytes!("../proto/pandit.proto")),
+        ("handler", include_bytes!("../proto/handler.proto")),
+    ]
 }
