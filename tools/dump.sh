@@ -1,1 +1,0 @@
-llvm-objdump-13 -h  /vagrant/target/bpf/programs/entrypoint/entrypoint.elf

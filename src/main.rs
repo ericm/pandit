@@ -88,7 +88,7 @@ async fn main() {
 }
 
 fn new_app() -> clap::App<'static, 'static> {
-    clap::App::new("pandit")
+    clap::App::new("pandit-server")
         .version("1.0")
         .author("Eric Moynihan")
         .about("Pandit CLI")
