@@ -1,42 +1,49 @@
 use std::{str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
-use tokio::sync::Mutex;
+use hyper::{body::HttpBody, client::conn};
+use tokio::sync::{Mutex, RwLock};
 
-use crate::services::{Fields, Handler, ServiceError, ServiceResult, Writer, WriterContext};
+use crate::{
+    proto::gen::format::http::HTTPVersion,
+    services::{Fields, Handler, ServiceError, ServiceResult, Writer, WriterContext},
+};
 
-pub struct Http2Writer {
-    stream: Mutex<tokio::net::TcpStream>,
+pub struct HttpWriter {
+    client: hyper::Client<hyper::client::HttpConnector>,
+    version: http::Version,
+    addr: String,
 }
 
-impl Http2Writer {
-    pub fn new(stream: Mutex<tokio::net::TcpStream>) -> Http2Writer {
-        Self { stream }
+impl HttpWriter {
+    pub fn new(addr: &str, version: HTTPVersion) -> HttpWriter {
+        let version = match version {
+            HTTPVersion::VERSION_1_0 => http::Version::HTTP_10,
+            HTTPVersion::VERSION_1_1 => http::Version::HTTP_11,
+            HTTPVersion::VERSION_2_0 => http::Version::HTTP_2,
+        };
+        let client = hyper::Client::new();
+        let addr = addr.to_string();
+        Self {
+            client,
+            version,
+            addr,
+        }
     }
 }
 
 #[async_trait]
-impl Writer for Http2Writer {
+impl Writer for HttpWriter {
     async fn write_request(
         &mut self,
         context: WriterContext,
         fields: &Fields,
         handler: &Arc<dyn Handler + Send + Sync>,
     ) -> ServiceResult<bytes::Bytes> {
-        let stream = self.stream.get_mut();
-        let (send, _) = h2::client::handshake(stream).await?;
-        let request = request_from_context(http::Version::HTTP_2, context)?;
         let payload = handler.to_payload(fields).await?;
-
-        let mut resp = send
-            .ready()
-            .await
-            .and_then(|mut send_req| {
-                let (resp, mut sender) = send_req.send_request(request, false)?;
-                sender.send_data(payload, true)?;
-                Ok(resp)
-            })?
-            .await?;
+        let request =
+            request_from_context(self.version.clone(), context, payload, self.addr.clone())?;
+        let mut resp = self.client.request(request).await?;
 
         let body = resp.body_mut();
         let body = match body.data().await {
@@ -55,13 +62,17 @@ impl Writer for Http2Writer {
 fn request_from_context(
     version: http::Version,
     context: WriterContext,
-) -> ServiceResult<http::request::Request<()>> {
-    let mut request = http::Request::new(());
+    body: bytes::Bytes,
+    addr: String,
+) -> ServiceResult<http::request::Request<hyper::Body>> {
+    let body = hyper::Body::from(body);
+    let mut builder = http::Request::builder();
     let mut uri = http::Uri::builder().scheme("http");
+
     for (k, v) in context {
         match k.as_str() {
             "method" => {
-                *request.method_mut() = http::Method::from_str(v.as_str())?;
+                builder = builder.method(http::Method::from_str(v.as_str())?);
                 continue;
             }
             "uri" => {
@@ -72,10 +83,13 @@ fn request_from_context(
         }
         let name = http::header::HeaderName::from_str(k.as_str())?;
         let value = http::HeaderValue::from_str(v.as_str())?;
-        request.headers_mut().insert(name, value);
+        builder = builder.header(name, value)
     }
+
+    uri = uri.authority(addr);
     let uri = uri.build()?;
-    *request.uri_mut() = uri;
-    *request.version_mut() = version;
+    builder = builder.uri(uri);
+    builder = builder.version(version);
+    let request = builder.body(body)?;
     Ok(request)
 }

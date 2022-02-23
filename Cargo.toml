@@ -19,7 +19,7 @@ h2 = "0.3"
 num = "0.4"
 libc = "0.2"
 tower = "0.4.11"
-hyper = "0.14.6"
+hyper = { version = "0.14", features = ["full"] }
 tonic-reflection = "0.2.0"
 grpcio = "0.9.1"
 tempfile = "3.3.0"

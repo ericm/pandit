@@ -19,7 +19,10 @@ message ExampleResponse {
 
 service ExampleService {
   option (pandit.name) = "my_service";
-  option (pandit.format.http_hostname) = "%hostname%";
+  option (pandit.format.http_service) = {
+    hostname : "%hostname%",
+    version : VERSION_1_1
+  };
 
   rpc GetExample(ExampleRequest) returns (ExampleResponse) {
     option (pandit.format.http) = {

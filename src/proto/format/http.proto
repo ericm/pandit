@@ -24,6 +24,17 @@ message HTTP {
   }
 }
 
+enum HTTPVersion {
+  VERSION_1_0 = 0;
+  VERSION_1_1 = 1;
+  VERSION_2_0 = 2;
+}
+
+message HTTPService {
+  string hostname = 50006;
+  HTTPVersion version = 50007;
+}
+
 extend google.protobuf.MethodOptions { HTTP http = 50011; }
 
-extend google.protobuf.ServiceOptions { string http_hostname = 50012; }
+extend google.protobuf.ServiceOptions { HTTPService http_service = 50012; }

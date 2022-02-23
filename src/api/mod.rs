@@ -1,3 +1,4 @@
+use std::fs::create_dir;
 use std::fs::File;
 use std::sync::Arc;
 
@@ -39,7 +40,9 @@ impl api_grpc::Api for ApiServer {
         //     }
         // };
         match self.handle_start_service(&req) {
-            Ok(_) => {}
+            Ok(_) => {
+                sink.success(api::StartServiceReply::new());
+            }
             Err(err) => {
                 sink.fail(RpcStatus::with_message(
                     RpcStatusCode::INTERNAL,
@@ -65,8 +68,11 @@ impl ApiServer {
         Self { broker, server }
     }
 
+    #[inline(always)]
     fn handle_start_service(&mut self, req: &api::StartServiceRequest) -> ServiceResult<()> {
         let proto_dir = tempdir()?;
+        create_dir(proto_dir.path().join("format"))?;
+
         let proto_path = proto_dir.path().join("api.proto");
         {
             let mut proto_file = File::create(proto_path.clone())?;
@@ -75,7 +81,11 @@ impl ApiServer {
         let service = Service::from_file(
             proto_path.to_str().unwrap_or_default(),
             &[proto_dir.path().to_str().unwrap_or_default()],
-            writer_from_proto(&proto_path, req.addr.as_str())?,
+            writer_from_proto(
+                proto_path.clone(),
+                &[proto_dir.path().to_path_buf()],
+                req.addr.as_str(),
+            )?,
             self.broker.clone(),
         )?;
 
@@ -101,5 +111,9 @@ fn proto_libraries() -> &'static [(&'static str, &'static [u8])] {
     &[
         ("pandit", include_bytes!("../proto/pandit.proto")),
         ("handler", include_bytes!("../proto/handler.proto")),
+        (
+            "format/http.proto",
+            include_bytes!("../proto/format/http.proto"),
+        ),
     ]
 }

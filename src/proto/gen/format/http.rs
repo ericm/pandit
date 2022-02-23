@@ -496,12 +496,208 @@ pub mod http {
     }
 }
 
+#[derive(PartialEq,Clone,Default)]
+pub struct HTTPService {
+    // message fields
+    pub hostname: ::std::string::String,
+    pub version: ::protobuf::ProtobufEnumOrUnknown<HTTPVersion>,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::rt::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a HTTPService {
+    fn default() -> &'a HTTPService {
+        <HTTPService as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl HTTPService {
+    pub fn new() -> HTTPService {
+        ::std::default::Default::default()
+    }
+
+    fn generated_message_descriptor_data() -> ::protobuf::reflect::GeneratedMessageDescriptorData {
+        let mut fields = ::std::vec::Vec::new();
+        fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
+            "hostname",
+            |m: &HTTPService| { &m.hostname },
+            |m: &mut HTTPService| { &mut m.hostname },
+        ));
+        fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
+            "version",
+            |m: &HTTPService| { &m.version },
+            |m: &mut HTTPService| { &mut m.version },
+        ));
+        ::protobuf::reflect::GeneratedMessageDescriptorData::new_2::<HTTPService>(
+            "HTTPService",
+            1,
+            fields,
+        )
+    }
+}
+
+impl ::protobuf::Message for HTTPService {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                50006 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeLengthDelimited {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    self.hostname = is.read_string()?;
+                },
+                50007 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    self.version = is.read_enum_or_unknown()?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if !self.hostname.is_empty() {
+            my_size += ::protobuf::rt::string_size(50006, &self.hostname);
+        }
+        if self.version != ::protobuf::ProtobufEnumOrUnknown::new(HTTPVersion::VERSION_1_0) {
+            my_size += ::protobuf::rt::enum_or_unknown_size(50007, self.version);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if !self.hostname.is_empty() {
+            os.write_string(50006, &self.hostname)?;
+        }
+        if self.version != ::protobuf::ProtobufEnumOrUnknown::new(HTTPVersion::VERSION_1_0) {
+            os.write_enum(50007, ::protobuf::ProtobufEnumOrUnknown::value(&self.version))?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn new() -> HTTPService {
+        HTTPService::new()
+    }
+
+    fn descriptor_static() -> ::protobuf::reflect::MessageDescriptor {
+        ::protobuf::reflect::MessageDescriptor::new_generated_2(file_descriptor(), 1)
+    }
+
+    fn default_instance() -> &'static HTTPService {
+        static instance: HTTPService = HTTPService {
+            hostname: ::std::string::String::new(),
+            version: ::protobuf::ProtobufEnumOrUnknown::from_i32(0),
+            unknown_fields: ::protobuf::UnknownFields::new(),
+            cached_size: ::protobuf::rt::CachedSize::new(),
+        };
+        &instance
+    }
+}
+
+impl ::protobuf::Clear for HTTPService {
+    fn clear(&mut self) {
+        self.hostname.clear();
+        self.version = ::protobuf::ProtobufEnumOrUnknown::new(HTTPVersion::VERSION_1_0);
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for HTTPService {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for HTTPService {
+    type RuntimeType = ::protobuf::reflect::runtime_types::RuntimeTypeMessage<Self>;
+}
+
+#[derive(Clone,Copy,PartialEq,Eq,Debug,Hash)]
+pub enum HTTPVersion {
+    VERSION_1_0 = 0,
+    VERSION_1_1 = 1,
+    VERSION_2_0 = 2,
+}
+
+impl ::protobuf::ProtobufEnum for HTTPVersion {
+    fn value(&self) -> i32 {
+        *self as i32
+    }
+
+    fn from_i32(value: i32) -> ::std::option::Option<HTTPVersion> {
+        match value {
+            0 => ::std::option::Option::Some(HTTPVersion::VERSION_1_0),
+            1 => ::std::option::Option::Some(HTTPVersion::VERSION_1_1),
+            2 => ::std::option::Option::Some(HTTPVersion::VERSION_2_0),
+            _ => ::std::option::Option::None
+        }
+    }
+
+    fn values() -> &'static [Self] {
+        static values: &'static [HTTPVersion] = &[
+            HTTPVersion::VERSION_1_0,
+            HTTPVersion::VERSION_1_1,
+            HTTPVersion::VERSION_2_0,
+        ];
+        values
+    }
+
+    fn enum_descriptor_static() -> ::protobuf::reflect::EnumDescriptor {
+        ::protobuf::reflect::EnumDescriptor::new_generated_2(file_descriptor(), 0)
+    }
+}
+
+impl ::std::default::Default for HTTPVersion {
+    fn default() -> Self {
+        HTTPVersion::VERSION_1_0
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for HTTPVersion {
+    type RuntimeType = ::protobuf::reflect::runtime_types::RuntimeTypeEnum<Self>;
+}
+
+impl HTTPVersion {
+    fn generated_enum_descriptor_data() -> ::protobuf::reflect::GeneratedEnumDescriptorData {
+        ::protobuf::reflect::GeneratedEnumDescriptorData::new_2::<HTTPVersion>("HTTPVersion", 0)
+    }
+}
+
 /// Extension fields
 pub mod exts {
 
     pub const http: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::MethodOptions, ::protobuf::reflect::types::ProtobufTypeMessage<super::HTTP>> = ::protobuf::ext::ExtFieldOptional { field_number: 50011, phantom: ::std::marker::PhantomData };
 
-    pub const http_hostname: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::ServiceOptions, ::protobuf::reflect::types::ProtobufTypeString> = ::protobuf::ext::ExtFieldOptional { field_number: 50012, phantom: ::std::marker::PhantomData };
+    pub const http_service: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::ServiceOptions, ::protobuf::reflect::types::ProtobufTypeMessage<super::HTTPService>> = ::protobuf::ext::ExtFieldOptional { field_number: 50012, phantom: ::std::marker::PhantomData };
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
@@ -510,41 +706,59 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x03get\x12\x14\n\x03put\x18\xd2\x86\x03\x20\x01(\tH\0R\x03put\x12\x16\n\
     \x04post\x18\xd3\x86\x03\x20\x01(\tH\0R\x04post\x12\x1a\n\x06delete\x18\
     \xd4\x86\x03\x20\x01(\tH\0R\x06delete\x12\x18\n\x05patch\x18\xd5\x86\x03\
-    \x20\x01(\tH\0R\x05patchB\t\n\x07pattern:I\n\x04http\x18\xdb\x86\x03\x20\
-    \x01(\x0b2\x13.pandit.format.HTTP\x12\x1e.google.protobuf.MethodOptionsR\
-    \x04http:F\n\rhttp_hostname\x18\xdc\x86\x03\x20\x01(\t\x12\x1f.google.pr\
-    otobuf.ServiceOptionsR\x0chttpHostnameJ\xdb\x06\n\x06\x12\x04\0\0\x1cG\n\
-    \x08\n\x01\x0c\x12\x03\0\0\x12\n\t\n\x02\x03\0\x12\x03\x01\0*\n\x08\n\
-    \x01\x02\x12\x03\x03\0\x16\n\n\n\x02\x04\0\x12\x04\x05\0\x18\x01\n\n\n\
-    \x03\x04\0\x01\x12\x03\x05\x08\x0c\n4\n\x04\x04\0\x08\0\x12\x04\x07\x02\
-    \x17\x03\x1a&\x20map<string,\x20string>\x20headers\x20=\x2050000;\n\n\
-    \x0c\n\x05\x04\0\x08\0\x01\x12\x03\x07\x08\x0f\n[\n\x04\x04\0\x02\0\x12\
-    \x03\n\x04\x17\x1aN\x20Maps\x20to\x20HTTP\x20GET.\x20Used\x20for\x20list\
-    ing\x20and\x20getting\x20information\x20about\n\x20resources.\n\n\x0c\n\
-    \x05\x04\0\x02\0\x05\x12\x03\n\x04\n\n\x0c\n\x05\x04\0\x02\0\x01\x12\x03\
-    \n\x0b\x0e\n\x0c\n\x05\x04\0\x02\0\x03\x12\x03\n\x11\x16\n?\n\x04\x04\0\
-    \x02\x01\x12\x03\r\x04\x17\x1a2\x20Maps\x20to\x20HTTP\x20PUT.\x20Used\
-    \x20for\x20replacing\x20a\x20resource.\n\n\x0c\n\x05\x04\0\x02\x01\x05\
-    \x12\x03\r\x04\n\n\x0c\n\x05\x04\0\x02\x01\x01\x12\x03\r\x0b\x0e\n\x0c\n\
-    \x05\x04\0\x02\x01\x03\x12\x03\r\x11\x16\nW\n\x04\x04\0\x02\x02\x12\x03\
-    \x10\x04\x18\x1aJ\x20Maps\x20to\x20HTTP\x20POST.\x20Used\x20for\x20creat\
-    ing\x20a\x20resource\x20or\x20performing\x20an\x20action.\n\n\x0c\n\x05\
-    \x04\0\x02\x02\x05\x12\x03\x10\x04\n\n\x0c\n\x05\x04\0\x02\x02\x01\x12\
-    \x03\x10\x0b\x0f\n\x0c\n\x05\x04\0\x02\x02\x03\x12\x03\x10\x12\x17\nA\n\
-    \x04\x04\0\x02\x03\x12\x03\x13\x04\x1a\x1a4\x20Maps\x20to\x20HTTP\x20DEL\
-    ETE.\x20Used\x20for\x20deleting\x20a\x20resource.\n\n\x0c\n\x05\x04\0\
-    \x02\x03\x05\x12\x03\x13\x04\n\n\x0c\n\x05\x04\0\x02\x03\x01\x12\x03\x13\
-    \x0b\x11\n\x0c\n\x05\x04\0\x02\x03\x03\x12\x03\x13\x14\x19\n@\n\x04\x04\
-    \0\x02\x04\x12\x03\x16\x04\x19\x1a3\x20Maps\x20to\x20HTTP\x20PATCH.\x20U\
-    sed\x20for\x20updating\x20a\x20resource.\n\n\x0c\n\x05\x04\0\x02\x04\x05\
-    \x12\x03\x16\x04\n\n\x0c\n\x05\x04\0\x02\x04\x01\x12\x03\x16\x0b\x10\n\
-    \x0c\n\x05\x04\0\x02\x04\x03\x12\x03\x16\x13\x18\n\x08\n\x01\x07\x12\x03\
-    \x1a\0;\n\t\n\x02\x07\0\x12\x03\x1a'9\n\n\n\x03\x07\0\x02\x12\x03\x1a\
-    \x07$\n\n\n\x03\x07\0\x06\x12\x03\x1a'+\n\n\n\x03\x07\0\x01\x12\x03\x1a,\
-    0\n\n\n\x03\x07\0\x03\x12\x03\x1a38\n\x08\n\x01\x07\x12\x03\x1c\0G\n\t\n\
-    \x02\x07\x01\x12\x03\x1c(E\n\n\n\x03\x07\x01\x02\x12\x03\x1c\x07%\n\n\n\
-    \x03\x07\x01\x05\x12\x03\x1c(.\n\n\n\x03\x07\x01\x01\x12\x03\x1c/<\n\n\n\
-    \x03\x07\x01\x03\x12\x03\x1c?Db\x06proto3\
+    \x20\x01(\tH\0R\x05patchB\t\n\x07pattern\"c\n\x0bHTTPService\x12\x1c\n\
+    \x08hostname\x18\xd6\x86\x03\x20\x01(\tR\x08hostname\x126\n\x07version\
+    \x18\xd7\x86\x03\x20\x01(\x0e2\x1a.pandit.format.HTTPVersionR\x07version\
+    *@\n\x0bHTTPVersion\x12\x0f\n\x0bVERSION_1_0\x10\0\x12\x0f\n\x0bVERSION_\
+    1_1\x10\x01\x12\x0f\n\x0bVERSION_2_0\x10\x02:I\n\x04http\x18\xdb\x86\x03\
+    \x20\x01(\x0b2\x13.pandit.format.HTTP\x12\x1e.google.protobuf.MethodOpti\
+    onsR\x04http:`\n\x0chttp_service\x18\xdc\x86\x03\x20\x01(\x0b2\x1a.pandi\
+    t.format.HTTPService\x12\x1f.google.protobuf.ServiceOptionsR\x0bhttpServ\
+    iceJ\xf4\x08\n\x06\x12\x04\0\0'K\n\x08\n\x01\x0c\x12\x03\0\0\x12\n\t\n\
+    \x02\x03\0\x12\x03\x01\0*\n\x08\n\x01\x02\x12\x03\x03\0\x16\n\n\n\x02\
+    \x04\0\x12\x04\x05\0\x18\x01\n\n\n\x03\x04\0\x01\x12\x03\x05\x08\x0c\n4\
+    \n\x04\x04\0\x08\0\x12\x04\x07\x02\x17\x03\x1a&\x20map<string,\x20string\
+    >\x20headers\x20=\x2050000;\n\n\x0c\n\x05\x04\0\x08\0\x01\x12\x03\x07\
+    \x08\x0f\n[\n\x04\x04\0\x02\0\x12\x03\n\x04\x17\x1aN\x20Maps\x20to\x20HT\
+    TP\x20GET.\x20Used\x20for\x20listing\x20and\x20getting\x20information\
+    \x20about\n\x20resources.\n\n\x0c\n\x05\x04\0\x02\0\x05\x12\x03\n\x04\n\
+    \n\x0c\n\x05\x04\0\x02\0\x01\x12\x03\n\x0b\x0e\n\x0c\n\x05\x04\0\x02\0\
+    \x03\x12\x03\n\x11\x16\n?\n\x04\x04\0\x02\x01\x12\x03\r\x04\x17\x1a2\x20\
+    Maps\x20to\x20HTTP\x20PUT.\x20Used\x20for\x20replacing\x20a\x20resource.\
+    \n\n\x0c\n\x05\x04\0\x02\x01\x05\x12\x03\r\x04\n\n\x0c\n\x05\x04\0\x02\
+    \x01\x01\x12\x03\r\x0b\x0e\n\x0c\n\x05\x04\0\x02\x01\x03\x12\x03\r\x11\
+    \x16\nW\n\x04\x04\0\x02\x02\x12\x03\x10\x04\x18\x1aJ\x20Maps\x20to\x20HT\
+    TP\x20POST.\x20Used\x20for\x20creating\x20a\x20resource\x20or\x20perform\
+    ing\x20an\x20action.\n\n\x0c\n\x05\x04\0\x02\x02\x05\x12\x03\x10\x04\n\n\
+    \x0c\n\x05\x04\0\x02\x02\x01\x12\x03\x10\x0b\x0f\n\x0c\n\x05\x04\0\x02\
+    \x02\x03\x12\x03\x10\x12\x17\nA\n\x04\x04\0\x02\x03\x12\x03\x13\x04\x1a\
+    \x1a4\x20Maps\x20to\x20HTTP\x20DELETE.\x20Used\x20for\x20deleting\x20a\
+    \x20resource.\n\n\x0c\n\x05\x04\0\x02\x03\x05\x12\x03\x13\x04\n\n\x0c\n\
+    \x05\x04\0\x02\x03\x01\x12\x03\x13\x0b\x11\n\x0c\n\x05\x04\0\x02\x03\x03\
+    \x12\x03\x13\x14\x19\n@\n\x04\x04\0\x02\x04\x12\x03\x16\x04\x19\x1a3\x20\
+    Maps\x20to\x20HTTP\x20PATCH.\x20Used\x20for\x20updating\x20a\x20resource\
+    .\n\n\x0c\n\x05\x04\0\x02\x04\x05\x12\x03\x16\x04\n\n\x0c\n\x05\x04\0\
+    \x02\x04\x01\x12\x03\x16\x0b\x10\n\x0c\n\x05\x04\0\x02\x04\x03\x12\x03\
+    \x16\x13\x18\n\n\n\x02\x05\0\x12\x04\x1a\0\x1e\x01\n\n\n\x03\x05\0\x01\
+    \x12\x03\x1a\x05\x10\n\x0b\n\x04\x05\0\x02\0\x12\x03\x1b\x02\x12\n\x0c\n\
+    \x05\x05\0\x02\0\x01\x12\x03\x1b\x02\r\n\x0c\n\x05\x05\0\x02\0\x02\x12\
+    \x03\x1b\x10\x11\n\x0b\n\x04\x05\0\x02\x01\x12\x03\x1c\x02\x12\n\x0c\n\
+    \x05\x05\0\x02\x01\x01\x12\x03\x1c\x02\r\n\x0c\n\x05\x05\0\x02\x01\x02\
+    \x12\x03\x1c\x10\x11\n\x0b\n\x04\x05\0\x02\x02\x12\x03\x1d\x02\x12\n\x0c\
+    \n\x05\x05\0\x02\x02\x01\x12\x03\x1d\x02\r\n\x0c\n\x05\x05\0\x02\x02\x02\
+    \x12\x03\x1d\x10\x11\n\n\n\x02\x04\x01\x12\x04\x20\0#\x01\n\n\n\x03\x04\
+    \x01\x01\x12\x03\x20\x08\x13\n\x0b\n\x04\x04\x01\x02\0\x12\x03!\x02\x1a\
+    \n\x0c\n\x05\x04\x01\x02\0\x05\x12\x03!\x02\x08\n\x0c\n\x05\x04\x01\x02\
+    \0\x01\x12\x03!\t\x11\n\x0c\n\x05\x04\x01\x02\0\x03\x12\x03!\x14\x19\n\
+    \x0b\n\x04\x04\x01\x02\x01\x12\x03\"\x02\x1e\n\x0c\n\x05\x04\x01\x02\x01\
+    \x06\x12\x03\"\x02\r\n\x0c\n\x05\x04\x01\x02\x01\x01\x12\x03\"\x0e\x15\n\
+    \x0c\n\x05\x04\x01\x02\x01\x03\x12\x03\"\x18\x1d\n\x08\n\x01\x07\x12\x03\
+    %\0;\n\t\n\x02\x07\0\x12\x03%'9\n\n\n\x03\x07\0\x02\x12\x03%\x07$\n\n\n\
+    \x03\x07\0\x06\x12\x03%'+\n\n\n\x03\x07\0\x01\x12\x03%,0\n\n\n\x03\x07\0\
+    \x03\x12\x03%38\n\x08\n\x01\x07\x12\x03'\0K\n\t\n\x02\x07\x01\x12\x03'(I\
+    \n\n\n\x03\x07\x01\x02\x12\x03'\x07%\n\n\n\x03\x07\x01\x06\x12\x03'(3\n\
+    \n\n\x03\x07\x01\x01\x12\x03'4@\n\n\n\x03\x07\x01\x03\x12\x03'CHb\x06pro\
+    to3\
 ";
 
 /// `FileDescriptorProto` object which was a source for this generated file
@@ -563,7 +777,9 @@ pub fn file_descriptor() -> ::protobuf::reflect::FileDescriptor {
         deps.push(::protobuf::descriptor::file_descriptor());
         let mut messages = ::std::vec::Vec::new();
         messages.push(HTTP::generated_message_descriptor_data());
+        messages.push(HTTPService::generated_message_descriptor_data());
         let mut enums = ::std::vec::Vec::new();
+        enums.push(HTTPVersion::generated_enum_descriptor_data());
         ::protobuf::reflect::GeneratedFileDescriptor::new_generated(
             file_descriptor_proto(),
             deps,
