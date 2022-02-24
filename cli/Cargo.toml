@@ -8,5 +8,9 @@ edition = "2021"
 [dependencies]
 api_proto = { path = "../src/api/proto", package = "api" }
 grpcio = "0.9.1"
-config = "0.11.0"
-clap = "2.34.0"
+config = "0.12.0"
+clap = { version = "3.1.2", features = ["derive"] }
+
+[[bin]]
+name = "pandit"
+path = "src/main.rs"
