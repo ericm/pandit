@@ -20,7 +20,7 @@ message ExampleResponse {
 service ExampleService {
   option (pandit.name) = "my_service";
   option (pandit.format.http_service) = {
-    hostname : "%hostname%",
+    hostname : "%hostname%"
     version : VERSION_1_1
   };
 

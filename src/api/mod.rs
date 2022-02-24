@@ -79,6 +79,12 @@ impl ApiServer {
             let mut proto_file = File::create(proto_path.clone())?;
             proto_file.write_all(&req.proto[..])?;
         }
+        for (name, file) in proto_libraries() {
+            let mut proto_path = proto_dir.path().join(name);
+            proto_path.set_extension("proto");
+            let mut proto_file = File::create(proto_path.clone())?;
+            proto_file.write_all(file)?;
+        }
         let service = Service::from_file(
             proto_path.to_str().unwrap_or_default(),
             &[proto_dir.path().to_str().unwrap_or_default()],
@@ -89,12 +95,6 @@ impl ApiServer {
             )?,
             self.broker.clone(),
         )?;
-
-        for (name, file) in proto_libraries() {
-            let proto_path = proto_dir.path().join(*name);
-            let mut proto_file = File::create(proto_path.clone())?;
-            proto_file.write_all(*file)?;
-        }
 
         let broker = self.broker.clone();
         let server = self.server.clone();
@@ -113,8 +113,8 @@ impl ApiServer {
     }
 }
 
-fn proto_libraries() -> &'static [(&'static str, &'static [u8])] {
-    &[
+fn proto_libraries() -> [(&'static str, &'static [u8]); 3] {
+    [
         ("pandit", include_bytes!("../proto/pandit.proto")),
         ("handler", include_bytes!("../proto/handler.proto")),
         (

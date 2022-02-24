@@ -50,7 +50,7 @@ fn main() {
             let mut proto_path = proto_path.join(proto_name.clone());
             proto_path.set_extension("proto");
 
-            let mut panditfile = File::open(&path).unwrap();
+            let mut panditfile = File::open(&proto_path).unwrap();
             let mut proto = Vec::<u8>::new();
             panditfile.read_to_end(&mut proto).unwrap();
             req.set_proto(proto);
