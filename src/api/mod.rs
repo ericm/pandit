@@ -26,7 +26,7 @@ pub struct ApiServer {
 impl api_grpc::Api for ApiServer {
     fn start_service(
         &mut self,
-        _ctx: grpcio::RpcContext,
+        ctx: grpcio::RpcContext,
         req: api::StartServiceRequest,
         sink: grpcio::UnarySink<api::StartServiceReply>,
     ) {
@@ -40,7 +40,7 @@ impl api_grpc::Api for ApiServer {
         //         return;
         //     }
         // };
-        match self.handle_start_service(&req) {
+        match self.handle_start_service(&ctx, &req) {
             Ok(_) => {
                 sink.success(api::StartServiceReply::new());
             }
@@ -70,7 +70,11 @@ impl ApiServer {
     }
 
     #[inline(always)]
-    fn handle_start_service(&mut self, req: &api::StartServiceRequest) -> ServiceResult<()> {
+    fn handle_start_service(
+        &mut self,
+        ctx: &grpcio::RpcContext,
+        req: &api::StartServiceRequest,
+    ) -> ServiceResult<()> {
         let proto_dir = tempdir()?;
         create_dir(proto_dir.path().join("format"))?;
 
@@ -99,7 +103,7 @@ impl ApiServer {
         let broker = self.broker.clone();
         let server = self.server.clone();
         let name = req.name.clone();
-        tokio::spawn(async move {
+        ctx.spawn(async move {
             {
                 let mut broker = broker.write().await;
                 broker.sub_service(&name, &service).unwrap();
