@@ -1,0 +1,4 @@
+[service]
+name = "example"
+proto = "example1"
+address = "localhost:8080"

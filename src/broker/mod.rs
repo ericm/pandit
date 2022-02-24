@@ -108,14 +108,18 @@ impl Broker {
         }
     }
 
-    pub fn sub_service(&mut self, service: &crate::services::Service) -> ServiceResult<()> {
+    pub fn sub_service(
+        &mut self,
+        name: &String,
+        service: &crate::services::Service,
+    ) -> ServiceResult<()> {
         let mut pubsub = self.conn.as_pubsub();
         for method in service.methods.iter() {
             let message = service
                 .messages
                 .get(&method.value().output_message)
                 .unwrap();
-            let name = format!("{}_{}", service.name, method.key());
+            let name = format!("{}_{}", name.clone(), method.key());
             self.method_fields_map.insert(
                 name,
                 CachedMessage {
@@ -133,7 +137,7 @@ impl Broker {
                 },
             );
         }
-        let name = format!("service_{}", service.name);
+        let name = format!("service_{}", name.clone());
         pubsub.subscribe(name)?;
         Ok(())
     }

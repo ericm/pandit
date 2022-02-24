@@ -67,8 +67,8 @@ impl Server for IntraServer {
 }
 
 impl IntraServer {
-    pub fn add_servivce(&mut self, service: services::Service) {
-        self.services.insert(service.name.clone(), service);
+    pub fn add_servivce(&mut self, name: String, service: services::Service) {
+        self.services.insert(name.clone(), service);
     }
 
     async fn handle_request(

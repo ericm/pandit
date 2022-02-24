@@ -553,7 +553,7 @@ mod tests {
         };
         let writer_ref = Box::new(Mutex::new(writer));
         let broker = Broker::connect(Default::default()).unwrap();
-        let broker = Arc::new(Mutex::new(broker));
+        let broker = Arc::new(RwLock::new(broker));
         let mut service = Service::from_file(
             "./src/proto/examples/example1.proto",
             &["./src/proto"],
@@ -561,8 +561,10 @@ mod tests {
             broker.clone(),
         )
         .unwrap();
-        let mut broker = broker.lock().await;
-        broker.sub_service(&service).unwrap();
+        let mut broker = broker.write().await;
+        broker
+            .sub_service(&"ExampleService".to_string(), &service)
+            .unwrap();
         let buf: &[u8] = &[
             0x08, 0x96, 0x01, // Field varint
         ];

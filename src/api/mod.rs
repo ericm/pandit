@@ -98,14 +98,15 @@ impl ApiServer {
 
         let broker = self.broker.clone();
         let server = self.server.clone();
+        let name = req.name.clone();
         tokio::spawn(async move {
             {
                 let mut broker = broker.write().await;
-                broker.sub_service(&service).unwrap();
+                broker.sub_service(&name, &service).unwrap();
             }
             {
                 let mut server = server.write().await;
-                server.add_servivce(service);
+                server.add_servivce(name, service);
             }
         });
         Ok(())

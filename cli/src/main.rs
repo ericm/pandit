@@ -1,15 +1,15 @@
-use clap::{Command, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use config::Config;
 use grpcio::{ChannelBuilder, EnvBuilder};
-use std::{fs::File, io::Read, path::PathBuf, str::ParseBoolError, sync::Arc};
+use std::{env::current_dir, fs::File, io::Read, path::PathBuf, sync::Arc};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 #[clap(propagate_version = true)]
 struct Args {
-    #[clap(short, long)]
-    proto_path: Option<String>,
-    #[clap(short, long, default_value = "localhost:50051")]
+    #[clap(short, long, default_value = "/etc/pandit/protos")]
+    proto_path: String,
+    #[clap(short, long, default_value = "localhost:50121")]
     daemon_address: String,
     #[clap(subcommand)]
     service: ServiceCommand,
@@ -25,9 +25,14 @@ fn main() {
     let env = Arc::new(EnvBuilder::new().build());
     let ch = ChannelBuilder::new(env).connect(app.daemon_address.as_str());
     let client = api_proto::api_grpc::ApiClient::new(ch);
-    let proto_path = PathBuf::from(app.proto_path.unwrap_or("/etc/pandit/protos".to_string()))
-        .canonicalize()
-        .unwrap();
+    let proto_path = {
+        let mut path = PathBuf::from(app.proto_path);
+        if path.is_relative() {
+            path = current_dir().unwrap().join(path);
+        }
+        path.canonicalize().unwrap()
+    };
+    println!("Using proto library: {}", proto_path.to_str().unwrap());
 
     match &app.service {
         ServiceCommand::Add { path } => {
