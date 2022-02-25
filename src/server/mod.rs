@@ -1,4 +1,5 @@
 #![feature(destructuring_assignment)]
+use std::convert::TryFrom;
 use std::error::Error;
 use std::sync::Arc;
 
@@ -7,7 +8,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use h2::server::{self, SendResponse};
 use h2::RecvStream;
-use http::Request;
+use http::{HeaderMap, HeaderValue, Request};
 use protobuf::Message;
 use std::collections::HashMap;
 use tokio;
@@ -106,12 +107,31 @@ impl IntraServer {
             }
         };
 
-        let resp_payload = service
+        let resp_raw = service
             .send_proto_to_local(&service_name, &method.to_string(), &data[..])
-            .await?;
+            .await;
+        let (resp_code, resp_payload) = match resp_raw {
+            Ok(v) => (0, v),
+            Err(err) => (
+                13,
+                bytes::Bytes::from(format!("an error occured sending the payload: {:?}", err)),
+            ),
+        };
         let response = http::Response::new(());
+        let mut trailers = HeaderMap::new();
+        trailers.insert("grpc-status", HeaderValue::from(resp_code));
+
         let mut send = respond.send_response(response, false)?;
-        send.send_data(resp_payload, true)?;
+        if resp_code == 0 {
+            send.send_data(resp_payload, false)?;
+        } else {
+            trailers.insert(
+                "grpc-message",
+                HeaderValue::try_from(String::from_utf8(resp_payload.to_vec())?)?,
+            );
+        }
+        send.send_trailers(trailers)?;
+
         Ok(())
     }
 }
