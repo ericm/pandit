@@ -13,10 +13,14 @@ pub mod writers;
 use api_proto::api_grpc::create_api;
 use clap;
 use grpcio::ChannelBuilder;
+use grpcio::EnvBuilder;
 use grpcio::Environment;
 use grpcio::ResourceQuota;
 use grpcio::ServerBuilder;
 use std::convert::TryInto;
+use std::env::current_dir;
+use std::fs::read_dir;
+use std::fs::File;
 use std::sync::Arc;
 use tokio;
 use tokio::signal::ctrl_c;
@@ -76,15 +80,52 @@ async fn main() {
         .build()
         .unwrap();
     server.start();
-
-    let iface = "lo";
-    println!("Attaching socket to interface {}", iface);
+    start_services(&cfg);
 
     let ctrlc_fut = async {
         ctrl_c().await.unwrap();
     };
     println!("Hit Ctrl-C to quit");
     ctrlc_fut.await;
+}
+
+fn start_services(cfg: &config::Config) {
+    let addr = format!("localhost:{}", cfg.get_int("admin.port").unwrap_or(50121));
+    let env = Arc::new(EnvBuilder::new().build());
+    let ch = ChannelBuilder::new(env).connect(addr.as_str());
+    let client = api_proto::api_grpc::ApiClient::new(ch);
+
+    let paths = read_dir(current_dir().unwrap()).unwrap();
+    for path in paths {
+        let path = path.unwrap().path();
+        let ext = match path.extension() {
+            Some(ext) => ext.to_str().unwrap(),
+            None => continue,
+        };
+        if ext != "pandit_service" {
+            continue;
+        }
+        let save_file = File::open(path).unwrap();
+        let save: serde_json::Value = serde_json::from_reader(save_file).unwrap();
+        {
+            use std::convert::TryFrom;
+            let name = save.get("name").unwrap().as_str().unwrap().to_string();
+            let addr = save.get("addr").unwrap().as_str().unwrap().to_string();
+            let proto: Vec<u8> = save
+                .get("proto")
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| u8::try_from(v.as_u64().unwrap()).unwrap())
+                .collect();
+            let mut req = api_proto::api::StartServiceRequest::new();
+            req.set_proto(proto);
+            req.set_addr(addr);
+            req.set_name(name);
+            client.start_service(&req).unwrap();
+        }
+    }
 }
 
 fn new_app() -> clap::App<'static, 'static> {

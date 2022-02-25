@@ -7,3 +7,4 @@ ubuntu-xenial-16.04-cloudimg-console.log
 target
 xdp-tools
 *.rdb
+*.pandit_service

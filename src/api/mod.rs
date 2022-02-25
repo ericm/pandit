@@ -1,3 +1,4 @@
+use std::env::current_dir;
 use std::fs::create_dir;
 use std::fs::File;
 use std::sync::Arc;
@@ -42,6 +43,17 @@ impl api_grpc::Api for ApiServer {
         // };
         match self.handle_start_service(&ctx, &req) {
             Ok(_) => {
+                let save = serde_json::json!({
+                    "name": req.name.clone(),
+                    "proto": req.proto.clone(),
+                    "addr": req.addr.clone(),
+                });
+                let save = serde_json::to_vec(&save).unwrap();
+                let mut save_file_path = current_dir().unwrap().join(req.name);
+                save_file_path.set_extension("pandit_service");
+                let mut save_file = File::create(save_file_path).unwrap();
+                save_file.write_all(&save[..]).unwrap();
+
                 sink.success(api::StartServiceReply::new());
             }
             Err(err) => {
