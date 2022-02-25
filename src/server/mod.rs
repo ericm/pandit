@@ -2,7 +2,7 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use crate::services;
+use crate::services::{self, ServiceError};
 use async_trait::async_trait;
 use bytes::Bytes;
 use h2::server::{self, SendResponse};
@@ -90,13 +90,24 @@ impl IntraServer {
             .collect();
         let path = request.uri().to_string();
         let mut path = path.rsplit("/");
-        let service = path.next().unwrap();
         let method = path.next().unwrap();
+        let service = {
+            let fqdn = path.next().unwrap();
+            fqdn.rsplit(".").next().unwrap()
+        };
+        let service_name = service.to_string();
 
-        let mut service = services.get_mut(service).unwrap();
+        let mut service = match services.get_mut(service) {
+            Some(s) => s,
+            None => {
+                return Err(ServiceError::new(
+                    format!("no service known as: {}", service).as_str(),
+                ));
+            }
+        };
 
         let resp_payload = service
-            .send_proto_to_local(&method.to_string(), &data[..])
+            .send_proto_to_local(&service_name, &method.to_string(), &data[..])
             .await?;
         let response = http::Response::new(());
         let mut send = respond.send_response(response, false)?;

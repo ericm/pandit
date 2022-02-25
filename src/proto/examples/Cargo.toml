@@ -1,0 +1,17 @@
+[package]
+name = "examples"
+version = "0.1.0"
+edition = '2018'
+build = "./build.rs"
+
+[[bin]]
+name = "test_examples"
+path = "main.rs"
+
+[dependencies]
+grpcio = "0.9.1"
+protobuf = "2.0"
+futures = "0.3"
+
+[build-dependencies]
+protoc-grpcio = "3.0.0"

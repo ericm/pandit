@@ -31,16 +31,6 @@ impl api_grpc::Api for ApiServer {
         req: api::StartServiceRequest,
         sink: grpcio::UnarySink<api::StartServiceReply>,
     ) {
-        // let cfg = match config::Config::try_from(&req.config) {
-        //     Ok(c) => c,
-        //     Err(err) => {
-        //         sink.fail(RpcStatus::with_message(
-        //             RpcStatusCode::INVALID_ARGUMENT,
-        //             format!("Config file unable to be parsed: {}", err),
-        //         ));
-        //         return;
-        //     }
-        // };
         match self.handle_start_service(&ctx, &req) {
             Ok(_) => {
                 let save = serde_json::json!({

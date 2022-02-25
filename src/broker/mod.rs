@@ -81,11 +81,10 @@ impl Broker {
         let val = self.get_entry(&name)?;
         let message = val.value();
 
-        let entry = {
-            let val = message.fields_for_key.get(primary_key);
-            val.ok_or(ServiceError::new(
-                format!("no primary key entry for: {:?}", primary_key).as_str(),
-            ))?
+        // Look for existing entry or return "no hit".
+        let entry = match message.fields_for_key.get(primary_key) {
+            Some(v) => v,
+            None => return Ok(None),
         };
 
         let now = SystemTime::now();
@@ -155,16 +154,13 @@ impl Broker {
         let primary_key: Value;
         {
             let cached = self.get_entry(&name)?;
-            primary_key = fields
-                .map
-                .get(&cached.primary_key)
-                .ok_or(ServiceError::new(
-                    format!("no primary key entry: {}", cached.primary_key).as_str(),
-                ))?
-                .to_owned()
-                .ok_or(ServiceError::new(
+            let prim_key_opt = fields.map.get(&cached.primary_key);
+            primary_key = match prim_key_opt {
+                Some(v) => v.to_owned().ok_or(ServiceError::new(
                     format!("no value for primary key entry: {}", cached.primary_key).as_str(),
-                ))?;
+                ))?,
+                None => return Ok(()),
+            };
             let fields = self.filter_fields(&fields, &cached.value().message)?;
             {
                 let mut output = protobuf::CodedOutputStream::new(&mut buf);
@@ -196,7 +192,7 @@ impl Broker {
                         continue;
                     }
                 }
-                None => todo!(),
+                None => return Ok(fields.to_owned()),
             }
             match value {
                 Value::Message(fields) => {

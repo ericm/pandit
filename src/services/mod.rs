@@ -407,6 +407,7 @@ impl Service {
 
     pub async fn send_proto_to_local(
         &mut self,
+        service_name: &String,
         method: &String,
         data: &[u8],
     ) -> ServiceResult<bytes::Bytes> {
@@ -432,7 +433,7 @@ impl Service {
         };
         let cached = {
             let broker = self.broker.read().await;
-            broker.probe_cache(&self.name, method.key(), &primary_key, ".".to_string())?
+            broker.probe_cache(&service_name, method.key(), &primary_key, ".".to_string())?
         };
 
         let resp_fields = match cached {
@@ -448,7 +449,7 @@ impl Service {
                     .ok_or(ServiceError::new(
                         format!(
                             "unable to find handler or default handler for {}.{}",
-                            self.name,
+                            service_name,
                             method.key()
                         )
                         .as_str(),
@@ -468,7 +469,7 @@ impl Service {
         }
         {
             let mut broker = self.broker.write().await;
-            broker.publish_cache(&self.name, method.key(), resp_fields)?;
+            broker.publish_cache(&service_name, method.key(), resp_fields)?;
         }
 
         let buf = buf.into_inner();
@@ -569,7 +570,11 @@ mod tests {
             0x08, 0x96, 0x01, // Field varint
         ];
         let resp = service
-            .send_proto_to_local(&"GetExample".to_string(), buf)
+            .send_proto_to_local(
+                &"ExampleService".to_string(),
+                &"GetExample".to_string(),
+                buf,
+            )
             .await
             .unwrap();
         assert_eq!(
