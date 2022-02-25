@@ -170,7 +170,7 @@ impl Broker {
             }
         }
         let buf = buf.into_inner();
-        let to_publish = (primary_key, buf);
+        let to_publish = serde_json::to_vec(&(primary_key, buf))?;
         self.conn.publish(name, to_publish)?;
         Ok(())
     }
@@ -247,7 +247,8 @@ impl Broker {
         match self.method_fields_map.get_mut(&name) {
             Some(mut v) => {
                 let cached = v.value_mut();
-                let (primary_key, payload) = msg.get_payload::<(Value, Vec<u8>)>()?;
+                let (primary_key, payload): (Value, Vec<u8>) =
+                    serde_json::from_slice(msg.get_payload_bytes())?;
                 let fields_map = cached.fields_for_key.clone();
                 let cached_fields = CachedFields {
                     fields: cached.message.fields_from_bytes(&payload[..])?,
