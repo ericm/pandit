@@ -55,12 +55,32 @@ impl Server for IntraServer {
     async fn serve(&self, socket: TcpStream) -> Result<(), Box<dyn Error + Send + Sync + '_>> {
         let mut conn = server::handshake(socket).await?;
         while let Some(result) = conn.accept().await {
-            let (req, resp) = result?;
+            let (req, mut send_resp) = result?;
             let services = self.services.clone();
             tokio::spawn(async move {
-                if let Err(e) = IntraServer::handle_request(services, req, resp).await {
-                    println!("error handling request: {}", e);
+                let response = http::Response::new(());
+                let mut trailers = HeaderMap::new();
+                let resp_raw = IntraServer::handle_request(services, req).await;
+
+                let mut send = send_resp.send_response(response, false).unwrap();
+                match resp_raw {
+                    Ok(payload) => {
+                        trailers.insert("grpc-status", HeaderValue::from(0i16));
+                        send.send_data(payload, false).unwrap();
+                    }
+                    Err(err) => {
+                        trailers.insert("grpc-status", HeaderValue::from(13i16));
+                        trailers.insert(
+                            "grpc-message",
+                            HeaderValue::try_from(format!(
+                                "an internal error occurred in pandit: {:?}",
+                                err
+                            ))
+                            .unwrap(),
+                        );
+                    }
                 }
+                send.send_trailers(trailers).unwrap();
             });
         }
         Ok(())
@@ -75,8 +95,7 @@ impl IntraServer {
     async fn handle_request(
         services: Arc<services::Services>,
         mut request: Request<RecvStream>,
-        mut respond: SendResponse<Bytes>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<Bytes, Box<dyn Error>> {
         let body = request.body_mut();
         let data: Vec<u8> = body
             .data()
@@ -110,28 +129,11 @@ impl IntraServer {
         let resp_raw = service
             .send_proto_to_local(&service_name, &method.to_string(), &data[..])
             .await;
-        let (resp_code, resp_payload) = match resp_raw {
-            Ok(v) => (0, v),
-            Err(err) => (
-                13,
-                bytes::Bytes::from(format!("an error occured sending the payload: {:?}", err)),
-            ),
-        };
-        let response = http::Response::new(());
-        let mut trailers = HeaderMap::new();
-        trailers.insert("grpc-status", HeaderValue::from(resp_code));
-
-        let mut send = respond.send_response(response, false)?;
-        if resp_code == 0 {
-            send.send_data(resp_payload, false)?;
-        } else {
-            trailers.insert(
-                "grpc-message",
-                HeaderValue::try_from(String::from_utf8(resp_payload.to_vec())?)?,
-            );
+        match resp_raw {
+            Ok(v) => Ok(v),
+            Err(err) => Err(ServiceError::new(
+                format!("an error occured sending the payload: {:?}", err).as_str(),
+            )),
         }
-        send.send_trailers(trailers)?;
-
-        Ok(())
     }
 }

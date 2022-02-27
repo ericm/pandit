@@ -86,6 +86,7 @@ impl Message {
     pub fn fields_from_bytes(&self, buf: &[u8]) -> ServiceResult<Fields> {
         use std::convert::TryInto;
         let mut input = CodedInputStream::from_bytes(buf);
+        input.read_raw_bytes(4)?; // Pop gRPC header.
         self.fields_from_bytes_delimited(&mut input, buf.len().try_into()?)
     }
 
@@ -110,6 +111,15 @@ impl Message {
     }
 
     pub fn write_bytes_from_fields(
+        &self,
+        output: &mut protobuf::CodedOutputStream,
+        fields: &Fields,
+    ) -> protobuf::ProtobufResult<()> {
+        output.write_raw_bytes(&[0, 0, 0, 0])?; // Prepend gRPC header.
+        self._write_bytes_from_fields(output, fields)
+    }
+
+    fn _write_bytes_from_fields(
         &self,
         output: &mut protobuf::CodedOutputStream,
         fields: &Fields,
@@ -479,7 +489,7 @@ impl Message {
 
                             {
                                 let mut sub_output = protobuf::CodedOutputStream::new(&mut buf);
-                                other_message.write_bytes_from_fields(&mut sub_output, &item)?;
+                                other_message._write_bytes_from_fields(&mut sub_output, &item)?;
                             }
 
                             let buf = buf.into_inner();
@@ -501,7 +511,7 @@ impl Message {
                                         let mut sub_output =
                                             protobuf::CodedOutputStream::new(&mut buf);
                                         other_message
-                                            .write_bytes_from_fields(&mut sub_output, &item)?;
+                                            ._write_bytes_from_fields(&mut sub_output, &item)?;
                                     }
 
                                     let buf = buf.into_inner();
@@ -839,6 +849,7 @@ mod message_tests {
         ];
 
         let buf: &[u8] = &[
+            0, 0, 0, 0, // gRPC header.
             0x08, 0x96, 0x01, // Field varint
             0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67, // Field string
             0x1a, 0x03, 0x08, 0x96, 0x01, // Embedded message
