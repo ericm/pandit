@@ -1,5 +1,5 @@
 #![feature(destructuring_assignment)]
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::error::Error;
 use std::sync::Arc;
 
@@ -65,8 +65,20 @@ impl Server for IntraServer {
                 let mut send = send_resp.send_response(response, false).unwrap();
                 match resp_raw {
                     Ok(payload) => {
+                        let mut payload = payload.to_vec();
+                        let payload_len: u32 = (payload.len() - 5).try_into().unwrap();
+
+                        // Write payload length to gRPC header.
+                        let grpc_header = payload_len.to_be_bytes();
+                        let mut grpc_header = grpc_header.iter();
+                        let header = payload[1..5].as_mut();
+                        for byte in header.iter_mut() {
+                            *byte = *grpc_header.next().unwrap();
+                        }
+
                         trailers.insert("grpc-status", HeaderValue::from(0i16));
-                        send.send_data(payload, false).unwrap();
+                        send.send_data(Bytes::copy_from_slice(&payload[..]), false)
+                            .unwrap();
                     }
                     Err(err) => {
                         trailers.insert("grpc-status", HeaderValue::from(13i16));

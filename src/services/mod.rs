@@ -567,7 +567,7 @@ mod tests {
             .sub_service(&"ExampleService".to_string(), &service)
             .unwrap();
         let buf: &[u8] = &[
-            0, 0, 0, 0, // gRPC header.
+            0, 0, 0, 0, 0, // gRPC header.
             0x08, 0x96, 0x01, // Field varint
         ];
         let resp = service
@@ -581,7 +581,7 @@ mod tests {
         assert_eq!(
             resp,
             bytes::Bytes::from_static(&[
-                0, 0, 0, 0, // gRPC header.
+                0, 0, 0, 0, 0, // gRPC header.
                 0x08, 0x01, // Field varint
             ])
         );
