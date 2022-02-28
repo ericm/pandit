@@ -36,7 +36,7 @@ use crate::server::Server;
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::TRACE)
+        .with_max_level(Level::ERROR)
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
@@ -44,7 +44,7 @@ async fn main() {
 
     let cfg = services::new_config(app.get_matches().value_of("config").unwrap());
     let broker = Broker::connect(cfg.clone()).unwrap();
-    let broker = Arc::new(RwLock::new(broker));
+    let broker = Arc::new(broker);
 
     let intra_server = {
         let server = IntraServer::default();
@@ -81,6 +81,17 @@ async fn main() {
         .unwrap();
     server.start();
     start_services(&cfg);
+
+    tokio::spawn(async move {
+        loop {
+            match broker.receive().await {
+                Ok(_) => {
+                    println!("p");
+                }
+                Err(err) => eprintln!("error interfacing with broker: {:?}", err),
+            }
+        }
+    });
 
     let ctrlc_fut = async {
         ctrl_c().await.unwrap();

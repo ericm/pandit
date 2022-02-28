@@ -1,10 +1,11 @@
 use std::collections::LinkedList;
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use access_json::JSONQuery;
 use dashmap::mapref::one::Ref;
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
+use futures::StreamExt;
 use protobuf::well_known_types::Field;
 use redis::cluster::ClusterClient;
 use redis::{Client, Commands, Connection, PubSubCommands};
@@ -47,10 +48,9 @@ impl CachedMessage {
 }
 
 pub struct Broker {
-    cfg: config::Config,
     client: Client,
-    conn: Connection,
     method_fields_map: Arc<DashMap<String, CachedMessage>>,
+    subbed: Arc<DashSet<String>>,
 }
 
 impl Broker {
@@ -63,10 +63,9 @@ impl Broker {
             pubsub.subscribe("services")?;
         }
         Ok(Self {
-            cfg,
             client,
-            conn,
             method_fields_map: Arc::new(Default::default()),
+            subbed: Arc::new(DashSet::new()),
         })
     }
 
@@ -75,7 +74,6 @@ impl Broker {
         service_name: &String,
         method_name: &String,
         primary_key: &Value,
-        path: String,
     ) -> ServiceResult<Option<Fields>> {
         let name = format!("{}_{}", service_name, method_name);
         let val = self.get_entry(&name)?;
@@ -96,29 +94,23 @@ impl Broker {
         if diff.as_secs() > cached.cache_time {
             return Ok(None);
         }
-        let parse = JSONQuery::parse(path.as_str())?;
-        let res = parse.execute(&entry.fields)?;
-        match res {
-            Some(val) => {
-                let fields: Fields = serde_json::value::from_value(val)?;
-                Ok(Some(fields))
-            }
-            None => Ok(None),
-        }
+        Ok(Some(entry.fields.clone()))
     }
 
     pub fn sub_service(
-        &mut self,
+        &self,
         name: &String,
         service: &crate::services::Service,
     ) -> ServiceResult<()> {
-        let mut pubsub = self.conn.as_pubsub();
+        let mut conn = self.client.get_connection()?;
+        let mut pubsub = conn.as_pubsub();
         for method in service.methods.iter() {
             let message = service
                 .messages
                 .get(&method.value().output_message)
                 .unwrap();
             let name = format!("{}_{}", name.clone(), method.key());
+            let sub_name = format!("service_{}", name.clone());
             self.method_fields_map.insert(
                 name,
                 CachedMessage {
@@ -135,19 +127,20 @@ impl Broker {
                     fields_for_key: Arc::new(DashMap::new()),
                 },
             );
+            self.subbed.insert(sub_name.clone());
+            pubsub.subscribe(sub_name)?;
         }
-        let name = format!("service_{}", name.clone());
-        pubsub.subscribe(name)?;
         Ok(())
     }
 
-    pub fn publish_cache(
-        &mut self,
+    pub async fn publish_cache(
+        &self,
         service_name: &String,
         method_name: &String,
         fields: Fields,
     ) -> ServiceResult<()> {
         let name = format!("{}_{}", service_name, method_name);
+        let service_name = format!("service_{}", name.clone());
         let buf: Vec<u8> = Vec::with_capacity(1000);
         use bytes::BufMut;
         let mut buf = buf.writer();
@@ -171,7 +164,10 @@ impl Broker {
         }
         let buf = buf.into_inner();
         let to_publish = serde_json::to_vec(&(primary_key, buf))?;
-        self.conn.publish(name, to_publish)?;
+
+        let mut pubsub = self.client.get_async_connection().await?;
+        use redis::AsyncCommands;
+        pubsub.publish(service_name, to_publish).await?;
         Ok(())
     }
 
@@ -219,29 +215,36 @@ impl Broker {
         ))
     }
 
-    pub fn receive(&mut self) -> ServiceResult<()> {
-        loop {
-            let msg = {
-                let mut pubsub = self.conn.as_pubsub();
-                pubsub.get_message()
-            }?;
-            match msg.get_channel_name() {
-                "services" => {}
-                name => match self.parse_service_fields(name, &msg) {
-                    Ok(_) => continue,
-                    Err(err) => {
-                        eprintln!(
-                            "error occured parsing service with name {}: {:?}",
-                            name, err
-                        );
-                    }
-                },
+    pub async fn receive(&self) -> ServiceResult<()> {
+        let msg = {
+            let pubsub = self.client.get_async_connection().await?;
+            let mut pubsub = pubsub.into_pubsub();
+            for service in self.subbed.iter() {
+                let service = service.clone();
+                pubsub.subscribe(service).await?;
             }
+            let mut on_msg = pubsub.on_message();
+            match on_msg.next().await {
+                Some(v) => v,
+                None => return Ok(()),
+            }
+        };
+        match msg.get_channel_name() {
+            "services" => {}
+            name => match self.parse_service_fields(name, &msg) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!(
+                        "error occured parsing service with name {}: {:?}",
+                        name, err
+                    );
+                }
+            },
         }
         Ok(())
     }
 
-    fn parse_service_fields(&mut self, name: &str, msg: &redis::Msg) -> ServiceResult<()> {
+    fn parse_service_fields(&self, name: &str, msg: &redis::Msg) -> ServiceResult<()> {
         let name = name.to_string();
         let name = name.trim_start_matches("service_").to_string();
         match self.method_fields_map.get_mut(&name) {

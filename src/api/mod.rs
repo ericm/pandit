@@ -20,7 +20,7 @@ use crate::services::ServiceResult;
 use crate::writers::writer_from_proto;
 
 pub struct ApiServer {
-    broker: Arc<RwLock<Broker>>,
+    broker: Arc<Broker>,
     server: Arc<RwLock<IntraServer>>,
 }
 
@@ -67,7 +67,7 @@ impl Clone for ApiServer {
 }
 
 impl ApiServer {
-    pub fn new(broker: Arc<RwLock<Broker>>, server: Arc<RwLock<IntraServer>>) -> Self {
+    pub fn new(broker: Arc<Broker>, server: Arc<RwLock<IntraServer>>) -> Self {
         Self { broker, server }
     }
 
@@ -107,7 +107,6 @@ impl ApiServer {
         let name = req.name.clone();
         ctx.spawn(async move {
             {
-                let mut broker = broker.write().await;
                 broker.sub_service(&name, &service).unwrap();
             }
             {

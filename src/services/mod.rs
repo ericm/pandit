@@ -225,7 +225,7 @@ pub struct Service {
     pub writer: WriterRef,
     pub default_handler: Option<Arc<dyn Handler + Sync + Send + 'static>>,
     pub default_cache: base::CacheOptions,
-    pub broker: Arc<RwLock<Broker>>,
+    pub broker: Arc<Broker>,
 }
 
 impl Service {
@@ -233,7 +233,7 @@ impl Service {
         path: &str,
         include: &[&str],
         writer: WriterRef,
-        broker: Arc<RwLock<Broker>>,
+        broker: Arc<Broker>,
     ) -> Result<Self, ServiceError> {
         let path_buf = &PathBuf::from(path);
         let include: Vec<PathBuf> = include.iter().map(|v| PathBuf::from(v)).collect();
@@ -273,7 +273,7 @@ impl Service {
     fn get_service_attrs_base(
         file: &protobuf::descriptor::FileDescriptorProto,
         writer: WriterRef,
-        broker: Arc<RwLock<Broker>>,
+        broker: Arc<Broker>,
         service: &protobuf::descriptor::ServiceDescriptorProto,
     ) -> Result<Self, ServiceError> {
         use proto::gen::pandit::exts;
@@ -432,8 +432,8 @@ impl Service {
             ))?
         };
         let cached = {
-            let broker = self.broker.read().await;
-            broker.probe_cache(&service_name, method.key(), &primary_key, ".".to_string())?
+            self.broker
+                .probe_cache(&service_name, method.key(), &primary_key)?
         };
 
         let resp_fields = match cached {
@@ -468,8 +468,9 @@ impl Service {
             message.write_bytes_from_fields(&mut output, &resp_fields)?;
         }
         {
-            let mut broker = self.broker.write().await;
-            broker.publish_cache(&service_name, method.key(), resp_fields)?;
+            self.broker
+                .publish_cache(&service_name, method.key(), resp_fields)
+                .await?;
         }
 
         let buf = buf.into_inner();
@@ -554,7 +555,7 @@ mod tests {
         };
         let writer_ref = Box::new(Mutex::new(writer));
         let broker = Broker::connect(Default::default()).unwrap();
-        let broker = Arc::new(RwLock::new(broker));
+        let broker = Arc::new(broker);
         let mut service = Service::from_file(
             "./src/proto/examples/example1.proto",
             &["./src/proto"],
@@ -562,7 +563,6 @@ mod tests {
             broker.clone(),
         )
         .unwrap();
-        let mut broker = broker.write().await;
         broker
             .sub_service(&"ExampleService".to_string(), &service)
             .unwrap();

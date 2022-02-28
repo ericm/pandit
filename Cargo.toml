@@ -40,7 +40,7 @@ dashmap = "4.0.2"
 protobuf = { git = "https://github.com/stepancheg/rust-protobuf.git", tag="v3.0.0-alpha.2", features = ["with-serde"] }
 protoc-rust = "2.25.2"
 protobuf-parse = { git = "https://github.com/stepancheg/rust-protobuf.git", tag="v3.0.0-alpha.2" }
-redis = { version = "0.21.5", features = [ "cluster"] }
+redis = { version = "0.21.5", features = [ "cluster", "tokio-comp"] }
 
 [[bin]]
 name = "pandit"
