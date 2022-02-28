@@ -85,9 +85,7 @@ async fn main() {
     tokio::spawn(async move {
         loop {
             match broker.receive().await {
-                Ok(_) => {
-                    println!("p");
-                }
+                Ok(_) => {}
                 Err(err) => eprintln!("error interfacing with broker: {:?}", err),
             }
         }

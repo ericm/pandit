@@ -147,7 +147,6 @@ impl Message {
                 wire_type: protobuf::wire_format::WireType,
             ) -> protobuf::ProtobufResult<()> {
                 let num = u32::try_from(field.get_number()).unwrap();
-                println!("write_value {} {}", field.get_name(), num);
                 output.write_tag(num, wire_type)?;
                 write(output, value)
             }
@@ -161,7 +160,6 @@ impl Message {
                 extract_value: fn(Value) -> protobuf::ProtobufResult<T>,
             ) -> protobuf::ProtobufResult<()> {
                 let num = u32::try_from(field.get_number()).unwrap();
-                println!("write_value {} {}", field.get_name(), num);
                 output.write_tag(num, protobuf::wire_format::WireTypeLengthDelimited)?;
                 output.write_raw_varint64(u64::try_from(value.len()).unwrap())?;
                 for item in value {
@@ -171,7 +169,6 @@ impl Message {
             }
 
             let field = &field.descriptor;
-            println!("match {} {:?}", field.get_name(), value);
             match field.get_field_type() {
                 TYPE_DOUBLE => match value {
                     Value::Float(v) => write_value(

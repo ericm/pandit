@@ -8,7 +8,8 @@ use dashmap::{DashMap, DashSet};
 use futures::StreamExt;
 use protobuf::well_known_types::Field;
 use redis::cluster::ClusterClient;
-use redis::{Client, Commands, Connection, PubSubCommands};
+use redis::{Client, Commands, Connection, Msg, PubSubCommands};
+use tokio::time::sleep;
 
 use crate::services::base::CacheOptions;
 use crate::services::value::Value;
@@ -219,15 +220,25 @@ impl Broker {
         let msg = {
             let pubsub = self.client.get_async_connection().await?;
             let mut pubsub = pubsub.into_pubsub();
-            for service in self.subbed.iter() {
-                let service = service.clone();
-                pubsub.subscribe(service).await?;
+            let msg: Msg;
+            loop {
+                for service in self.subbed.iter() {
+                    let service = service.clone();
+                    pubsub.subscribe(service).await?;
+                }
+                let mut on_msg = pubsub.on_message();
+                msg = tokio::select! {
+                    v = on_msg.next() => match v {
+                        Some(v) => v,
+                        None => return Ok(()),
+                    },
+                    _ = sleep(Duration::from_secs(30)) => {
+                        continue;
+                    },
+                };
+                break;
             }
-            let mut on_msg = pubsub.on_message();
-            match on_msg.next().await {
-                Some(v) => v,
-                None => return Ok(()),
-            }
+            msg
         };
         match msg.get_channel_name() {
             "services" => {}
