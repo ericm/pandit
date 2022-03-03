@@ -11,7 +11,8 @@ pub mod services;
 pub mod writers;
 
 use api_proto::api_grpc::create_api;
-use clap;
+use bollard::Docker;
+use clap::Parser;
 use grpcio::ChannelBuilder;
 use grpcio::EnvBuilder;
 use grpcio::Environment;
@@ -33,6 +34,18 @@ use crate::broker::Broker;
 use crate::server::IntraServer;
 use crate::server::Server;
 
+#[derive(Parser)]
+#[clap(author, version, about, long_about = None)]
+#[clap(propagate_version = true)]
+struct Args {
+    #[clap(short, long, default_value = "./.pandit.yml")]
+    config: String,
+    #[clap(short, long)]
+    docker: bool,
+    #[clap(short, long)]
+    k8s: bool,
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let subscriber = FmtSubscriber::builder()
@@ -40,9 +53,13 @@ async fn main() {
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
-    let app = new_app();
+    let app: Args = Parser::parse();
 
-    let cfg = services::new_config(app.get_matches().value_of("config").unwrap());
+    if app.docker {
+        let docker = Docker::connect_with_socket_defaults().unwrap();
+    }
+
+    let cfg = services::new_config(app.config.as_str());
     let broker = Broker::connect(cfg.clone()).unwrap();
     let broker = Arc::new(broker);
 
@@ -135,16 +152,4 @@ fn start_services(cfg: &config::Config) {
             client.start_service(&req).unwrap();
         }
     }
-}
-
-fn new_app() -> clap::App<'static, 'static> {
-    clap::App::new("pandit-server")
-        .version("1.0")
-        .author("Eric Moynihan")
-        .about("Pandit CLI")
-        .arg(
-            clap::Arg::with_name("config")
-                .short("c")
-                .default_value("./.pandit.yml"),
-        )
 }

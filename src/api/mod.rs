@@ -5,6 +5,10 @@ use std::sync::Arc;
 
 use api_proto::api;
 use api_proto::api_grpc;
+use async_trait::async_trait;
+use bollard::network::ConnectNetworkOptions;
+use bollard::network::CreateNetworkOptions;
+use bollard::Docker;
 use dashmap::DashMap;
 use grpcio::RpcStatus;
 use grpcio::RpcStatusCode;
@@ -127,4 +131,45 @@ fn proto_libraries() -> [(&'static str, &'static [u8]); 3] {
             include_bytes!("../proto/format/http.proto"),
         ),
     ]
+}
+
+#[async_trait]
+pub trait NetworkRuntime {
+    async fn create_network(&self, name: String) -> ServiceResult<String>;
+}
+
+pub struct DockerNetworkRuntime {
+    client: Docker,
+}
+
+#[async_trait]
+impl NetworkRuntime for DockerNetworkRuntime {
+    async fn create_network(&self, container_id: String) -> ServiceResult<String> {
+        let mut cfg = CreateNetworkOptions::<String>::default();
+        let network_name = format!("pandit_network_{}", container_id);
+        cfg.name = network_name.clone();
+        self.client.create_network(cfg).await?;
+
+        let mut cfg = ConnectNetworkOptions::<String>::default();
+        cfg.container = container_id.clone();
+        self.client
+            .connect_network(network_name.as_str(), cfg)
+            .await?;
+
+        let id = hostname::get()?.to_str().unwrap_or_default().to_string();
+        let mut cfg = ConnectNetworkOptions::<String>::default();
+        cfg.container = id;
+        self.client
+            .connect_network(network_name.as_str(), cfg)
+            .await?;
+
+        let network = self
+            .client
+            .inspect_network::<String>(network_name.as_str(), None)
+            .await?;
+        let containers = network.containers.as_ref().unwrap();
+        let container_network = containers.get(&container_id).unwrap();
+
+        Ok(container_network.ipv4_address.clone().unwrap())
+    }
 }
