@@ -142,6 +142,12 @@ pub struct DockerNetworkRuntime {
     client: Docker,
 }
 
+impl DockerNetworkRuntime {
+    pub fn new(client: Docker) -> Self {
+        Self { client }
+    }
+}
+
 #[async_trait]
 impl NetworkRuntime for DockerNetworkRuntime {
     async fn create_network(&self, container_id: String) -> ServiceResult<String> {

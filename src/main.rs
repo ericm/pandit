@@ -30,6 +30,8 @@ use tracing::{error, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use crate::api::ApiServer;
+use crate::api::DockerNetworkRuntime;
+use crate::api::NetworkRuntime;
 use crate::broker::Broker;
 use crate::server::IntraServer;
 use crate::server::Server;
@@ -55,9 +57,15 @@ async fn main() {
 
     let app: Args = Parser::parse();
 
-    if app.docker {
+    let network_runtime: Option<Arc<dyn NetworkRuntime>> = if app.docker {
         let docker = Docker::connect_with_socket_defaults().unwrap();
-    }
+        Some(Arc::new(DockerNetworkRuntime::new(docker)))
+    } else if app.k8s {
+        // let k8s =
+        None
+    } else {
+        None
+    };
 
     let cfg = services::new_config(app.config.as_str());
     let broker = Broker::connect(cfg.clone()).unwrap();
