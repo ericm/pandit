@@ -1,4 +1,4 @@
 [service]
 name = "ExampleService"
 proto = "example1"
-address = "localhost:8080"
+port = 8080

@@ -5,12 +5,22 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-            "name": "Launch",
+            "name": "Basic",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceRoot}/target/debug/foo",
+            "program": "${workspaceRoot}/target/debug/pandit",
             "args": [],
             "cwd": "${workspaceRoot}",
+            "preLaunchTask": "build"
+        },
+		{
+            "name": "Docker",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceRoot}/target/debug/pandit",
+            "args": ["--docker"],
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": "build",
         }
-	]
+	],
 }

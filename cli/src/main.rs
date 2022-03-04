@@ -54,7 +54,8 @@ fn main() {
             let mut proto = Vec::<u8>::new();
             panditfile.read_to_end(&mut proto).unwrap();
             req.set_proto(proto);
-            req.set_addr(cfg.get_string("service.address").unwrap());
+            req.set_port(cfg.get_int("service.port").unwrap().try_into().unwrap());
+            req.set_container_id(cfg.get_string("service.container").unwrap_or_default());
             let name = cfg.get_string("service.name").unwrap();
             req.set_name(name.clone());
 

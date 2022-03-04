@@ -50,10 +50,8 @@ redis = { version = "0.21.5", features = [ "cluster", "tokio-comp"] }
 [[bin]]
 name = "pandit"
 path = "src/main.rs"
-required-features = ["kernel5_8"]  # bpf iterator has been supported since kernel v5.8
 
 [features]
-kernel5_8 = []
 with-serde = ["protobuf/with-serde"]
 
 # [workspace]
