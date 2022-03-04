@@ -87,7 +87,11 @@ async fn main() {
         server
     };
 
-    let api_service = create_api(ApiServer::new(broker.clone(), intra_server.clone()));
+    let api_service = create_api(ApiServer::new(
+        broker.clone(),
+        intra_server.clone(),
+        network_runtime,
+    ));
 
     let env = Arc::new(Environment::new(1));
     let quota = ResourceQuota::new(Some("ApiServerQuota")).resize_memory(1024 * 1024);
@@ -144,7 +148,13 @@ fn start_services(cfg: &config::Config) {
         {
             use std::convert::TryFrom;
             let name = save.get("name").unwrap().as_str().unwrap().to_string();
-            let addr = save.get("addr").unwrap().as_str().unwrap().to_string();
+            let port: i32 = save
+                .get("port")
+                .unwrap()
+                .as_i64()
+                .unwrap()
+                .try_into()
+                .unwrap();
             let proto: Vec<u8> = save
                 .get("proto")
                 .unwrap()
@@ -153,10 +163,17 @@ fn start_services(cfg: &config::Config) {
                 .iter()
                 .map(|v| u8::try_from(v.as_u64().unwrap()).unwrap())
                 .collect();
+            let container_id = save
+                .get("container_id")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string();
             let mut req = api_proto::api::StartServiceRequest::new();
             req.set_proto(proto);
-            req.set_addr(addr);
+            req.set_port(port);
             req.set_name(name);
+            req.set_container_id(container_id);
             client.start_service(&req).unwrap();
         }
     }

@@ -2,6 +2,7 @@ use std::env::current_dir;
 use std::fs::create_dir;
 use std::fs::File;
 use std::sync::Arc;
+use std::time::Duration;
 
 use api_proto::api;
 use api_proto::api_grpc;
@@ -9,6 +10,7 @@ use async_trait::async_trait;
 use bollard::network::ConnectNetworkOptions;
 use bollard::network::CreateNetworkOptions;
 use bollard::Docker;
+use crossbeam_channel;
 use dashmap::DashMap;
 use grpcio::RpcStatus;
 use grpcio::RpcStatusCode;
@@ -26,6 +28,7 @@ use crate::writers::writer_from_proto;
 pub struct ApiServer {
     broker: Arc<Broker>,
     server: Arc<RwLock<IntraServer>>,
+    network: Option<Arc<dyn NetworkRuntime>>,
 }
 
 impl api_grpc::Api for ApiServer {
@@ -35,12 +38,36 @@ impl api_grpc::Api for ApiServer {
         req: api::StartServiceRequest,
         sink: grpcio::UnarySink<api::StartServiceReply>,
     ) {
-        match self.handle_start_service(&ctx, &req) {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        match self.network.clone() {
+            Some(nw) => {
+                let container_id = req.container_id.clone();
+                ctx.spawn(async move {
+                    nw.create_network(container_id, tx).await.unwrap();
+                });
+            }
+            None => {
+                tx.send("127.0.0.1".to_string()).unwrap();
+            }
+        }
+        let host = match rx.recv_timeout(Duration::from_secs(30)) {
+            Ok(v) => v,
+            Err(err) => {
+                sink.fail(RpcStatus::with_message(
+                    RpcStatusCode::INTERNAL,
+                    format!("an error occurred creating the network: {}", err),
+                ));
+                return;
+            }
+        };
+        let addr = format!("{}:{}", host, req.port);
+        match self.handle_start_service(&ctx, &req, &addr) {
             Ok(_) => {
                 let save = serde_json::json!({
                     "name": req.name.clone(),
                     "proto": req.proto.clone(),
-                    "addr": req.addr.clone(),
+                    "port": req.port.clone(),
+                    "container_id":req.container_id.clone(),
                 });
                 let save = serde_json::to_vec(&save).unwrap();
                 let mut save_file_path = current_dir().unwrap().join(req.name);
@@ -66,13 +93,22 @@ impl Clone for ApiServer {
         Self {
             broker: self.broker.clone(),
             server: self.server.clone(),
+            network: self.network.clone(),
         }
     }
 }
 
 impl ApiServer {
-    pub fn new(broker: Arc<Broker>, server: Arc<RwLock<IntraServer>>) -> Self {
-        Self { broker, server }
+    pub fn new(
+        broker: Arc<Broker>,
+        server: Arc<RwLock<IntraServer>>,
+        network: Option<Arc<dyn NetworkRuntime>>,
+    ) -> Self {
+        Self {
+            broker,
+            server,
+            network,
+        }
     }
 
     #[inline(always)]
@@ -80,6 +116,7 @@ impl ApiServer {
         &mut self,
         ctx: &grpcio::RpcContext,
         req: &api::StartServiceRequest,
+        addr: &String,
     ) -> ServiceResult<()> {
         let proto_dir = tempdir()?;
         create_dir(proto_dir.path().join("format"))?;
@@ -101,7 +138,7 @@ impl ApiServer {
             writer_from_proto(
                 proto_path.clone(),
                 &[proto_dir.path().to_path_buf()],
-                req.addr.as_str(),
+                addr.as_str(),
             )?,
             self.broker.clone(),
         )?;
@@ -134,8 +171,12 @@ fn proto_libraries() -> [(&'static str, &'static [u8]); 3] {
 }
 
 #[async_trait]
-pub trait NetworkRuntime {
-    async fn create_network(&self, name: String) -> ServiceResult<String>;
+pub trait NetworkRuntime: Send + Sync {
+    async fn create_network(
+        &self,
+        container_id: String,
+        tx: crossbeam_channel::Sender<String>,
+    ) -> ServiceResult<()>;
 }
 
 pub struct DockerNetworkRuntime {
@@ -150,7 +191,11 @@ impl DockerNetworkRuntime {
 
 #[async_trait]
 impl NetworkRuntime for DockerNetworkRuntime {
-    async fn create_network(&self, container_id: String) -> ServiceResult<String> {
+    async fn create_network(
+        &self,
+        container_id: String,
+        tx: crossbeam_channel::Sender<String>,
+    ) -> ServiceResult<()> {
         let mut cfg = CreateNetworkOptions::<String>::default();
         let network_name = format!("pandit_network_{}", container_id);
         cfg.name = network_name.clone();
@@ -176,6 +221,7 @@ impl NetworkRuntime for DockerNetworkRuntime {
         let containers = network.containers.as_ref().unwrap();
         let container_network = containers.get(&container_id).unwrap();
 
-        Ok(container_network.ipv4_address.clone().unwrap())
+        tx.send(container_network.ipv4_address.clone().unwrap())?;
+        Ok(())
     }
 }

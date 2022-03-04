@@ -7,13 +7,11 @@ service API {
   rpc StartService(StartServiceRequest) returns (StartServiceReply) {}
 }
 
-message DockerNetwork { string container_id = 1; }
-
 message StartServiceRequest {
   string name = 1;
   bytes proto = 2;
   int32 port = 3;
-  oneof network { DockerNetwork docker_network = 4; }
+  string container_id = 4;
 }
 
 message StartServiceReply {}
