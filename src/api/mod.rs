@@ -11,6 +11,7 @@ use async_trait::async_trait;
 use bollard::models::Network;
 use bollard::network::ConnectNetworkOptions;
 use bollard::network::CreateNetworkOptions;
+use bollard::network::DisconnectNetworkOptions;
 use bollard::Docker;
 use crossbeam_channel;
 use dashmap::DashMap;
@@ -249,7 +250,12 @@ impl DockerNetworkRuntime {
                 .iter()
                 .find(|v| v.name == Some(network_name.clone()));
             if let Some(network) = network {
-                return self.get_ipv4(network, &container_id).await;
+                return self
+                    .get_ipv4(
+                        network.name.as_ref().unwrap_or(&"".to_string()),
+                        &container_id,
+                    )
+                    .await;
             }
         };
 
@@ -257,43 +263,99 @@ impl DockerNetworkRuntime {
         cfg.name = network_name.clone();
         self.client.create_network(cfg).await?;
 
+        self.connect_containers(&network_name, &container_id)
+            .await?;
+
+        self.get_ipv4(&network_name, &container_id).await
+    }
+
+    async fn connect_containers(
+        &self,
+        network_name: &String,
+        container_id: &String,
+    ) -> ServiceResult<()> {
+        let id = hostname::get()?.to_str().unwrap_or_default().to_string();
+        let container_info = self.client.inspect_container(id.as_str(), None).await?;
+        let pandit_name = container_info.name.ok_or("no name for pandit container")?;
+
+        // Disconnect networks just in case.
+        let mut cfg = DisconnectNetworkOptions::<String>::default();
+        cfg.container = pandit_name.clone();
+        match self
+            .client
+            .disconnect_network(network_name.as_str(), cfg)
+            .await
+        {
+            Ok(_) => {
+                println!("disconnected from network: {}", pandit_name);
+            }
+            Err(_) => {}
+        }
+
+        let mut cfg = DisconnectNetworkOptions::<String>::default();
+        cfg.container = container_id.clone();
+        match self
+            .client
+            .disconnect_network(network_name.as_str(), cfg)
+            .await
+        {
+            Ok(_) => {
+                println!("disconnected from network: {}", container_id);
+            }
+            Err(_) => {}
+        }
+
+        // Connect networks.
         let mut cfg = ConnectNetworkOptions::<String>::default();
         cfg.container = container_id.clone();
         self.client
             .connect_network(network_name.as_str(), cfg)
             .await?;
-        let id = hostname::get()?.to_str().unwrap_or_default().to_string();
         let mut cfg = ConnectNetworkOptions::<String>::default();
         cfg.container = id;
         self.client
             .connect_network(network_name.as_str(), cfg)
             .await?;
-
-        let network = self
-            .client
-            .inspect_network::<String>(network_name.as_str(), None)
-            .await?;
-
-        self.get_ipv4(&network, &container_id).await
+        Ok(())
     }
 
-    async fn get_ipv4(&self, network: &Network, container_id: &String) -> ServiceResult<String> {
-        let container_info = self
-            .client
-            .inspect_container(container_id.as_str(), None)
-            .await?;
-        let container_id = container_info.id.ok_or("container has no id")?;
-        let containers = network
-            .containers
-            .as_ref()
-            .ok_or(ServiceError::new("no containers for network"))?;
-        let container_network = containers.get(&container_id).ok_or(ServiceError::new(
-            format!("no container in network called: {}", container_id).as_str(),
-        ))?;
+    async fn get_ipv4(
+        &self,
+        network_name: &String,
+        container_id: &String,
+    ) -> ServiceResult<String> {
+        for _ in 0..2 {
+            let network = self
+                .client
+                .inspect_network::<String>(network_name.as_str(), None)
+                .await?;
+            let container_info = self
+                .client
+                .inspect_container(container_id.as_str(), None)
+                .await?;
+            let container_id = container_info.id.ok_or("container has no id")?;
+            let container_name = container_info.name.ok_or("container has no id")?;
+            let containers = network
+                .containers
+                .as_ref()
+                .ok_or(ServiceError::new("no containers for network"))?;
 
-        Ok(container_network
-            .ipv4_address
-            .clone()
-            .ok_or(ServiceError::new("no ipv4 address for network"))?)
+            let container_network = match containers.get(&container_id) {
+                Some(v) => v,
+                None => {
+                    self.connect_containers(network.name.as_ref().unwrap(), &container_name)
+                        .await?;
+                    continue;
+                }
+            };
+
+            return Ok(container_network
+                .ipv4_address
+                .clone()
+                .ok_or(ServiceError::new("no ipv4 address for network"))?);
+        }
+        Err(ServiceError::new(
+            "get_ipv4 counldnt find the container in the network",
+        ))
     }
 }

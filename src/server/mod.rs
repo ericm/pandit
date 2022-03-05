@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::services::{self, ServiceError};
 use async_trait::async_trait;
 use bytes::Bytes;
+use futures::Future;
 use h2::server::{self, SendResponse};
 use h2::RecvStream;
 use http::{HeaderMap, HeaderValue, Request};
@@ -13,14 +14,21 @@ use protobuf::Message;
 use std::collections::HashMap;
 use tokio;
 use tokio::net::{TcpListener, TcpStream};
+use tokio::signal::ctrl_c;
 use tonic;
 
 #[async_trait]
 pub trait Server {
     async fn run(&self, addr: String) -> Result<(), Box<dyn std::error::Error>> {
-        let listener = TcpListener::bind(addr).await?;
+        println!("gRPC server starting on: {}...", addr);
+        let listener = TcpListener::bind(addr.clone()).await?;
+        println!("gRPC server listening on: {}", addr);
         loop {
-            if let Ok((socket, saddr)) = listener.accept().await {
+            tokio::select! {
+                _ = ctrl_c() => {
+                    return Ok(());
+                },
+               Ok((socket, saddr)) = listener.accept() => {
                 match self.serve(socket).await {
                     Ok(_) => {}
                     Err(e) => {
@@ -31,9 +39,9 @@ pub trait Server {
                         );
                     }
                 }
+               }
             }
         }
-        Ok(())
     }
     async fn serve(&self, socket: TcpStream) -> Result<(), Box<dyn Error + Send + Sync + '_>>;
 }

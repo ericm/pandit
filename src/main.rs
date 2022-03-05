@@ -26,6 +26,7 @@ use std::sync::Arc;
 use tokio;
 use tokio::signal::ctrl_c;
 use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
 use tracing::{error, Level};
 use tracing_subscriber::FmtSubscriber;
 
@@ -78,6 +79,7 @@ async fn main() {
     let broker = Broker::connect(cfg.clone()).unwrap();
     let broker = Arc::new(broker);
 
+    let server_cancelled: JoinHandle<()>;
     let intra_server = {
         let server = IntraServer::default();
         let server = Arc::new(RwLock::new(server));
@@ -86,7 +88,8 @@ async fn main() {
             .unwrap_or("0.0.0.0:50122".to_string());
         {
             let server = server.clone();
-            tokio::spawn(async move {
+
+            server_cancelled = tokio::spawn(async move {
                 let server = server.read().await;
                 server.run(addr).await.unwrap();
             });
@@ -127,11 +130,8 @@ async fn main() {
         }
     });
 
-    let ctrlc_fut = async {
-        ctrl_c().await.unwrap();
-    };
     println!("Hit Ctrl-C to quit");
-    ctrlc_fut.await;
+    server_cancelled.await.unwrap();
 }
 
 fn start_services(cfg: &config::Config) {
