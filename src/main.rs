@@ -59,7 +59,14 @@ async fn main() {
 
     let network_runtime: Option<Arc<dyn NetworkRuntime>> = if app.docker {
         let docker = Docker::connect_with_socket_defaults().unwrap();
-        Some(Arc::new(DockerNetworkRuntime::new(docker)))
+        let client = Arc::new(DockerNetworkRuntime::new(docker));
+        {
+            let client = client.clone();
+            tokio::spawn(async move {
+                client.run().await;
+            });
+        }
+        Some(client)
     } else if app.k8s {
         // let k8s =
         None
@@ -76,7 +83,7 @@ async fn main() {
         let server = Arc::new(RwLock::new(server));
         let addr = cfg
             .get_str("server.address")
-            .unwrap_or("localhost:50122".to_string());
+            .unwrap_or("0.0.0.0:50122".to_string());
         {
             let server = server.clone();
             tokio::spawn(async move {
@@ -99,7 +106,7 @@ async fn main() {
     let mut server = ServerBuilder::new(env)
         .register_service(api_service)
         .bind(
-            "127.0.0.1",
+            "0.0.0.0",
             cfg.get_int("admin.port")
                 .unwrap_or(50121)
                 .try_into()
@@ -128,7 +135,7 @@ async fn main() {
 }
 
 fn start_services(cfg: &config::Config) {
-    let addr = format!("localhost:{}", cfg.get_int("admin.port").unwrap_or(50121));
+    let addr = format!("0.0.0.0:{}", cfg.get_int("admin.port").unwrap_or(50121));
     let env = Arc::new(EnvBuilder::new().build());
     let ch = ChannelBuilder::new(env).connect(addr.as_str());
     let client = api_proto::api_grpc::ApiClient::new(ch);

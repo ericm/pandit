@@ -2,3 +2,4 @@
 name = "ExampleService"
 proto = "example1"
 port = 8080
+container = "pandit-example-1"

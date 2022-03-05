@@ -28,26 +28,6 @@ struct CachedMessage {
     primary_key: String,
 }
 
-impl CachedMessage {
-    // pub fn set_fields_from_bytes(&mut self, buf: &[u8]) -> ServiceResult<()> {
-    //     let fields = self.message.fields_from_bytes(buf)?;
-    //     for (key, value) in fields.map {
-    //         let proto = self.message.fields_by_name.get(&key);
-    //         let proto = proto.ok_or(ServiceError::new(
-    //             format!("no field named: {}", key).as_str(),
-    //         ))?;
-    //         let proto = proto.value();
-    //         let cache = self
-    //             .cache
-    //             .as_ref()
-    //             .or(proto.cache.as_ref())
-    //             .unwrap_or_default();
-    //         if !cache. {}
-    //     }
-    //     Ok(())
-    // }
-}
-
 pub struct Broker {
     client: Client,
     method_fields_map: Arc<DashMap<String, CachedMessage>>,

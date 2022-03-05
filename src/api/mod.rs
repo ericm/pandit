@@ -1,4 +1,5 @@
 use std::env::current_dir;
+use std::error::Error;
 use std::fs::create_dir;
 use std::fs::File;
 use std::sync::Arc;
@@ -7,6 +8,7 @@ use std::time::Duration;
 use api_proto::api;
 use api_proto::api_grpc;
 use async_trait::async_trait;
+use bollard::models::Network;
 use bollard::network::ConnectNetworkOptions;
 use bollard::network::CreateNetworkOptions;
 use bollard::Docker;
@@ -22,6 +24,7 @@ use tokio::sync::RwLock;
 use crate::broker::Broker;
 use crate::server::IntraServer;
 use crate::services::Service;
+use crate::services::ServiceError;
 use crate::services::ServiceResult;
 use crate::writers::writer_from_proto;
 
@@ -38,27 +41,22 @@ impl api_grpc::Api for ApiServer {
         req: api::StartServiceRequest,
         sink: grpcio::UnarySink<api::StartServiceReply>,
     ) {
-        let (tx, rx) = crossbeam_channel::bounded(1);
-        match self.network.clone() {
+        let host = match self.network.clone() {
             Some(nw) => {
                 let container_id = req.container_id.clone();
-                ctx.spawn(async move {
-                    nw.create_network(container_id, tx).await.unwrap();
-                });
+                let host = match nw.create_network(container_id) {
+                    Ok(host) => host,
+                    Err(err) => {
+                        sink.fail(RpcStatus::with_message(
+                            RpcStatusCode::INTERNAL,
+                            format!("an error occurred creating the network: {}", err),
+                        ));
+                        return;
+                    }
+                };
+                host
             }
-            None => {
-                tx.send("127.0.0.1".to_string()).unwrap();
-            }
-        }
-        let host = match rx.recv_timeout(Duration::from_secs(30)) {
-            Ok(v) => v,
-            Err(err) => {
-                sink.fail(RpcStatus::with_message(
-                    RpcStatusCode::INTERNAL,
-                    format!("an error occurred creating the network: {}", err),
-                ));
-                return;
-            }
+            None => "127.0.0.1".to_string(),
         };
         let addr = format!("{}:{}", host, req.port);
         match self.handle_start_service(&ctx, &req, &addr) {
@@ -172,32 +170,90 @@ fn proto_libraries() -> [(&'static str, &'static [u8]); 3] {
 
 #[async_trait]
 pub trait NetworkRuntime: Send + Sync {
-    async fn create_network(
-        &self,
-        container_id: String,
-        tx: crossbeam_channel::Sender<String>,
-    ) -> ServiceResult<()>;
+    fn create_network(&self, container_id: String) -> ServiceResult<String>;
+    async fn run(&self);
 }
 
 pub struct DockerNetworkRuntime {
     client: Docker,
+    rx: crossbeam_channel::Receiver<String>,
+    tx: crossbeam_channel::Sender<String>,
+    hostrx: crossbeam_channel::Receiver<String>,
+    hosttx: crossbeam_channel::Sender<String>,
+    erx: crossbeam_channel::Receiver<String>,
+    etx: crossbeam_channel::Sender<String>,
 }
 
 impl DockerNetworkRuntime {
     pub fn new(client: Docker) -> Self {
-        Self { client }
+        let (tx, rx) = crossbeam_channel::unbounded();
+        let (hosttx, hostrx) = crossbeam_channel::unbounded();
+        let (etx, erx) = crossbeam_channel::unbounded();
+        Self {
+            client,
+            tx,
+            rx,
+            hosttx,
+            hostrx,
+            etx,
+            erx,
+        }
     }
 }
 
 #[async_trait]
 impl NetworkRuntime for DockerNetworkRuntime {
-    async fn create_network(
-        &self,
-        container_id: String,
-        tx: crossbeam_channel::Sender<String>,
-    ) -> ServiceResult<()> {
-        let mut cfg = CreateNetworkOptions::<String>::default();
+    async fn run(&self) {
+        loop {
+            let container_id = match self.rx.recv() {
+                Ok(v) => v,
+                Err(err) => {
+                    eprintln!(
+                        "an error occurred receiving container id in docker network runtime: {}",
+                        err
+                    );
+                    continue;
+                }
+            };
+            match self._create_network(container_id).await {
+                Ok(host) => {
+                    self.hosttx.send(host).unwrap();
+                }
+                Err(err) => {
+                    self.etx.send(err.to_string()).unwrap();
+                }
+            }
+        }
+    }
+
+    fn create_network(&self, container_id: String) -> ServiceResult<String> {
+        self.tx.send(container_id)?;
+        crossbeam_channel::select! {
+            recv(self.hostrx) -> host => {
+                return Ok(host?);
+            },
+            recv(self.erx) -> err => {
+                return Err(ServiceError::new(err?.as_str()));
+            }
+        }
+    }
+}
+
+impl DockerNetworkRuntime {
+    async fn _create_network(&self, container_id: String) -> ServiceResult<String> {
         let network_name = format!("pandit_network_{}", container_id);
+
+        {
+            let networks = self.client.list_networks::<String>(None).await?;
+            let network = networks
+                .iter()
+                .find(|v| v.name == Some(network_name.clone()));
+            if let Some(network) = network {
+                return self.get_ipv4(network, &container_id).await;
+            }
+        };
+
+        let mut cfg = CreateNetworkOptions::<String>::default();
         cfg.name = network_name.clone();
         self.client.create_network(cfg).await?;
 
@@ -206,7 +262,6 @@ impl NetworkRuntime for DockerNetworkRuntime {
         self.client
             .connect_network(network_name.as_str(), cfg)
             .await?;
-
         let id = hostname::get()?.to_str().unwrap_or_default().to_string();
         let mut cfg = ConnectNetworkOptions::<String>::default();
         cfg.container = id;
@@ -218,10 +273,27 @@ impl NetworkRuntime for DockerNetworkRuntime {
             .client
             .inspect_network::<String>(network_name.as_str(), None)
             .await?;
-        let containers = network.containers.as_ref().unwrap();
-        let container_network = containers.get(&container_id).unwrap();
 
-        tx.send(container_network.ipv4_address.clone().unwrap())?;
-        Ok(())
+        self.get_ipv4(&network, &container_id).await
+    }
+
+    async fn get_ipv4(&self, network: &Network, container_id: &String) -> ServiceResult<String> {
+        let container_info = self
+            .client
+            .inspect_container(container_id.as_str(), None)
+            .await?;
+        let container_id = container_info.id.ok_or("container has no id")?;
+        let containers = network
+            .containers
+            .as_ref()
+            .ok_or(ServiceError::new("no containers for network"))?;
+        let container_network = containers.get(&container_id).ok_or(ServiceError::new(
+            format!("no container in network called: {}", container_id).as_str(),
+        ))?;
+
+        Ok(container_network
+            .ipv4_address
+            .clone()
+            .ok_or(ServiceError::new("no ipv4 address for network"))?)
     }
 }

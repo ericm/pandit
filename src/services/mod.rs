@@ -521,7 +521,13 @@ pub trait Writer: Sync + Send {
 pub fn new_config(path: &str) -> config::Config {
     let mut obj = config::Config::new();
     let file = config::File::from(PathBuf::from(path)).format(config::FileFormat::Yaml);
-    obj.merge(file).unwrap();
+    match obj.merge(file) {
+        Ok(_) => {}
+        Err(_) => {
+            eprintln!("warning: no config file provided");
+            return Default::default();
+        }
+    }
     obj
 }
 

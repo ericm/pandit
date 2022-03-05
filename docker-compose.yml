@@ -1,0 +1,20 @@
+version: '3.9'
+services:
+  redis:
+    image: redis
+
+  example:
+    build: src/proto/examples
+    entrypoint: "python /example_rest.py"
+
+  pandit:
+    build: .
+    depends_on:
+      - redis
+    ports:
+      - "50122:50122"
+      - "50121:50121"
+    entrypoint: "/pandit --docker"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    # entrypoint: "ldd --version"

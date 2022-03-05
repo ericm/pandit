@@ -1,0 +1,5 @@
+services:
+  example:
+    proto: ./src/proto/example.proto
+redis:
+  address: "redis://pandit-redis-1/"
