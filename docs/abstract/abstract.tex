@@ -1,0 +1,36 @@
+\documentclass{article}
+\usepackage{hyperref}
+\usepackage[utf8]{inputenc}
+
+\title{Pandit Extended Abstract}
+\author{Eric Gerard Moynihan}
+\date{March 2022}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+Pandit at its core is a \textbf{distributed service level proxy}.
+This means it is a proxy tasked with interpreting data on a service level and caching it
+in a distributed manner, allowing it to speed up read and write times of clients querying the services
+in question.
+
+Pandit is designed to be able to proxy any data source such as REST APIs or SQL databases.
+It reads in user defined Protocol Buffers \cite{protobufs} that are extended to provide information on
+how to parse, cache and return data to clients.
+
+A single instance of the Pandit daemon will be ran on each host in a cluster of machines. When a client queries
+a service, the daemon will first check the cache for the data. If it cannot find it, it will delegate the request
+to an authoritative container in the cluster.
+
+Since the mapping of
+
+
+
+\begin{thebibliography}{9}
+    \bibitem{protobufs}
+    Profocol buffers documentation - \href{https://developers.google.com/protocol-buffers}{developers.google.com}.
+\end{thebibliography}
+
+\end{document}
