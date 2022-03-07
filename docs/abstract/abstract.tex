@@ -20,17 +20,27 @@ Pandit is designed to be able to proxy any data source such as REST APIs or SQL 
 It reads in user defined Protocol Buffers \cite{protobufs} that are extended to provide information on
 how to parse, cache and return data to clients.
 
+It uses these protobufs to provide a gRPC \cite{grpc} service that will be available to every client of every node.
+
 A single instance of the Pandit daemon will be ran on each host in a cluster of machines. When a client queries
 a service, the daemon will first check the cache for the data. If it cannot find it, it will delegate the request
 to an authoritative container in the cluster.
 
-Since the mapping of
+Since the mapping between the data returned by the authoritative container and the data returned by the gRPC service is
+user-defined, Pandit provides options to annotate specific fields in return types to allow for the efficient caching of
+common requests, greaty reducing the amount of queries that need to be sent to the authoritative container.
+
+\section{Existing Solutions}
+Service level proxys usually fall into two categories:
+\begin{itemize}
 
 
 
 \begin{thebibliography}{9}
     \bibitem{protobufs}
-    Profocol buffers documentation - \href{https://developers.google.com/protocol-buffers}{developers.google.com}.
+    Profocol Buffers documentation - \href{https://developers.google.com/protocol-buffers}{developers.google.com}.
+    \bibitem{grpc}
+    gRPC documentation - \href{https://grpc.io/docs/}{grpc.io}.
 \end{thebibliography}
 
 \end{document}
