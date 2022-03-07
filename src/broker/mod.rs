@@ -47,8 +47,8 @@ impl Sender for RemoteSender {
             .uri(format!("http://{}/{}/{}", self.addr, service_name, method))
             .method("POST")
             .body(hyper::Body::from(data.to_vec()))?;
-        let resp = client.request(req).await?;
-        let body = resp.body();
+        let mut resp = client.request(req).await?;
+        let body = resp.body_mut();
         let body = match body.data().await {
             Some(body) => body,
             None => return Err(ServiceError::new("no body in response")),
@@ -115,7 +115,7 @@ impl Broker {
 
     pub fn publish_service(&self, name: &String, service: &Service) -> ServiceResult<()> {
         let mut conn = self.client.get_connection()?;
-        for (method_name, method) in service.methods {
+        for method in service.methods.iter() {
             {
                 let key = format!("default_{}", name);
                 let value = serde_json::to_vec(&service.default_cache)?;
@@ -123,12 +123,12 @@ impl Broker {
             }
             {
                 let key = format!("host_{}", name);
-                let value = serde_json::to_vec(&self.host_addr)?;
+                let value = &self.host_addr;
                 conn.set(key, value)?;
             }
             {
-                let key = format!("config_{}_{}", name, method_name);
-                let value = serde_json::to_vec(&method)?;
+                let key = format!("config_{}_{}", name, method.key());
+                let value = serde_json::to_vec(method.value())?;
                 conn.set(key, value)?;
             }
             {
@@ -142,8 +142,9 @@ impl Broker {
     }
 
     pub fn get_remote_sender(&self, service_name: &String) -> ServiceResult<RemoteSender> {
-
-        Ok(RemoteSender {addr: })
+        let mut conn = self.client.get_connection()?;
+        let addr: String = conn.get(format!("host_{}", service_name))?;
+        Ok(RemoteSender { addr })
     }
 
     pub fn sub_service(&self, service_name: &String, method_name: &String) -> ServiceResult<()> {

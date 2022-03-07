@@ -27,7 +27,7 @@ use std::{fmt::Display, path::PathBuf};
 use tokio::sync::{Mutex, RwLock};
 use value::Value;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Protocol {
     None,
     HTTP,
@@ -220,7 +220,7 @@ impl Serialize for base::CacheOptions {
         S: serde::Serializer,
     {
         use serde::ser::SerializeStruct;
-        let strc = sr.serialize_struct("CacheOptions", 2)?;
+        let mut strc = sr.serialize_struct("CacheOptions", 2)?;
         strc.serialize_field("disable", &self.disable)?;
         strc.serialize_field("cache_time", &self.cache_time)?;
         strc.end()
@@ -240,7 +240,7 @@ impl<'de> Deserialize<'de> for base::CacheOptions {
                 formatter.write_str("CacheOptions")
             }
 
-            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
             where
                 A: serde::de::MapAccess<'de>,
             {
@@ -254,6 +254,7 @@ impl<'de> Deserialize<'de> for base::CacheOptions {
                         "cache_time" => {
                             cache_time = Some(map.next_value()?);
                         }
+                        _ => continue,
                     }
                 }
                 let mut out = base::CacheOptions::new();
@@ -275,7 +276,7 @@ impl Serialize for Method {
         S: serde::Serializer,
     {
         use serde::ser::SerializeStruct;
-        let strc = sr.serialize_struct("Method", 4)?;
+        let mut strc = sr.serialize_struct("Method", 4)?;
         strc.serialize_field("input_message", &self.input_message)?;
         strc.serialize_field("output_message", &self.output_message)?;
         strc.serialize_field("cache", &self.cache)?;
@@ -297,7 +298,7 @@ impl<'de> Deserialize<'de> for Method {
                 formatter.write_str("Method")
             }
 
-            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
             where
                 A: serde::de::MapAccess<'de>,
             {
@@ -319,6 +320,7 @@ impl<'de> Deserialize<'de> for Method {
                         "primary_key" => {
                             primary_key = Some(map.next_value()?);
                         }
+                        _ => continue,
                     }
                 }
                 let out = Method {
@@ -565,7 +567,7 @@ impl Service {
 }
 
 #[async_trait]
-pub trait Sender {
+pub trait Sender: Send + Sync {
     async fn send(
         &mut self,
         service_name: &String,
@@ -703,7 +705,7 @@ mod tests {
             fields: None,
         };
         let writer_ref = Box::new(Mutex::new(writer));
-        let broker = Broker::connect(Default::default()).unwrap();
+        let broker = Broker::connect(Default::default(), "".to_string()).unwrap();
         let broker = Arc::new(broker);
         let mut service = Service::from_file(
             "./src/proto/examples/example1.proto",
@@ -713,14 +715,14 @@ mod tests {
         )
         .unwrap();
         broker
-            .sub_service(&"ExampleService".to_string(), &service)
+            .sub_service(&"ExampleService".to_string(), &"GetExample".to_string())
             .unwrap();
         let buf: &[u8] = &[
             0, 0, 0, 0, 0, // gRPC header.
             0x08, 0x96, 0x01, // Field varint
         ];
         let resp = service
-            .send_proto_to_local(
+            .send(
                 &"ExampleService".to_string(),
                 &"GetExample".to_string(),
                 buf,

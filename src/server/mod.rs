@@ -3,10 +3,11 @@ use std::convert::{TryFrom, TryInto};
 use std::error::Error;
 use std::sync::Arc;
 
-use crate::broker::Broker;
-use crate::services::{self, Sender, ServiceError};
+use crate::broker::{Broker, RemoteSender};
+use crate::services::{self, Sender, Service, ServiceError};
 use async_trait::async_trait;
 use bytes::Bytes;
+use dashmap::mapref::one::RefMut;
 use futures::Future;
 use h2::server::{self, SendResponse};
 use h2::RecvStream;
@@ -140,14 +141,21 @@ impl IntraServer {
         };
         let service_name = service.to_string();
 
-        let mut service: &dyn Sender = match services.get_mut(service) {
-            Some(s) => s.value(),
+        let mut _remote_sender: RemoteSender;
+        let mut _service: RefMut<String, Service>;
+        let service: &mut dyn Sender = match services.get_mut(service) {
+            Some(s) => {
+                _service = s;
+                _service.value_mut()
+            }
             None => {
                 // subscribe for future cache.
                 if !broker.is_subbed(&service_name) {
                     broker.sub_service(&service_name, &method.to_string())?;
                 }
                 // send to other node.
+                _remote_sender = broker.get_remote_sender(&service_name)?;
+                &mut _remote_sender
             }
         };
 

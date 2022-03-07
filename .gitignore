@@ -8,3 +8,4 @@ target
 xdp-tools
 *.rdb
 *.pandit_service
+*.code-workspace

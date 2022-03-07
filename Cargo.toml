@@ -13,6 +13,7 @@ publish = false
 access-json = "0.1.0"
 api_proto = { path = "./src/api/proto", package = "api" }
 bollard = "0.11"
+get_if_addrs = "0.5.3"
 clap = { version = "3.1.2", features = ["derive"] }
 hostname = "0.3.1"
 kube = { version = "0.69.0", features = ["runtime", "derive"] }

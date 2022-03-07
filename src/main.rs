@@ -13,6 +13,7 @@ pub mod writers;
 use api_proto::api_grpc::create_api;
 use bollard::Docker;
 use clap::Parser;
+use get_if_addrs::get_if_addrs;
 use grpcio::ChannelBuilder;
 use grpcio::EnvBuilder;
 use grpcio::Environment;
@@ -43,6 +44,10 @@ use crate::server::Server;
 struct Args {
     #[clap(short, long, default_value = "./.pandit.yml")]
     config: String,
+    #[clap(short, long)]
+    interface: Option<String>,
+    #[clap(short, long)]
+    address: Option<String>,
     #[clap(short, long)]
     docker: bool,
     #[clap(short, long)]
@@ -75,17 +80,37 @@ async fn main() {
         None
     };
 
+    let address = match app.address {
+        Some(v) => v,
+        None => match app.interface {
+            Some(interface) => {
+                let mut ip = None;
+                for iface in get_if_addrs().unwrap() {
+                    if iface.name == interface {
+                        ip = Some(iface.addr.ip().to_string());
+                        break;
+                    }
+                }
+                match ip {
+                    Some(ip) => ip,
+                    None => "0.0.0.0".to_string(),
+                }
+            }
+            None => "0.0.0.0".to_string(),
+        },
+    };
+
     let cfg = services::new_config(app.config.as_str());
-    let broker = Broker::connect(cfg.clone()).unwrap();
+    let broker = Broker::connect(cfg.clone(), address.clone()).unwrap();
     let broker = Arc::new(broker);
 
     let server_cancelled: JoinHandle<()>;
     let intra_server = {
-        let server = IntraServer::new(broker);
+        let server = IntraServer::new(broker.clone());
         let server = Arc::new(RwLock::new(server));
         let addr = cfg
             .get_str("server.address")
-            .unwrap_or("0.0.0.0:50122".to_string());
+            .unwrap_or(format!("{}:50122", address));
         {
             let server = server.clone();
 
