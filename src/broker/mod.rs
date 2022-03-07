@@ -14,7 +14,7 @@ use tokio::time::sleep;
 use crate::services::base::CacheOptions;
 use crate::services::value::Value;
 use crate::services::{message::Message, Fields, ServiceResult};
-use crate::services::{FieldsMap, Method, ServiceError};
+use crate::services::{FieldsMap, Method, Service, ServiceError};
 
 struct CachedFields {
     fields: Fields,
@@ -32,10 +32,11 @@ pub struct Broker {
     client: Client,
     method_fields_map: Arc<DashMap<String, CachedMessage>>,
     subbed: Arc<DashSet<String>>,
+    host_addr: String,
 }
 
 impl Broker {
-    pub fn connect(mut cfg: config::Config) -> ServiceResult<Self> {
+    pub fn connect(mut cfg: config::Config, host_addr: String) -> ServiceResult<Self> {
         Self::set_default(&mut cfg)?;
         let client = redis::Client::open(cfg.get_str("redis.address")?.as_str())?;
         let mut conn = client.get_connection()?;
@@ -44,10 +45,15 @@ impl Broker {
             pubsub.subscribe("services")?;
         }
         Ok(Self {
+            host_addr,
             client,
             method_fields_map: Arc::new(Default::default()),
             subbed: Arc::new(DashSet::new()),
         })
+    }
+
+    pub fn is_subbed(&self, name: &String) -> bool {
+        self.subbed.contains(name)
     }
 
     pub fn probe_cache(
@@ -78,37 +84,65 @@ impl Broker {
         Ok(Some(entry.fields.clone()))
     }
 
-    pub fn sub_service(
-        &self,
-        name: &String,
-        service: &crate::services::Service,
-    ) -> ServiceResult<()> {
+    pub fn publish_service(&self, name: &String, service: &Service) -> ServiceResult<()> {
         let mut conn = self.client.get_connection()?;
-        let mut pubsub = conn.as_pubsub();
-        for method in service.methods.iter() {
-            let message = service
-                .messages
-                .get(&method.value().output_message)
-                .unwrap();
-            let name = format!("{}_{}", name.clone(), method.key());
-            let sub_name = format!("service_{}", name.clone());
-            self.method_fields_map.insert(
-                name,
-                CachedMessage {
-                    message: message.to_owned(),
-                    cache: method
-                        .value()
-                        .cache
-                        .clone()
-                        .or(Some(service.default_cache.clone())),
-                    primary_key: method
-                        .primary_key
-                        .to_owned()
-                        .ok_or(ServiceError::new(format!("no primary key").as_str()))?,
-                    fields_for_key: Arc::new(DashMap::new()),
-                },
-            );
-            self.subbed.insert(sub_name.clone());
+        for (method_name, method) in service.methods {
+            {
+                let key = format!("default_{}", name);
+                let value = serde_json::to_vec(&service.default_cache)?;
+                conn.set(key, value)?;
+            }
+            {
+                let key = format!("host_{}", name);
+                let value = serde_json::to_vec(&self.host_addr)?;
+                conn.set(key, value)?;
+            }
+            {
+                let key = format!("config_{}_{}", name, method_name);
+                let value = serde_json::to_vec(&method)?;
+                conn.set(key, value)?;
+            }
+            {
+                let key = format!("message_{}", method.output_message);
+                let message = service.messages.get(&method.output_message).unwrap();
+                let value = serde_json::to_vec(message.value())?;
+                conn.set(key, value)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn sub_service(&self, service_name: &String, method_name: &String) -> ServiceResult<()> {
+        let mut conn = self.client.get_connection()?;
+        let method: Method = {
+            let rv: Vec<u8> = conn.get(format!("config_{}_{}", service_name, method_name))?;
+            serde_json::from_slice(&rv[..])?
+        };
+        let message: Message = {
+            let rv: Vec<u8> = conn.get(format!("message_{}", method.output_message))?;
+            serde_json::from_slice(&rv[..])?
+        };
+        let default_cache: CacheOptions = {
+            let rv: Vec<u8> = conn.get(format!("default_{}", service_name))?;
+            serde_json::from_slice(&rv[..])?
+        };
+        let name = format!("{}_{}", service_name, method_name);
+        let sub_name = format!("service_{}", name.clone());
+        self.method_fields_map.insert(
+            name,
+            CachedMessage {
+                message: message.to_owned(),
+                cache: method.cache.clone().or(Some(default_cache.clone())),
+                primary_key: method
+                    .primary_key
+                    .to_owned()
+                    .ok_or(ServiceError::new(format!("no primary key").as_str()))?,
+                fields_for_key: Arc::new(DashMap::new()),
+            },
+        );
+        self.subbed.insert(sub_name.clone());
+        {
+            let mut pubsub = conn.as_pubsub();
             pubsub.subscribe(sub_name)?;
         }
         Ok(())
