@@ -3,7 +3,8 @@ use std::convert::{TryFrom, TryInto};
 use std::error::Error;
 use std::sync::Arc;
 
-use crate::services::{self, ServiceError};
+use crate::broker::Broker;
+use crate::services::{self, Sender, ServiceError};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Future;
@@ -48,14 +49,7 @@ pub trait Server {
 
 pub struct IntraServer {
     services: Arc<services::Services>,
-}
-
-impl Default for IntraServer {
-    fn default() -> Self {
-        Self {
-            services: Arc::new(services::Services::default()),
-        }
-    }
+    broker: Arc<Broker>,
 }
 
 #[async_trait]
@@ -65,10 +59,11 @@ impl Server for IntraServer {
         while let Some(result) = conn.accept().await {
             let (req, mut send_resp) = result?;
             let services = self.services.clone();
+            let broker = self.broker.clone();
             tokio::spawn(async move {
                 let response = http::Response::new(());
                 let mut trailers = HeaderMap::new();
-                let resp_raw = IntraServer::handle_request(services, req).await;
+                let resp_raw = IntraServer::handle_request(services, req, broker).await;
 
                 let mut send = send_resp.send_response(response, false).unwrap();
                 match resp_raw {
@@ -108,6 +103,13 @@ impl Server for IntraServer {
 }
 
 impl IntraServer {
+    pub fn new(broker: Arc<Broker>) -> Self {
+        Self {
+            services: Arc::new(services::Services::default()),
+            broker,
+        }
+    }
+
     pub fn add_servivce(&mut self, name: String, service: services::Service) {
         self.services.insert(name.clone(), service);
     }
@@ -115,6 +117,7 @@ impl IntraServer {
     async fn handle_request(
         services: Arc<services::Services>,
         mut request: Request<RecvStream>,
+        broker: Arc<Broker>,
     ) -> Result<Bytes, Box<dyn Error>> {
         let body = request.body_mut();
         let data: Vec<u8> = body
@@ -137,17 +140,19 @@ impl IntraServer {
         };
         let service_name = service.to_string();
 
-        let mut service = match services.get_mut(service) {
-            Some(s) => s,
+        let mut service: &dyn Sender = match services.get_mut(service) {
+            Some(s) => s.value(),
             None => {
-                return Err(ServiceError::new(
-                    format!("no service known as: {}", service).as_str(),
-                ));
+                // subscribe for future cache.
+                if !broker.is_subbed(&service_name) {
+                    broker.sub_service(&service_name, &method.to_string())?;
+                }
+                // send to other node.
             }
         };
 
         let resp_raw = service
-            .send_proto_to_local(&service_name, &method.to_string(), &data[..])
+            .send(&service_name, &method.to_string(), &data[..])
             .await;
         match resp_raw {
             Ok(v) => Ok(v),

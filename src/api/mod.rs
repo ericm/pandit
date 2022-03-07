@@ -147,7 +147,7 @@ impl ApiServer {
         let name = req.name.clone();
         ctx.spawn(async move {
             {
-                broker.sub_service(&name, &service).unwrap();
+                broker.publish_service(&name, &service).unwrap();
             }
             {
                 let mut server = server.write().await;

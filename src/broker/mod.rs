@@ -3,9 +3,11 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use access_json::JSONQuery;
+use async_trait::async_trait;
 use dashmap::mapref::one::Ref;
 use dashmap::{DashMap, DashSet};
 use futures::StreamExt;
+use hyper::body::HttpBody;
 use protobuf::well_known_types::Field;
 use redis::cluster::ClusterClient;
 use redis::{Client, Commands, Connection, Msg, PubSubCommands};
@@ -14,7 +16,7 @@ use tokio::time::sleep;
 use crate::services::base::CacheOptions;
 use crate::services::value::Value;
 use crate::services::{message::Message, Fields, ServiceResult};
-use crate::services::{FieldsMap, Method, Service, ServiceError};
+use crate::services::{FieldsMap, Method, Sender, Service, ServiceError};
 
 struct CachedFields {
     fields: Fields,
@@ -26,6 +28,33 @@ struct CachedMessage {
     cache: Option<CacheOptions>,
     fields_for_key: Arc<DashMap<Value, CachedFields>>,
     primary_key: String,
+}
+
+pub struct RemoteSender {
+    addr: String,
+}
+
+#[async_trait]
+impl Sender for RemoteSender {
+    async fn send(
+        &mut self,
+        service_name: &String,
+        method: &String,
+        data: &[u8],
+    ) -> ServiceResult<bytes::Bytes> {
+        let client = hyper::client::Client::new();
+        let req = hyper::Request::builder()
+            .uri(format!("http://{}/{}/{}", self.addr, service_name, method))
+            .method("POST")
+            .body(hyper::Body::from(data.to_vec()))?;
+        let resp = client.request(req).await?;
+        let body = resp.body();
+        let body = match body.data().await {
+            Some(body) => body,
+            None => return Err(ServiceError::new("no body in response")),
+        };
+        Ok(body?)
+    }
 }
 
 pub struct Broker {
@@ -110,6 +139,11 @@ impl Broker {
             }
         }
         Ok(())
+    }
+
+    pub fn get_remote_sender(&self, service_name: &String) -> ServiceResult<RemoteSender> {
+
+        Ok(RemoteSender {addr: })
     }
 
     pub fn sub_service(&self, service_name: &String, method_name: &String) -> ServiceResult<()> {

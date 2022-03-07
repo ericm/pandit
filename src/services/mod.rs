@@ -535,7 +535,48 @@ impl Service {
         })
     }
 
-    pub async fn send_proto_to_local(
+    fn context_from_api(api: &MethodAPI) -> ServiceResult<WriterContext> {
+        let context = WriterContext::new();
+        use crate::proto::gen::format::http::http::Pattern;
+        match unsafe { api.http.pattern.as_ref() }.ok_or(ServiceError::new("no pattern in api"))? {
+            Pattern::get(s) => {
+                context.insert("method".to_string(), "GET".to_string());
+                context.insert("uri".to_string(), s.clone());
+            }
+            Pattern::put(s) => {
+                context.insert("method".to_string(), "PUT".to_string());
+                context.insert("uri".to_string(), s.clone());
+            }
+            Pattern::post(s) => {
+                context.insert("method".to_string(), "POST".to_string());
+                context.insert("uri".to_string(), s.clone());
+            }
+            Pattern::delete(s) => {
+                context.insert("method".to_string(), "DELETE".to_string());
+                context.insert("uri".to_string(), s.clone());
+            }
+            Pattern::patch(s) => {
+                context.insert("method".to_string(), "PATCH".to_string());
+                context.insert("uri".to_string(), s.clone());
+            }
+        }
+        Ok(context)
+    }
+}
+
+#[async_trait]
+pub trait Sender {
+    async fn send(
+        &mut self,
+        service_name: &String,
+        method: &String,
+        data: &[u8],
+    ) -> ServiceResult<bytes::Bytes>;
+}
+
+#[async_trait]
+impl Sender for Service {
+    async fn send(
         &mut self,
         service_name: &String,
         method: &String,
@@ -605,34 +646,6 @@ impl Service {
 
         let buf = buf.into_inner();
         Ok(bytes::Bytes::copy_from_slice(&buf[..]))
-    }
-
-    fn context_from_api(api: &MethodAPI) -> ServiceResult<WriterContext> {
-        let context = WriterContext::new();
-        use crate::proto::gen::format::http::http::Pattern;
-        match unsafe { api.http.pattern.as_ref() }.ok_or(ServiceError::new("no pattern in api"))? {
-            Pattern::get(s) => {
-                context.insert("method".to_string(), "GET".to_string());
-                context.insert("uri".to_string(), s.clone());
-            }
-            Pattern::put(s) => {
-                context.insert("method".to_string(), "PUT".to_string());
-                context.insert("uri".to_string(), s.clone());
-            }
-            Pattern::post(s) => {
-                context.insert("method".to_string(), "POST".to_string());
-                context.insert("uri".to_string(), s.clone());
-            }
-            Pattern::delete(s) => {
-                context.insert("method".to_string(), "DELETE".to_string());
-                context.insert("uri".to_string(), s.clone());
-            }
-            Pattern::patch(s) => {
-                context.insert("method".to_string(), "PATCH".to_string());
-                context.insert("uri".to_string(), s.clone());
-            }
-        }
-        Ok(context)
     }
 }
 

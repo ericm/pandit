@@ -81,7 +81,7 @@ async fn main() {
 
     let server_cancelled: JoinHandle<()>;
     let intra_server = {
-        let server = IntraServer::default();
+        let server = IntraServer::new(broker);
         let server = Arc::new(RwLock::new(server));
         let addr = cfg
             .get_str("server.address")

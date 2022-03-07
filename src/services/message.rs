@@ -2,6 +2,7 @@ use std::{io::Write, sync::Arc};
 
 use dashmap::{mapref::one::Ref, DashMap};
 use protobuf::{descriptor::FieldDescriptorProto, CodedInputStream};
+use serde::{Deserialize, Serialize};
 
 use crate::services::{
     value::{ProtoEnum, Value},
@@ -11,12 +12,13 @@ use crate::services::{
 use super::{Fields, FieldsMap, ServiceResult};
 use std::convert::TryFrom;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Field {
     pub descriptor: FieldDescriptorProto,
     pub cache: Option<super::base::CacheOptions>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Message {
     pub path: String,
     pub parent: Arc<DashMap<String, Message>>,
