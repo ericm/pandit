@@ -33,6 +33,43 @@ common requests, greaty reducing the amount of queries that need to be sent to t
 \section{Existing Solutions}
 Service level proxys usually fall into two categories:
 \begin{itemize}
+    \item A commercial closed-source proxy that focuses on platform-specific use cases.
+    \item An open-source proxy that proxies requests and caches the responses.
+\end{itemize}
+\subsection{Commercial Closed-Source Proxies}
+An example of the former would be Google Cloud Endpoints with HTTP/JSON to gRPC encoding \cite{cloud_endpoints}.
+This feature exists in Pandit and functions in a similar manner - as in it provides a conversion layer between
+HTTP/JSON and gRPC. However, Google Cloud Endpoints only support a single data format (HTTP/JSON) while Pandit supports a
+multitude of data formats.
+This form of proxy only works on the hosted Google Cloud Platform \cite{google_cloud_platform} while Pandit can be deployed
+in any cluster.
+
+\subsection{Open-Source Proxies}
+Envoy Proxy \cite{envoy} is an example of an open-source proxy that is used to proxy requests and cache the responses.
+Like Pandit, it supports many data formats and can be deployed in any cluster.
+It runs alongside each application in the cluster and handles the querying and caching of data.
+Pandit has a similar approach to this, with one key difference - Pandit provides a gRPC service to the clients.
+
+The benefit of translating data to Protocol Buffers to be transfered over gRPC are numberous:
+\begin{itemize}
+    \item Clients can take advantage of code generation based on the Proto specification. \cite{codegen}
+    \item Protocol Buffers are more space efficient than text based formats such as JSON since it's a binary format. \cite{encoding}
+    \item gRPC benefits from features of HTTP/2 such as pipelining and compression. \cite{http2}
+\end{itemize}
+
+Since the cached data will also be stored in the Protocol Buffer format, it also means that cached data will be more space efficient in
+many cases.
+
+Pandit is aware of all clients that have previously queried an endpoint and syncs the cache with the local daemon on each host the clients are running on.
+This means that the data will be widely available close to the clients and when it sees a query for the same data, it will return the cached data.
+Users of course define if and how long the data should be cached, as well as how to recognise a query for the same data.
+
+All these features mean Pandit provides a great deal of flexibility for users to define their own caching and querying strategies.
+
+\section{Implementation}
+\subsection{The Daemon}
+Pandit has been implemented as a daemon that runs on each host in the cluster.
+The entire project is implemented using the Rust Programming Language \cite{rust},
 
 
 
@@ -41,6 +78,20 @@ Service level proxys usually fall into two categories:
     Profocol Buffers documentation - \href{https://developers.google.com/protocol-buffers}{developers.google.com}.
     \bibitem{grpc}
     gRPC documentation - \href{https://grpc.io/docs/}{grpc.io}.
+    \bibitem{cloud_endpoints}
+    Google Cloud Endpoints Transcoding HTTP JSON to gRPC - \href{https://cloud.google.com/endpoints/docs/grpc/transcoding}{cloud.google.com}.
+    \bibitem{google_cloud_platform}
+    Google Cloud Platform - \href{https://cloud.google.com/}{cloud.google.com}.
+    \bibitem{envoy}
+    Envoy Proxy - \href{https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/arch_overview}{envoyproxy.io}.
+    \bibitem{codegen}
+    Profocol Buffer Code Generation - \href{https://developers.google.com/protocol-buffers/docs/reference/go-generated}{developers.google.com}.
+    \bibitem{encoding}
+    Protocol Buffers Encoding - \href{https://developers.google.com/protocol-buffers/docs/encoding}{developers.google.com}.
+    \bibitem{http2}
+    HTTP 2 - \href{https://developer.mozilla.org/en-US/docs/Glossary/HTTP_2}{developer.mozilla.org}.
+    \bibitem{rust}
+    Rust Programming Language - \href{https://www.rust-lang.org/}{rust-lang.org}.
 \end{thebibliography}
 
 \end{document}
