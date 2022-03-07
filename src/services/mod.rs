@@ -12,7 +12,8 @@ use dashmap::DashMap;
 use protobuf::descriptor::{MethodDescriptorProto, MethodOptions};
 use protobuf::{self};
 use protobuf_parse;
-use serde::de::Visitor;
+use redis::ToRedisArgs;
+use serde::de::{self, Visitor};
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BinaryHeap;
@@ -211,6 +212,135 @@ pub struct Method {
     pub output_message: String,
     pub cache: Option<base::CacheOptions>,
     pub primary_key: Option<String>,
+}
+
+impl Serialize for base::CacheOptions {
+    fn serialize<S>(&self, sr: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let strc = sr.serialize_struct("CacheOptions", 2)?;
+        strc.serialize_field("disable", &self.disable)?;
+        strc.serialize_field("cache_time", &self.cache_time)?;
+        strc.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for base::CacheOptions {
+    fn deserialize<D>(dr: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ValueVisitor {}
+        impl<'de> Visitor<'de> for ValueVisitor {
+            type Value = base::CacheOptions;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("CacheOptions")
+            }
+
+            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut disable = None;
+                let mut cache_time = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        "disable" => {
+                            disable = Some(map.next_value()?);
+                        }
+                        "cache_time" => {
+                            cache_time = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let mut out = base::CacheOptions::new();
+                out.disable = disable.ok_or_else(|| de::Error::missing_field("disable"))?;
+                out.cache_time =
+                    cache_time.ok_or_else(|| de::Error::missing_field("cache_time"))?;
+                Ok(out)
+            }
+        }
+
+        let vis = ValueVisitor {};
+        dr.deserialize_struct("CacheOptions", &["disable", "cache_time"], vis)
+    }
+}
+
+impl Serialize for Method {
+    fn serialize<S>(&self, sr: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let strc = sr.serialize_struct("Method", 4)?;
+        strc.serialize_field("input_message", &self.input_message)?;
+        strc.serialize_field("output_message", &self.output_message)?;
+        strc.serialize_field("cache", &self.cache)?;
+        strc.serialize_field("primary_key", &self.primary_key)?;
+        strc.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Method {
+    fn deserialize<D>(dr: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ValueVisitor {}
+        impl<'de> Visitor<'de> for ValueVisitor {
+            type Value = Method;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("Method")
+            }
+
+            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut input_message = None;
+                let mut output_message = None;
+                let mut cache = None;
+                let mut primary_key = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        "input_message" => {
+                            input_message = Some(map.next_value()?);
+                        }
+                        "output_message" => {
+                            output_message = Some(map.next_value()?);
+                        }
+                        "cache" => {
+                            cache = Some(map.next_value()?);
+                        }
+                        "primary_key" => {
+                            primary_key = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let out = Method {
+                    input_message: input_message
+                        .ok_or_else(|| de::Error::missing_field("input_message"))?,
+                    output_message: output_message
+                        .ok_or_else(|| de::Error::missing_field("output_message"))?,
+                    cache: cache.ok_or_else(|| de::Error::missing_field("cache"))?,
+                    primary_key: primary_key
+                        .ok_or_else(|| de::Error::missing_field("primary_key"))?,
+                    api: MethodAPI {
+                        http: Default::default(),
+                    },
+                    handler: None,
+                };
+                Ok(out)
+            }
+        }
+
+        let vis = ValueVisitor {};
+        dr.deserialize_struct("CacheOptions", &["disable", "cache_time"], vis)
+    }
 }
 
 pub type Services = DashMap<String, Service>;
