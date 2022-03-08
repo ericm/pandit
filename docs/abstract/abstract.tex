@@ -1,4 +1,4 @@
-\documentclass[12pt]{article}
+\documentclass[a4paper]{article}
 \usepackage{hyperref}
 \usepackage[utf8]{inputenc}
 
@@ -75,6 +75,57 @@ and top-notch tooling.
 
 The daemon was implemented with the following features:
 
+\subsection{Handler}
+\label{sec:handler}
+The \textit{\nameref{sec:handler}} is used to convert the data to convert to and from the abstract fields representation of the data provided to the writer.
+
+\subsection{Writer}
+\label{sec:writer}
+This is a trait \cite{trait} the represents a way of sending a query to the authoritative container.
+It takes in the an abstract fields representation of the query data and a \textit{\nameref{sec:handler}}.
+The writer uses the \textit{\nameref{sec:handler}} to convert the data to a bytes array.
+It then constructs a full request in the format required and adds in the query data to the payload.
+
+A current implementation of this is the HTTP Writer that uses a JSON handler to interface with REST APIs.
+
+\subsection{Messages}
+\label{sec:messages}
+This represents a Protocol Buffer Message. A Method is defined by an input Message and an Output Message and so it will contain two instances of this struct.
+A message contains many fields of different types, one of those types being another message. The message struct also contains all the
+aforementioned information provided by the user in the Protobuf specification.
+
+It provides methods that parses Protobuf encoded messages to and from an abstract representation of the fields and their values. This conversion has been
+implemented mostly from scratch due to the unique requirement of parsing based on a specification provided on runtime. Most libraries utilise code generation
+to provide server and client side parsing and so they were not suitable for use in this project.
+
+\subsection{Service}
+\label{sec:service}
+This is a \textit{struct} that represents a service that is hosted by the daemon. It is created by the \textit{\nameref{sec:api}} and
+takes in a Protobuf specification.
+
+The constructor parses the Protobuf specification and builds an in-memory mapping of all methods, messages, and their fields.
+This includes parsing user defined options for caching, such as the \textit{Primary Key} field that will define when a cache hit should occur.
+Other options include the \textit{Cache Disabled} and \textit{Cache Timeout} fields that define if and how long the data should be cached.
+
+The service provides a method that sends a query to the authoritative container on the host.
+It passes the query as well as a \textit{\nameref{sec:handler}} for the specific method to a \textit{\nameref{sec:writer}} which executes the query
+and returns the response. The response is then converted to a Protocol Buffer using the aforementioned \textit{\nameref{sec:handler}} and returned.
+
+\subsection{Broker}
+\label{sec:broker}
+
+This is the glue that allows the daemon to be aware of and communicate with other daemons in the cluster.
+The broker is an instance that communicates with a Redis \cite{redis} instance.
+
+When constructing the broker, the user provides the address of the Redis instance and it will maintain a connection to the Redis instance.
+It provides many methods to interact with the Redis instance:
+\begin{itemize}
+    \item To add a new \textit{\nameref{sec:service}} to the broker.
+    \item To query the broker for the address of a \textit{\nameref{sec:service}}.
+    \item To publish new cache to all interested daemons in the cluster.
+    \item To check if cache exists for a specific query.
+\end{itemize}
+
 \subsection{Administration API}
 \label{sec:api}
 This is the API that is used to configure the daemon. It is a gRPC service that is exposed via a port on the loopback interface of each host.
@@ -98,56 +149,27 @@ However, the \textit{\nameref{sec:service}} may not be available on the current 
 service is available on. The host is found by querying the \textit{\nameref{sec:broker}} for the address of the host the service is on.
 After a response is received, it will publish the data to the cache using the \textit{\nameref{sec:broker}}.
 
-\subsection{Service}
-\label{sec:service}
-This is a \textit{struct} that represents a service that is hosted by the daemon. It is created by the \textit{\nameref{sec:api}} and
-takes in a Protobuf specification.
+\section{Conclusion}
+\textit{Pandit} is a great tool for caching data and querying data in a distributed system.
+It also provides a great deal of flexibility for users to define their own caching and querying strategies.
 
-The constructor parses the Protobuf specification and builds an in-memory mapping of all methods, messages, and their fields.
-This includes parsing user defined options for caching, such as the \textit{Primary Key} field that will define when a cache hit should occur.
-Other options include the \textit{Cache Disabled} and \textit{Cache Timeout} fields that define if and how long the data should be cached.
+Whether it be a REST API or an SQL Database, all it takes is a single Protobuf specification \cite{protobufs} to turn it into a
+\textbf{widely available gRPC \cite{grpc} Service}. Services become widely available due to the caching mechanism in the daemon being on every host,
+as well as the publish/subscribe mechanism used to distribute the cache to all interested daemons.
 
-The service provides a method that sends a query to the authoritative container on the host.
-It passes the query as well as a \textit{\nameref{sec:handler}} for the specific method to a \textit{\nameref{sec:writer}} which executes the query
-and returns the response. The response is then converted to a Protocol Buffer using the aforementioned \textit{\nameref{sec:handler}} and returned.
+The fact that anything can be turned into a gRPC service provides a lot more flexibility to the users of the product than any existing solution.
+This is because you can build a client library for any language and any framework using a Protobuf \cite{codegen}.
 
-\subsection{Messages}
-\label{sec:messages}
-This represents a Protocol Buffer Message. A Method is defined by an input Message and an Output Message and so it will contain two instances of this struct.
-A message contains many fields of different types, one of those types being another message. The message struct also contains all the
-aforementioned information provided by the user in the Protobuf specification.
+This also means that Pandit has innate benefits for any application that requires data from other services.
+For example, instead of using an ORM \cite{orm} and manually encoding the data to be read in the application, you can use Pandit to
+to turn the database into a gRPC service and then use the gRPC client library to read the data. This will give you the added benefit of
+being able to cache the data and query it in a distributed system if it needs to be deployed to multiple hosts later on.
+You could also implement another client in a different language in one step by generating code from the Protobuf \cite{codegen}.
 
-It provides methods that parses Protobuf encoded messages to and from an abstract representation of the fields and their values. This conversion has been
-implemented mostly from scratch due to the unique requirement of parsing based on a specification provided on runtime. Most libraries utilise code generation
-to provide server and client side parsing and so they were not suitable for use in this project.
+Pandit also requires no configuration of the application being proxied. As long as pandit has the service added, it will be ready to accept requests.
+This is because the daemon interfaces with the application as a client.
 
-\subsection{Broker}
-\label{sec:broker}
-
-This is the glue that allows the daemon to be aware of and communicate with other daemons in the cluster.
-The broker is an instance that communicates with a Redis \cite{redis} instance.
-
-When constructing the broker, the user provides the address of the Redis instance and it will maintain a connection to the Redis instance.
-It provides many methods to interact with the Redis instance:
-\begin{itemize}
-    \item To add a new \textit{\nameref{sec:service}} to the broker.
-    \item To query the broker for the address of a \textit{\nameref{sec:service}}.
-    \item To publish new cache to all interested daemons in the cluster.
-    \item To check if cache exists for a specific query.
-\end{itemize}
-
-\subsection{Writer}
-\label{sec:writer}
-This is a trait \cite{trait} the represents a way of sending a query to the authoritative container.
-It takes in the an abstract fields representation of the query data and a \textit{\nameref{sec:handler}}.
-The writer uses the \textit{\nameref{sec:handler}} to convert the data to a bytes array.
-It then constructs a full request in the format required and adds in the query data to the payload.
-
-A current implementation of this is the HTTP Writer that uses a JSON handler to interface with REST APIs.
-
-\subsection{Handler}
-\label{sec:handler}
-The \textit{\nameref{sec:handler}} is used to convert the data to convert to and from the abstract fields representation of the data provided to the writer.
+All-in-all, Pandit provides many benefits and the configuration process is both simple and intuitive.
 
 \begin{thebibliography}{9}
     \bibitem{protobufs}
@@ -174,6 +196,8 @@ The \textit{\nameref{sec:handler}} is used to convert the data to convert to and
     Redis - \href{https://redis.io/}{redis.io}.
     \bibitem{trait}
     Rust Traits - \href{https://doc.rust-lang.org/rust-by-example/trait.html}{doc.rust-lang.org}.
+    \bibitem{orm}
+    Object Relational Mapping - \href{https://en.wikipedia.org/wiki/Object%E2%80%93relational_mapping}{en.wikipedia.org}.
 \end{thebibliography}
 
 \end{document}
