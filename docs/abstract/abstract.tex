@@ -1,4 +1,4 @@
-\documentclass{article}
+\documentclass[12pt]{article}
 \usepackage{hyperref}
 \usepackage[utf8]{inputenc}
 
@@ -11,36 +11,29 @@
 \maketitle
 
 \section{Introduction}
-Pandit at its core is a \textbf{distributed service level proxy}.
+Pandit at its core is a \textbf{distributed service-level proxy}.
 This means it is a proxy tasked with interpreting data on a service level and caching it
 in a distributed manner, allowing it to speed up read and write times of clients querying the services
 in question.
 
 Pandit is designed to be able to proxy any data source such as REST APIs or SQL databases.
-It reads in user defined Protocol Buffers \cite{protobufs} that are extended to provide information on
-how to parse, cache and return data to clients.
+It reads in user-defined Protocol Buffers \cite{protobufs} that are extended to provide information on
+how to parse, cache, and return data to clients.
 
-It uses these protobufs to provide a gRPC \cite{grpc} service that will be available to every client of every node.
+It uses these Protobufs to provide a gRPC \cite{grpc} service that will be available to every client of every node.
 
-A single instance of the Pandit daemon will be ran on each host in a cluster of machines. When a client queries
-a service, the daemon will first check the cache for the data. If it cannot find it, it will delegate the request
-to an authoritative container in the cluster.
-
-Since the mapping between the data returned by the authoritative container and the data returned by the gRPC service is
-user-defined, Pandit provides options to annotate specific fields in return types to allow for the efficient caching of
-common requests, greaty reducing the amount of queries that need to be sent to the authoritative container.
 
 \section{Existing Solutions}
-Service level proxys usually fall into two categories:
+Service level proxies usually fall into two categories:
 \begin{itemize}
     \item A commercial closed-source proxy that focuses on platform-specific use cases.
     \item An open-source proxy that proxies requests and caches the responses.
 \end{itemize}
 \subsection{Commercial Closed-Source Proxies}
 An example of the former would be Google Cloud Endpoints with HTTP/JSON to gRPC encoding \cite{cloud_endpoints}.
-This feature exists in Pandit and functions in a similar manner - as in it provides a conversion layer between
-HTTP/JSON and gRPC. However, Google Cloud Endpoints only support a single data format (HTTP/JSON) while Pandit supports a
-multitude of data formats.
+This feature exists in Pandit and functions similarly - as in it provides a conversion layer between
+HTTP/JSON and gRPC. However, Google Cloud Endpoints only support a single data format (HTTP/JSON), while Pandit supports
+many more data formats.
 This form of proxy only works on the hosted Google Cloud Platform \cite{google_cloud_platform} while Pandit can be deployed
 in any cluster.
 
@@ -50,30 +43,111 @@ Like Pandit, it supports many data formats and can be deployed in any cluster.
 It runs alongside each application in the cluster and handles the querying and caching of data.
 Pandit has a similar approach to this, with one key difference - Pandit provides a gRPC service to the clients.
 
-The benefit of translating data to Protocol Buffers to be transfered over gRPC are numberous:
+The benefit of translating data to Protocol Buffers to be transferred over gRPC are numerous:
 \begin{itemize}
     \item Clients can take advantage of code generation based on the Proto specification. \cite{codegen}
-    \item Protocol Buffers are more space efficient than text based formats such as JSON since it's a binary format. \cite{encoding}
+    \item Protocol Buffers are a binary format and hence more space-efficient than text-based formats such as JSON. \cite{encoding}
     \item gRPC benefits from features of HTTP/2 such as pipelining and compression. \cite{http2}
 \end{itemize}
 
-Since the cached data will also be stored in the Protocol Buffer format, it also means that cached data will be more space efficient in
+Since the cached data will also be stored in the Protocol Buffer format, it also means that cached data will be more space-efficient in
 many cases.
 
-Pandit is aware of all clients that have previously queried an endpoint and syncs the cache with the local daemon on each host the clients are running on.
+Pandit is aware of all clients that have previously queried an endpoint and can sync the cache with the local daemon on each host the
+clients are running on.
 This means that the data will be widely available close to the clients and when it sees a query for the same data, it will return the cached data.
 Users of course define if and how long the data should be cached, as well as how to recognise a query for the same data.
 
 All these features mean Pandit provides a great deal of flexibility for users to define their own caching and querying strategies.
 
 \section{Implementation}
-\subsection{The Daemon}
-Pandit has been implemented as a daemon that runs on each host in the cluster.
-The entire project is implemented using the Rust Programming Language \cite{rust}, providing fast runtimes, compile-time memory safety
+\subsection{Overview}
+A single instance of the Pandit daemon will be run on each host in a cluster of machines. When a client queries
+a service, the daemon will first check the cache for the data. If it cannot find it, it will delegate the request
+to an authoritative container in the cluster.
+
+Since the mapping between the data returned by the authoritative container and the data returned by the gRPC service is
+user-defined, Pandit provides options to annotate specific fields in return types to allow for the efficient caching of
+common requests, greatly reducing the amount of queries that need to be sent to the authoritative container.
+
+The entire project is implemented using the Rust Programming Language \cite{rust}, providing fast run times, compile-time memory safety
 and top-notch tooling.
 
+The daemon was implemented with the following features:
 
+\subsection{Administration API}
+\label{sec:api}
+This is the API that is used to configure the daemon. It is a gRPC service that is exposed via a port on the loopback interface of each host.
+A CLI client is used to interface with the API. Currently, the only supported method is to add a new \textit{\nameref{sec:service}} to the daemon.
+This entails the following:
+\begin{itemize}
+    \item Creating a new \textit{\nameref{sec:service}} based on the parameters provided by the user.
+          This includes providing Protobuf that was sent from the client as a byte array.
+    \item Adding the service to the \textit{\nameref{sec:broker}}. This tells the other daemons about the service that this
+          node is hosting the service in question.
+\end{itemize}
 
+\subsection{Service Server}
+\label{sec:server}
+This provides a custom gRPC service handler. It is responsible for handling all requests from clients on the host it's running on.
+When a gRPC request is received, it will parse the service and method name from the request.
+It will first check the cache for the data based on this information. If it cannot find it,
+it will delegate the request to the \textit{\nameref{sec:service}}.
+
+However, the \textit{\nameref{sec:service}} may not be available on the current host. In this case, the request will be delegated to the host that the
+service is available on. The host is found by querying the \textit{\nameref{sec:broker}} for the address of the host the service is on.
+After a response is received, it will publish the data to the cache using the \textit{\nameref{sec:broker}}.
+
+\subsection{Service}
+\label{sec:service}
+This is a \textit{struct} that represents a service that is hosted by the daemon. It is created by the \textit{\nameref{sec:api}} and
+takes in a Protobuf specification.
+
+The constructor parses the Protobuf specification and builds an in-memory mapping of all methods, messages, and their fields.
+This includes parsing user defined options for caching, such as the \textit{Primary Key} field that will define when a cache hit should occur.
+Other options include the \textit{Cache Disabled} and \textit{Cache Timeout} fields that define if and how long the data should be cached.
+
+The service provides a method that sends a query to the authoritative container on the host.
+It passes the query as well as a \textit{\nameref{sec:handler}} for the specific method to a \textit{\nameref{sec:writer}} which executes the query
+and returns the response. The response is then converted to a Protocol Buffer using the aforementioned \textit{\nameref{sec:handler}} and returned.
+
+\subsection{Messages}
+\label{sec:messages}
+This represents a Protocol Buffer Message. A Method is defined by an input Message and an Output Message and so it will contain two instances of this struct.
+A message contains many fields of different types, one of those types being another message. The message struct also contains all the
+aforementioned information provided by the user in the Protobuf specification.
+
+It provides methods that parses Protobuf encoded messages to and from an abstract representation of the fields and their values. This conversion has been
+implemented mostly from scratch due to the unique requirement of parsing based on a specification provided on runtime. Most libraries utilise code generation
+to provide server and client side parsing and so they were not suitable for use in this project.
+
+\subsection{Broker}
+\label{sec:broker}
+
+This is the glue that allows the daemon to be aware of and communicate with other daemons in the cluster.
+The broker is an instance that communicates with a Redis \cite{redis} instance.
+
+When constructing the broker, the user provides the address of the Redis instance and it will maintain a connection to the Redis instance.
+It provides many methods to interact with the Redis instance:
+\begin{itemize}
+    \item To add a new \textit{\nameref{sec:service}} to the broker.
+    \item To query the broker for the address of a \textit{\nameref{sec:service}}.
+    \item To publish new cache to all interested daemons in the cluster.
+    \item To check if cache exists for a specific query.
+\end{itemize}
+
+\subsection{Writer}
+\label{sec:writer}
+This is a trait \cite{trait} the represents a way of sending a query to the authoritative container.
+It takes in the an abstract fields representation of the query data and a \textit{\nameref{sec:handler}}.
+The writer uses the \textit{\nameref{sec:handler}} to convert the data to a bytes array.
+It then constructs a full request in the format required and adds in the query data to the payload.
+
+A current implementation of this is the HTTP Writer that uses a JSON handler to interface with REST APIs.
+
+\subsection{Handler}
+\label{sec:handler}
+The \textit{\nameref{sec:handler}} is used to convert the data to convert to and from the abstract fields representation of the data provided to the writer.
 
 \begin{thebibliography}{9}
     \bibitem{protobufs}
@@ -94,6 +168,12 @@ and top-notch tooling.
     HTTP 2 - \href{https://developer.mozilla.org/en-US/docs/Glossary/HTTP_2}{developer.mozilla.org}.
     \bibitem{rust}
     Rust Programming Language - \href{https://www.rust-lang.org/}{rust-lang.org}.
+    \bibitem{core}
+    gRPC Core Concepts - \href{https://grpc.io/docs/what-is-grpc/core-concepts/}{grpc.io}.
+    \bibitem{redis}
+    Redis - \href{https://redis.io/}{redis.io}.
+    \bibitem{trait}
+    Rust Traits - \href{https://doc.rust-lang.org/rust-by-example/trait.html}{doc.rust-lang.org}.
 \end{thebibliography}
 
 \end{document}
