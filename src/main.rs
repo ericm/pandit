@@ -12,6 +12,7 @@ pub mod writers;
 use api_proto::api_grpc::create_api;
 use bollard::Docker;
 use clap::Parser;
+use dashmap::DashMap;
 use get_if_addrs::get_if_addrs;
 use grpcio::ChannelBuilder;
 use grpcio::EnvBuilder;
@@ -155,11 +156,19 @@ async fn main() {
         .build()
         .unwrap();
     server.start();
-    start_services(&cfg, k8s_handler).await;
+    match k8s_handler.clone() {
+        Some(mut handler) => {
+            handler.add_server_broker(broker.clone(), intra_server.clone());
+            start_services(&cfg, Some(handler)).await;
+        }
+        None => {
+            start_services(&cfg, None).await;
+        }
+    }
 
     tokio::spawn(async move {
         loop {
-            match broker.receive().await {
+            match broker.receive(k8s_handler.clone()).await {
                 Ok(_) => {}
                 Err(err) => eprintln!("error interfacing with broker: {:?}", err),
             }
@@ -176,6 +185,8 @@ async fn start_services(cfg: &config::Config, k8s_handler: Option<K8sHandler>) {
     let ch = ChannelBuilder::new(env).connect(addr.as_str());
     let client = api_proto::api_grpc::ApiClient::new(ch);
     let paths = read_dir(current_dir().unwrap()).unwrap();
+
+    let pods = DashMap::new();
     for path in paths {
         let path = path.unwrap().path();
         let ext = match path.extension() {
@@ -197,7 +208,7 @@ async fn start_services(cfg: &config::Config, k8s_handler: Option<K8sHandler>) {
                 .to_string();
             let on_current = match &k8s_handler {
                 Some(handler) => handler.is_pod_on_current(&container_id).await.unwrap(),
-                None => false,
+                None => true,
             };
             if !on_current {
                 continue;
@@ -226,5 +237,13 @@ async fn start_services(cfg: &config::Config, k8s_handler: Option<K8sHandler>) {
             req.set_container_id(container_id);
             client.start_service(&req).unwrap();
         }
+    }
+    match k8s_handler {
+        Some(handler) => {
+            let pods = Arc::new(pods);
+            let handler = Arc::new(handler);
+            tokio::spawn(async move { handler.watch_pods(pods).await.unwrap() });
+        }
+        None => {}
     }
 }

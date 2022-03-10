@@ -15,11 +15,14 @@ use bollard::network::DisconnectNetworkOptions;
 use bollard::Docker;
 use crossbeam_channel;
 use dashmap::DashMap;
+use dashmap::DashSet;
 use grpcio::ChannelBuilder;
 use grpcio::EnvBuilder;
 use grpcio::RpcStatus;
 use grpcio::RpcStatusCode;
 use k8s_openapi::api::core::v1::{Node, Pod};
+use kube::runtime::utils::try_flatten_applied;
+use kube::runtime::watcher;
 use std::io::prelude::*;
 use tempfile::tempdir;
 use tokio::sync::Mutex;
@@ -203,6 +206,8 @@ fn proto_libraries() -> [(&'static str, &'static [u8]); 3] {
 pub struct K8sHandler {
     client: kube::Client,
     pandit_port: u16,
+    broker: Option<Arc<Broker>>,
+    server: Option<Arc<RwLock<IntraServer>>>,
 }
 
 impl K8sHandler {
@@ -211,8 +216,16 @@ impl K8sHandler {
         Ok(Self {
             client,
             pandit_port,
+            server: None,
+            broker: None,
         })
     }
+
+    pub fn add_server_broker(&mut self, broker: Arc<Broker>, server: Arc<RwLock<IntraServer>>) {
+        self.broker = Some(broker);
+        self.server = Some(server);
+    }
+
     async fn handle_if_external(&self, req: &api::StartServiceRequest) -> ServiceResult<bool> {
         let current_node = std::env::var("NODE_NAME")?;
         let pod_node = {
@@ -251,6 +264,38 @@ impl K8sHandler {
             spec.node_name.ok_or("no node name")?
         };
         Ok(pod_node == current_node)
+    }
+
+    pub async fn watch_pods(&self, pods: Arc<DashMap<String, String>>) -> ServiceResult<()> {
+        use futures::prelude::*;
+        let api: kube::Api<Pod> = kube::Api::default_namespaced(self.client.clone());
+        let pods = &pods.clone();
+
+        let broker = &self.broker.clone().unwrap();
+        let server = &self.server.clone().unwrap();
+
+        try_flatten_applied(watcher(api, Default::default()))
+            .try_for_each(|p| async move {
+                let name = p.metadata.name.unwrap();
+                if !pods.contains_key(&name) {
+                    return Ok(());
+                }
+                let status = p.status.as_ref().unwrap();
+                if status.phase.as_ref().unwrap() == "Failed" {
+                    log::warn!("pod '{}' has been evicted", name);
+
+                    // Remove from broker and server
+                    let service = pods.get(&name).unwrap();
+                    broker.remove_service(service.value(), &name).await.unwrap();
+                    {
+                        let mut server = server.write().await;
+                        server.remove_service(&name.to_string());
+                    }
+                }
+                Ok(())
+            })
+            .await?;
+        Ok(())
     }
 }
 

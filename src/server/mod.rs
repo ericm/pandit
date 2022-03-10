@@ -115,6 +115,10 @@ impl IntraServer {
         self.services.insert(name.clone(), service);
     }
 
+    pub fn remove_service(&mut self, name: &String) {
+        self.services.remove(name);
+    }
+
     async fn handle_request(
         services: Arc<services::Services>,
         mut request: Request<RecvStream>,

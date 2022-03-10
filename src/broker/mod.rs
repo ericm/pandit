@@ -13,6 +13,7 @@ use redis::cluster::ClusterClient;
 use redis::{Client, Commands, Connection, Msg, PubSubCommands};
 use tokio::time::sleep;
 
+use crate::api::K8sHandler;
 use crate::services::base::CacheOptions;
 use crate::services::value::Value;
 use crate::services::{message::Message, Fields, ServiceResult};
@@ -115,17 +116,17 @@ impl Broker {
 
     pub fn publish_service(&self, name: &String, service: &Service) -> ServiceResult<()> {
         let mut conn = self.client.get_connection()?;
+        {
+            let key = format!("default_{}", name);
+            let value = serde_json::to_vec(&service.default_cache)?;
+            conn.set(key, value)?;
+        }
+        {
+            let key = format!("host_{}", name);
+            let value = &self.host_addr;
+            conn.set(key, value)?;
+        }
         for method in service.methods.iter() {
-            {
-                let key = format!("default_{}", name);
-                let value = serde_json::to_vec(&service.default_cache)?;
-                conn.set(key, value)?;
-            }
-            {
-                let key = format!("host_{}", name);
-                let value = &self.host_addr;
-                conn.set(key, value)?;
-            }
             {
                 let key = format!("config_{}_{}", name, method.key());
                 let value = serde_json::to_vec(method.value())?;
@@ -138,6 +139,22 @@ impl Broker {
                 conn.set(key, value)?;
             }
         }
+        Ok(())
+    }
+
+    pub async fn remove_service(&self, name: &String, pod_name: &String) -> ServiceResult<()> {
+        use redis::AsyncCommands;
+        let mut conn = self.client.get_async_connection().await?;
+        {
+            let key = format!("default_{}", name);
+            conn.del(key).await?;
+        }
+        {
+            let key = format!("host_{}", name);
+            conn.del(key).await?;
+        }
+
+        conn.publish("evicted", pod_name).await?;
         Ok(())
     }
 
@@ -265,7 +282,7 @@ impl Broker {
         ))
     }
 
-    pub async fn receive(&self) -> ServiceResult<()> {
+    pub async fn receive(&self, k8s_handler: Option<K8sHandler>) -> ServiceResult<()> {
         let msg = {
             let pubsub = self.client.get_async_connection().await?;
             let mut pubsub = pubsub.into_pubsub();
@@ -291,12 +308,32 @@ impl Broker {
         };
         match msg.get_channel_name() {
             "services" => {}
+            "evicted" => match k8s_handler {
+                Some(handler) => {
+                    let pod: String = msg.get_payload()?;
+                    tokio::spawn(async move {
+                        for _ in 0..10 {
+                            let on_current = handler.is_pod_on_current(&pod).await.unwrap();
+                            if on_current {
+                                log::info!("pod '{}' is now on this node", pod);
+                                return;
+                            }
+                            sleep(Duration::from_secs(6)).await;
+                        }
+                        log::debug!("pod '{}' was not found on this node", pod);
+                    });
+                }
+                None => {
+                    log::error!("pod eviction received but no k8s handler")
+                }
+            },
             name => match self.parse_service_fields(name, &msg) {
                 Ok(_) => {}
                 Err(err) => {
-                    eprintln!(
+                    log::error!(
                         "error occured parsing service with name {}: {:?}",
-                        name, err
+                        name,
+                        err
                     );
                 }
             },

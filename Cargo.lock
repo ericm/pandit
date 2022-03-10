@@ -1481,6 +1481,7 @@ dependencies = [
  "k8s-openapi",
  "kube",
  "libc",
+ "log",
  "num",
  "parameterized",
  "protobuf 3.0.0-alpha.2",
