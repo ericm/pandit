@@ -33,6 +33,7 @@ pub struct ApiServer {
     broker: Arc<Broker>,
     server: Arc<RwLock<IntraServer>>,
     network: Option<Arc<dyn NetworkRuntime>>,
+    k8s_handler: Option<K8sHandler>,
 }
 
 impl api_grpc::Api for ApiServer {
@@ -93,6 +94,7 @@ impl Clone for ApiServer {
             broker: self.broker.clone(),
             server: self.server.clone(),
             network: self.network.clone(),
+            k8s_handler: self.k8s_handler.clone(),
         }
     }
 }
@@ -102,11 +104,13 @@ impl ApiServer {
         broker: Arc<Broker>,
         server: Arc<RwLock<IntraServer>>,
         network: Option<Arc<dyn NetworkRuntime>>,
+        k8s_handler: Option<K8sHandler>,
     ) -> Self {
         Self {
             broker,
             server,
             network,
+            k8s_handler,
         }
     }
 
@@ -167,6 +171,26 @@ fn proto_libraries() -> [(&'static str, &'static [u8]); 3] {
             include_bytes!("../proto/format/http.proto"),
         ),
     ]
+}
+
+#[derive(Clone)]
+pub struct K8sHandler {
+    client: kube::Client,
+}
+
+impl K8sHandler {
+    pub async fn new() -> ServiceResult<Self> {
+        let client = kube::Client::try_default().await?;
+        Ok(Self { client })
+    }
+    async fn handle_if_external(&self, req: &api::StartServiceRequest) -> ServiceResult<bool> {
+        use k8s_openapi::api::core::v1::Pod;
+        let pods: kube::Api<Pod> = kube::Api::default_namespaced(self.client.clone());
+        let pod: Pod = pods.get(req.container_id.as_str()).await?;
+        let spec = pod.spec.ok_or("no pod spec")?;
+        let node_name = spec.node_name.ok_or("no node name")?;
+        Ok(true)
+    }
 }
 
 #[async_trait]
