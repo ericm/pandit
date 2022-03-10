@@ -19,6 +19,7 @@ use grpcio::ChannelBuilder;
 use grpcio::EnvBuilder;
 use grpcio::RpcStatus;
 use grpcio::RpcStatusCode;
+use k8s_openapi::api::core::v1::{Node, Pod};
 use std::io::prelude::*;
 use tempfile::tempdir;
 use tokio::sync::Mutex;
@@ -213,7 +214,6 @@ impl K8sHandler {
         })
     }
     async fn handle_if_external(&self, req: &api::StartServiceRequest) -> ServiceResult<bool> {
-        use k8s_openapi::api::core::v1::{Node, Pod};
         let current_node = std::env::var("NODE_NAME")?;
         let pod_node = {
             let pods: kube::Api<Pod> = kube::Api::default_namespaced(self.client.clone());
@@ -240,6 +240,17 @@ impl K8sHandler {
         };
         client.start_service(req)?;
         Ok(true)
+    }
+
+    pub async fn is_pod_on_current(&self, container_id: &String) -> ServiceResult<bool> {
+        let current_node = std::env::var("NODE_NAME")?;
+        let pod_node = {
+            let pods: kube::Api<Pod> = kube::Api::default_namespaced(self.client.clone());
+            let pod: Pod = pods.get(container_id.as_str()).await?;
+            let spec = pod.spec.ok_or("no pod spec")?;
+            spec.node_name.ok_or("no node name")?
+        };
+        Ok(pod_node == current_node)
     }
 }
 

@@ -1,4 +1,3 @@
-#![feature(destructuring_assignment)]
 #![feature(ptr_to_from_bits)]
 #![feature(binary_heap_into_iter_sorted)]
 
@@ -25,10 +24,9 @@ use std::fs::read_dir;
 use std::fs::File;
 use std::sync::Arc;
 use tokio;
-use tokio::signal::ctrl_c;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
-use tracing::{error, Level};
+use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use crate::api::ApiServer;
@@ -64,6 +62,10 @@ async fn main() {
 
     let app: Args = Parser::parse();
     let cfg = services::new_config(app.config.as_str());
+
+    if app.k8s && app.docker {
+        panic!("error: cannot use both --k8s and --docker");
+    }
 
     let network_runtime: Option<Arc<dyn NetworkRuntime>> = if app.docker {
         let docker = Docker::connect_with_socket_defaults().unwrap();
@@ -134,7 +136,7 @@ async fn main() {
         broker.clone(),
         intra_server.clone(),
         network_runtime,
-        k8s_handler,
+        k8s_handler.clone(),
     ));
 
     let env = Arc::new(Environment::new(1));
@@ -153,7 +155,7 @@ async fn main() {
         .build()
         .unwrap();
     server.start();
-    start_services(&cfg);
+    start_services(&cfg, k8s_handler).await;
 
     tokio::spawn(async move {
         loop {
@@ -168,12 +170,11 @@ async fn main() {
     server_cancelled.await.unwrap();
 }
 
-fn start_services(cfg: &config::Config) {
+async fn start_services(cfg: &config::Config, k8s_handler: Option<K8sHandler>) {
     let addr = format!("0.0.0.0:{}", cfg.get_int("admin.port").unwrap_or(50121));
     let env = Arc::new(EnvBuilder::new().build());
     let ch = ChannelBuilder::new(env).connect(addr.as_str());
     let client = api_proto::api_grpc::ApiClient::new(ch);
-
     let paths = read_dir(current_dir().unwrap()).unwrap();
     for path in paths {
         let path = path.unwrap().path();
@@ -188,7 +189,21 @@ fn start_services(cfg: &config::Config) {
         let save: serde_json::Value = serde_json::from_reader(save_file).unwrap();
         {
             use std::convert::TryFrom;
+            let container_id = save
+                .get("container_id")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string();
+            let on_current = match &k8s_handler {
+                Some(handler) => handler.is_pod_on_current(&container_id).await.unwrap(),
+                None => false,
+            };
+            if !on_current {
+                continue;
+            }
             let name = save.get("name").unwrap().as_str().unwrap().to_string();
+            println!("starting service: {}", name);
             let port: i32 = save
                 .get("port")
                 .unwrap()
@@ -204,12 +219,6 @@ fn start_services(cfg: &config::Config) {
                 .iter()
                 .map(|v| u8::try_from(v.as_u64().unwrap()).unwrap())
                 .collect();
-            let container_id = save
-                .get("container_id")
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .to_string();
             let mut req = api_proto::api::StartServiceRequest::new();
             req.set_proto(proto);
             req.set_port(port);

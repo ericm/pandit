@@ -143,6 +143,7 @@ impl IntraServer {
 
         let mut _remote_sender: RemoteSender;
         let mut _service: RefMut<String, Service>;
+        // TODO: move cache check to here.
         let service: &mut dyn Sender = match services.get_mut(service) {
             Some(s) => {
                 _service = s;
