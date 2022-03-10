@@ -15,6 +15,8 @@ use bollard::network::DisconnectNetworkOptions;
 use bollard::Docker;
 use crossbeam_channel;
 use dashmap::DashMap;
+use grpcio::ChannelBuilder;
+use grpcio::EnvBuilder;
 use grpcio::RpcStatus;
 use grpcio::RpcStatusCode;
 use std::io::prelude::*;
@@ -43,6 +45,7 @@ impl api_grpc::Api for ApiServer {
         req: api::StartServiceRequest,
         sink: grpcio::UnarySink<api::StartServiceReply>,
     ) {
+        let default_host = "127.0.0.1".to_string();
         let host = match self.network.clone() {
             Some(nw) => {
                 let container_id = req.container_id.clone();
@@ -58,7 +61,29 @@ impl api_grpc::Api for ApiServer {
                 };
                 host
             }
-            None => "127.0.0.1".to_string(),
+            None => match self.k8s_handler.clone() {
+                Some(handler) => {
+                    let (tx, rx) = crossbeam_channel::unbounded();
+                    let req = req.clone();
+                    ctx.spawn(async move {
+                        let external = match handler.handle_if_external(&req).await {
+                            Ok(v) => v,
+                            Err(err) => {
+                                eprintln!("error calling k8s handle_if_external: {}", err);
+                                false
+                            }
+                        };
+                        tx.send(external).unwrap();
+                    });
+                    if rx.recv().unwrap() {
+                        sink.success(api::StartServiceReply::new());
+                        return;
+                    } else {
+                        default_host
+                    }
+                }
+                None => default_host,
+            },
         };
         let addr = format!("{}:{}", host, req.port);
         match self.handle_start_service(&ctx, &req, &addr) {
@@ -176,19 +201,44 @@ fn proto_libraries() -> [(&'static str, &'static [u8]); 3] {
 #[derive(Clone)]
 pub struct K8sHandler {
     client: kube::Client,
+    pandit_port: u16,
 }
 
 impl K8sHandler {
-    pub async fn new() -> ServiceResult<Self> {
+    pub async fn new(pandit_port: u16) -> ServiceResult<Self> {
         let client = kube::Client::try_default().await?;
-        Ok(Self { client })
+        Ok(Self {
+            client,
+            pandit_port,
+        })
     }
     async fn handle_if_external(&self, req: &api::StartServiceRequest) -> ServiceResult<bool> {
-        use k8s_openapi::api::core::v1::Pod;
-        let pods: kube::Api<Pod> = kube::Api::default_namespaced(self.client.clone());
-        let pod: Pod = pods.get(req.container_id.as_str()).await?;
-        let spec = pod.spec.ok_or("no pod spec")?;
-        let node_name = spec.node_name.ok_or("no node name")?;
+        use k8s_openapi::api::core::v1::{Node, Pod};
+        let current_node = std::env::var("NODE_NAME")?;
+        let pod_node = {
+            let pods: kube::Api<Pod> = kube::Api::default_namespaced(self.client.clone());
+            let pod: Pod = pods.get(req.container_id.as_str()).await?;
+            let spec = pod.spec.ok_or("no pod spec")?;
+            spec.node_name.ok_or("no node name")?
+        };
+        if pod_node == current_node {
+            return Ok(false);
+        }
+        let node_ip = {
+            let nodes: kube::Api<Node> = kube::Api::default_namespaced(self.client.clone());
+            let node = nodes.get(pod_node.as_str()).await?;
+            let status = node.status.ok_or("no node status")?;
+            let addresses = status.addresses.ok_or("no node addresses")?;
+            let addr = addresses.first().ok_or("no available node addresses")?;
+            addr.address.clone()
+        };
+        let client = {
+            let node_addr = format!("{}:{}", node_ip, self.pandit_port);
+            let env = Arc::new(EnvBuilder::new().build());
+            let ch = ChannelBuilder::new(env).connect(node_addr.as_str());
+            api_proto::api_grpc::ApiClient::new(ch)
+        };
+        client.start_service(req)?;
         Ok(true)
     }
 }

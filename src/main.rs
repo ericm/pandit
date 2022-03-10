@@ -33,6 +33,7 @@ use tracing_subscriber::FmtSubscriber;
 
 use crate::api::ApiServer;
 use crate::api::DockerNetworkRuntime;
+use crate::api::K8sHandler;
 use crate::api::NetworkRuntime;
 use crate::broker::Broker;
 use crate::server::IntraServer;
@@ -62,6 +63,7 @@ async fn main() {
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
     let app: Args = Parser::parse();
+    let cfg = services::new_config(app.config.as_str());
 
     let network_runtime: Option<Arc<dyn NetworkRuntime>> = if app.docker {
         let docker = Docker::connect_with_socket_defaults().unwrap();
@@ -73,9 +75,16 @@ async fn main() {
             });
         }
         Some(client)
-    } else if app.k8s {
-        // let k8s =
+    } else {
         None
+    };
+    let k8s_handler = if app.k8s {
+        let admin_port: u16 = cfg
+            .get_int("admin.port")
+            .unwrap_or(50121)
+            .try_into()
+            .unwrap();
+        Some(K8sHandler::new(admin_port).await.unwrap())
     } else {
         None
     };
@@ -100,7 +109,6 @@ async fn main() {
         },
     };
 
-    let cfg = services::new_config(app.config.as_str());
     let broker = Broker::connect(cfg.clone(), address.clone()).unwrap();
     let broker = Arc::new(broker);
 
@@ -126,6 +134,7 @@ async fn main() {
         broker.clone(),
         intra_server.clone(),
         network_runtime,
+        k8s_handler,
     ));
 
     let env = Arc::new(Environment::new(1));
