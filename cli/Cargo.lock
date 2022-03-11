@@ -219,6 +219,7 @@ dependencies = [
  "clap",
  "config",
  "grpcio",
+ "serde",
 ]
 
 [[package]]
