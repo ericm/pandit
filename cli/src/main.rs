@@ -1,8 +1,11 @@
 use clap::{Parser, Subcommand};
 use config::Config;
+use console::{style, Emoji};
 use grpcio::{ChannelBuilder, EnvBuilder};
+use indicatif::ProgressStyle;
 use serde::Deserialize;
-use std::{env::current_dir, fs::File, io::Read, path::PathBuf, sync::Arc};
+use std::{env::current_dir, fs::File, io::Read, path::PathBuf, sync::Arc, time::Duration};
+use tokio;
 
 #[derive(Parser)]
 #[clap(author = "Eric Moynihan", version, about, name = "pandit", long_about = None)]
@@ -55,8 +58,15 @@ enum K8s {
     Service { name: String },
 }
 
-fn main() {
-    let spinner = indicatif::ProgressBar::new_spinner();
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    // std::panic::set_hook(Box::new(|v| {
+    //     eprintln!(
+    //         "      {}An error occurred in '{}'...",
+    //         Emoji("❌ ", ""),
+    //         v.to_string(),
+    //     );
+    // }));
     let app: Args = Parser::parse();
     let env = Arc::new(EnvBuilder::new().build());
     let ch = ChannelBuilder::new(env).connect(app.daemon_address.as_str());
@@ -69,10 +79,12 @@ fn main() {
         path.canonicalize().unwrap()
     };
 
-    spinner.set_message(format!(
-        "Using proto library: {}",
+    println!(
+        "{} {}Using proto library '{}'...",
+        style("[1/3]").bold().dim(),
+        Emoji("🔍 ", ""),
         proto_path.to_str().unwrap()
-    ));
+    );
 
     match &app.service {
         ServiceCommand::Add { path } => {
@@ -88,7 +100,12 @@ fn main() {
                     .unwrap();
                 cfg.try_deserialize().unwrap()
             };
-            spinner.set_message(format!("Using panditfile: {}", path.to_str().unwrap()));
+            println!(
+                "{} {}Using panditfile '{}'...",
+                style("[2/3]").bold().dim(),
+                Emoji("📃 ", ""),
+                path.to_str().unwrap()
+            );
 
             let mut proto_path = proto_path.join(&cfg.metadata.proto);
             proto_path.set_extension("proto");
@@ -114,11 +131,17 @@ fn main() {
                 },
             }
 
-            spinner.set_message("Awaiting response from pandit...");
+            let pb = indicatif::ProgressBar::new_spinner();
+            pb.set_message("Awaiting response from pandit...");
+            pb.enable_steady_tick(3);
             let _resp = client.start_service(&req).unwrap();
+            pb.finish_and_clear();
             println!(
-                "Successfully created service {} with proto {}",
-                cfg.metadata.name, cfg.metadata.proto
+                "{} {}Successfully created service '{}' with proto '{}'...",
+                style("[3/3]").bold().dim(),
+                Emoji("✅ ", ""),
+                cfg.metadata.name,
+                cfg.metadata.proto
             );
         }
     }
