@@ -40,7 +40,7 @@ use crate::server::IntraServer;
 use crate::server::Server;
 
 #[derive(Parser)]
-#[clap(author, version, about, long_about = None)]
+#[clap(name = "panditd", author, version, about, long_about = None)]
 #[clap(propagate_version = true)]
 struct Args {
     #[clap(short, long, default_value = "./.pandit.yml")]

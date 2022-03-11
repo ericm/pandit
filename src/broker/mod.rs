@@ -141,12 +141,11 @@ impl Broker {
                 let value = serde_json::to_vec(method.value())?;
                 conn.set(key, value)?;
             }
-            {
-                let key = format!("message_{}", method.output_message);
-                let message = service.messages.get(&method.output_message).unwrap();
-                let value = serde_json::to_vec(message.value())?;
-                conn.set(key, value)?;
-            }
+        }
+        for message in service.messages.iter() {
+            let key = format!("message_{}_{}", name, message.key());
+            let value = serde_json::to_vec(message.value())?;
+            conn.set(key, value)?;
         }
         Ok(())
     }
@@ -175,14 +174,29 @@ impl Broker {
 
     pub fn sub_service(&self, service_name: &String, method_name: &String) -> ServiceResult<()> {
         let mut conn = self.client.get_connection()?;
+
         let method: Method = {
             let rv: Vec<u8> = conn.get(format!("config_{}_{}", service_name, method_name))?;
             serde_json::from_slice(&rv[..])?
         };
-        let message: Message = {
-            let rv: Vec<u8> = conn.get(format!("message_{}", method.output_message))?;
-            serde_json::from_slice(&rv[..])?
+
+        let message = {
+            let parents = {
+                let keys: Vec<String> = conn.keys(format!("message_{}_*", service_name))?;
+                let out = Arc::new(DashMap::<String, Message>::new());
+                for key in keys {
+                    let rv: Vec<u8> = conn.get(format!("message_{}_{}", service_name, key))?;
+                    let mut message: Message = serde_json::from_slice(&rv[..])?;
+                    message.parent = out.clone();
+                    out.insert(key, message);
+                }
+                out
+            };
+            let val = parents.get(&method.output_message);
+            let val = val.ok_or("no output message")?;
+            val.value().clone()
         };
+
         let default_cache: CacheOptions = {
             let rv: Vec<u8> = conn.get(format!("default_{}", service_name))?;
             serde_json::from_slice(&rv[..])?

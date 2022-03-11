@@ -5,7 +5,7 @@ use serde::Deserialize;
 use std::{env::current_dir, fs::File, io::Read, path::PathBuf, sync::Arc};
 
 #[derive(Parser)]
-#[clap(author, version, about, long_about = None)]
+#[clap(author = "Eric Moynihan", version, about, name = "pandit", long_about = None)]
 #[clap(propagate_version = true)]
 struct Args {
     #[clap(short, long, default_value = "/etc/pandit/protos")]
@@ -18,7 +18,11 @@ struct Args {
 
 #[derive(Subcommand)]
 enum ServiceCommand {
-    Add { path: String },
+    #[clap(about = "Add a new service to pandit")]
+    Add {
+        #[clap(help = "Path to the panditfile. If a directory, will look for ./panditfile.toml")]
+        path: String,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -44,6 +48,7 @@ struct Docker {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
 #[allow(unused)]
 enum K8s {
     Pod { name: String },
@@ -51,6 +56,7 @@ enum K8s {
 }
 
 fn main() {
+    let spinner = indicatif::ProgressBar::new_spinner();
     let app: Args = Parser::parse();
     let env = Arc::new(EnvBuilder::new().build());
     let ch = ChannelBuilder::new(env).connect(app.daemon_address.as_str());
@@ -62,7 +68,11 @@ fn main() {
         }
         path.canonicalize().unwrap()
     };
-    println!("Using proto library: {}", proto_path.to_str().unwrap());
+
+    spinner.set_message(format!(
+        "Using proto library: {}",
+        proto_path.to_str().unwrap()
+    ));
 
     match &app.service {
         ServiceCommand::Add { path } => {
@@ -78,6 +88,7 @@ fn main() {
                     .unwrap();
                 cfg.try_deserialize().unwrap()
             };
+            spinner.set_message(format!("Using panditfile: {}", path.to_str().unwrap()));
 
             let mut proto_path = proto_path.join(&cfg.metadata.proto);
             proto_path.set_extension("proto");
@@ -99,10 +110,11 @@ fn main() {
                         K8s::Pod { name } => req.set_k8s_pod(name),
                         K8s::Service { name } => req.set_k8s_service(name),
                     },
-                    None => todo!(),
+                    None => {}
                 },
             }
 
+            spinner.set_message("Awaiting response from pandit...");
             let _resp = client.start_service(&req).unwrap();
             println!(
                 "Successfully created service {} with proto {}",

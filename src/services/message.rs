@@ -21,11 +21,37 @@ pub struct Field {
 #[derive(Serialize, Deserialize)]
 pub struct Message {
     pub path: String,
+
+    #[serde(skip)]
     pub parent: Arc<DashMap<String, Message>>,
+
     fields: DashMap<u32, Field>,
     pub fields_by_name: DashMap<String, Field>,
     message: protobuf::descriptor::DescriptorProto,
 }
+
+// impl Serialize for Message {
+//     fn serialize<S>(&self, sr: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: serde::Serializer,
+//     {
+//         use serde::ser::SerializeStruct;
+//         let mut strc = sr.serialize_struct("Message", 5)?;
+//         strc.serialize_field("path", &self.path)?;
+//         // let new_parents = DashMap::new();
+//         // for entry in self.parent.iter() {
+//         //     let key = entry.key().clone();
+//         //     let mut message = entry.clone();
+//         //     message.parent = Arc::new(Default::default());
+//         //     new_parents.insert(key, message);
+//         // }
+//         strc.serialize_field("parent", &new_parents)?;
+//         strc.serialize_field("fields", &self.fields)?;
+//         strc.serialize_field("fields_by_name", &self.fields_by_name)?;
+//         strc.serialize_field("message", &self.message)?;
+//         strc.end()
+//     }
+// }
 
 macro_rules! as_variant {
     ($value:expr, $variant:path) => {
