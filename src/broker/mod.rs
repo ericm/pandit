@@ -1,4 +1,5 @@
 use std::collections::LinkedList;
+use std::env::current_dir;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
@@ -7,13 +8,14 @@ use async_trait::async_trait;
 use dashmap::mapref::one::Ref;
 use dashmap::{DashMap, DashSet};
 use futures::StreamExt;
+use grpcio::{ChannelBuilder, EnvBuilder};
 use hyper::body::HttpBody;
 use protobuf::well_known_types::Field;
 use redis::cluster::ClusterClient;
 use redis::{Client, Commands, Connection, Msg, PubSubCommands};
 use tokio::time::sleep;
 
-use crate::api::K8sHandler;
+use crate::api::{add_service_from_file, K8sHandler};
 use crate::services::base::CacheOptions;
 use crate::services::value::Value;
 use crate::services::{message::Message, Fields, ServiceResult};
@@ -74,12 +76,19 @@ impl Broker {
             let mut pubsub = conn.as_pubsub();
             pubsub.subscribe("services")?;
         }
+        conn.rpush("hosts", &host_addr)?;
         Ok(Self {
             host_addr,
             client,
             method_fields_map: Arc::new(Default::default()),
             subbed: Arc::new(DashSet::new()),
         })
+    }
+
+    pub fn get_hosts(&self) -> ServiceResult<Vec<String>> {
+        let mut conn = self.client.get_connection()?;
+        let hosts: Vec<String> = conn.get("hosts")?;
+        Ok(hosts)
     }
 
     pub fn is_subbed(&self, name: &String) -> bool {
@@ -154,7 +163,7 @@ impl Broker {
             conn.del(key).await?;
         }
 
-        conn.publish("evicted", pod_name).await?;
+        conn.publish("evicted", (name, pod_name)).await?;
         Ok(())
     }
 
@@ -309,8 +318,7 @@ impl Broker {
         match msg.get_channel_name() {
             "evicted" => match k8s_handler {
                 Some(handler) => {
-                    let pod: String = msg.get_payload()?;
-                    Self::handle_eviction(handler, pod);
+                    self.handle_eviction(handler, msg.get_payload()?);
                 }
                 None => {
                     log::error!("pod eviction received but no k8s handler")
@@ -330,13 +338,27 @@ impl Broker {
         Ok(())
     }
 
-    fn handle_eviction(handler: K8sHandler, pod: String) {
+    fn handle_eviction(&self, handler: K8sHandler, (service_name, pod): (String, String)) {
+        let host_addr = self.host_addr.clone();
         tokio::spawn(async move {
             for _ in 0..10 {
                 let on_current = handler.is_pod_on_current(&pod).await.unwrap();
                 if on_current {
                     log::info!("pod '{}' is now on this node", pod);
                     // Add service on this node
+                    {
+                        let mut path = current_dir().unwrap().join(service_name);
+                        path.set_extension("pandit_service");
+                        let mut _pods = Default::default();
+                        let client = {
+                            let env = Arc::new(EnvBuilder::new().build());
+                            let ch = ChannelBuilder::new(env).connect(host_addr.as_str());
+                            api_proto::api_grpc::ApiClient::new(ch)
+                        };
+                        add_service_from_file(path, &Some(handler), &mut _pods, &client)
+                            .await
+                            .unwrap();
+                    }
                     return;
                 }
                 sleep(Duration::from_secs(6)).await;

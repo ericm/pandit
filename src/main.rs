@@ -9,6 +9,7 @@ pub mod server;
 pub mod services;
 pub mod writers;
 
+use api::add_service_from_file;
 use api_proto::api_grpc::create_api;
 use bollard::Docker;
 use clap::Parser;
@@ -186,67 +187,12 @@ async fn start_services(cfg: &config::Config, k8s_handler: Option<K8sHandler>) {
     let client = api_proto::api_grpc::ApiClient::new(ch);
     let paths = read_dir(current_dir().unwrap()).unwrap();
 
-    let pods = DashMap::new();
+    let mut pods = DashMap::new();
     for path in paths {
         let path = path.unwrap().path();
-        let ext = match path.extension() {
-            Some(ext) => ext.to_str().unwrap(),
-            None => continue,
-        };
-        if ext != "pandit_service" {
-            continue;
-        }
-        let save_file = File::open(path).unwrap();
-        let save: serde_json::Value = serde_json::from_reader(save_file).unwrap();
-        {
-            use std::convert::TryFrom;
-            let docker_id = save.get("docker_id").unwrap().as_str().unwrap().to_string();
-            let k8s_pod = save.get("k8s_pod").unwrap().as_str().unwrap().to_string();
-            let k8s_service = save
-                .get("k8s_service")
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .to_string();
-            if k8s_pod != "" {
-                let on_current = match &k8s_handler {
-                    Some(handler) => handler.is_pod_on_current(&k8s_pod).await.unwrap(),
-                    None => true,
-                };
-                if !on_current {
-                    continue;
-                }
-            }
-            let name = save.get("name").unwrap().as_str().unwrap().to_string();
-            println!("starting service: {}", name);
-            let port: i32 = save
-                .get("port")
-                .unwrap()
-                .as_i64()
-                .unwrap()
-                .try_into()
-                .unwrap();
-            let proto: Vec<u8> = save
-                .get("proto")
-                .unwrap()
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|v| u8::try_from(v.as_u64().unwrap()).unwrap())
-                .collect();
-            let mut req = api_proto::api::StartServiceRequest::new();
-            req.set_proto(proto);
-            req.set_port(port);
-            req.set_name(name);
-            if k8s_pod != "" {
-                req.set_k8s_pod(k8s_pod);
-            } else if k8s_service != "" {
-                req.set_k8s_service(k8s_service);
-            } else if docker_id != "" {
-                req.set_docker_id(docker_id);
-            }
-            client.start_service(&req).unwrap();
-        }
+        add_service_from_file(path, &k8s_handler, &mut pods, &client)
+            .await
+            .unwrap();
     }
     match k8s_handler {
         Some(handler) => {

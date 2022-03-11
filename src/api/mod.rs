@@ -1,13 +1,16 @@
+use std::convert::{TryFrom, TryInto};
 use std::env::current_dir;
 use std::error::Error;
 use std::fs::create_dir;
 use std::fs::File;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use api_proto::api;
 use api_proto::api::StartServiceRequest_oneof_container;
 use api_proto::api_grpc;
+use api_proto::api_grpc::ApiClient;
 use async_trait::async_trait;
 use bollard::models::Network;
 use bollard::network::ConnectNetworkOptions;
@@ -234,6 +237,71 @@ fn proto_libraries() -> [(&'static str, &'static [u8]); 3] {
     ]
 }
 
+pub async fn add_service_from_file(
+    path: PathBuf,
+    k8s_handler: &Option<K8sHandler>,
+    pods: &mut DashMap<String, String>,
+    client: &ApiClient,
+) -> ServiceResult<()> {
+    let ext = match path.extension() {
+        Some(ext) => ext.to_str().unwrap(),
+        None => return Ok(()),
+    };
+    if ext != "pandit_service" {
+        return Ok(());
+    }
+    let save_file = File::open(path).unwrap();
+    let save: serde_json::Value = serde_json::from_reader(save_file).unwrap();
+    let docker_id = save.get("docker_id").unwrap().as_str().unwrap().to_string();
+    let k8s_pod = save.get("k8s_pod").unwrap().as_str().unwrap().to_string();
+    let k8s_service = save
+        .get("k8s_service")
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .to_string();
+    let name = save.get("name").unwrap().as_str().unwrap().to_string();
+    if k8s_pod != "" {
+        let on_current = match &k8s_handler {
+            Some(handler) => handler.is_pod_on_current(&k8s_pod).await.unwrap(),
+            None => true,
+        };
+        if !on_current {
+            return Ok(());
+        }
+        pods.insert(k8s_pod.clone(), name.clone());
+    }
+    println!("starting service: {}", name);
+    let port: i32 = save
+        .get("port")
+        .unwrap()
+        .as_i64()
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let proto: Vec<u8> = save
+        .get("proto")
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| u8::try_from(v.as_u64().unwrap()).unwrap())
+        .collect();
+    let mut req = api_proto::api::StartServiceRequest::new();
+    req.set_proto(proto);
+    req.set_port(port);
+    req.set_name(name);
+    if k8s_pod != "" {
+        req.set_k8s_pod(k8s_pod);
+    } else if k8s_service != "" {
+        req.set_k8s_service(k8s_service);
+    } else if docker_id != "" {
+        req.set_docker_id(docker_id);
+    }
+    client.start_service(&req).unwrap();
+    Ok(())
+}
+
 #[derive(Clone)]
 pub struct K8sHandler {
     client: kube::Client,
@@ -282,6 +350,7 @@ impl K8sHandler {
                     kube::Api::default_namespaced(self.client.clone());
                 let service: K8sService = services.get(id.as_str()).await?;
                 let spec = service.spec.ok_or("no pod spec")?;
+                // TODO: Add service to all hosts.
                 return Ok(Some(spec.cluster_ip.ok_or("no cluster ip")?));
             }
             docker_id(_) => {
