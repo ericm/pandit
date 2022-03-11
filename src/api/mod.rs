@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use api_proto::api;
+use api_proto::api::StartServiceRequest_oneof_container;
 use api_proto::api_grpc;
 use async_trait::async_trait;
 use bollard::models::Network;
@@ -20,7 +21,7 @@ use grpcio::ChannelBuilder;
 use grpcio::EnvBuilder;
 use grpcio::RpcStatus;
 use grpcio::RpcStatusCode;
-use k8s_openapi::api::core::v1::{Node, Pod};
+use k8s_openapi::api::core::v1::{Node, Pod, Service as K8sService};
 use kube::runtime::utils::try_flatten_applied;
 use kube::runtime::watcher;
 use std::io::prelude::*;
@@ -50,10 +51,20 @@ impl api_grpc::Api for ApiServer {
         sink: grpcio::UnarySink<api::StartServiceReply>,
     ) {
         let default_host = "127.0.0.1".to_string();
+        let default = StartServiceRequest_oneof_container::k8s_pod("".to_string());
         let host = match self.network.clone() {
             Some(nw) => {
-                let container_id = req.container_id.clone();
-                let host = match nw.create_network(container_id) {
+                let container_id = match req.container.as_ref().unwrap_or(&default) {
+                    StartServiceRequest_oneof_container::docker_id(v) => v,
+                    _ => {
+                        sink.fail(RpcStatus::with_message(
+                            RpcStatusCode::INVALID_ARGUMENT,
+                            format!("docker mode requires docker container id"),
+                        ));
+                        return;
+                    }
+                };
+                let host = match nw.create_network(container_id.clone()) {
                     Ok(host) => host,
                     Err(err) => {
                         sink.fail(RpcStatus::with_message(
@@ -68,38 +79,59 @@ impl api_grpc::Api for ApiServer {
             None => match self.k8s_handler.clone() {
                 Some(handler) => {
                     let (tx, rx) = crossbeam_channel::unbounded();
+                    let (etx, erx) = crossbeam_channel::unbounded();
                     let req = req.clone();
                     ctx.spawn(async move {
-                        let external = match handler.handle_if_external(&req).await {
-                            Ok(v) => v,
+                        match handler.handle_if_external(&req).await {
+                            Ok(v) => {
+                                tx.send(v).unwrap();
+                            }
                             Err(err) => {
-                                eprintln!("error calling k8s handle_if_external: {}", err);
-                                false
+                                etx.send(err.to_string()).unwrap();
                             }
                         };
-                        tx.send(external).unwrap();
                     });
-                    if rx.recv().unwrap() {
-                        sink.success(api::StartServiceReply::new());
-                        return;
-                    } else {
-                        default_host
+                    crossbeam_channel::select! {
+                        recv(rx) -> host => {
+                            let host = host.unwrap();
+                            match host {
+                                Some(host) => host,
+                                None => default_host,
+                            }
+                        },
+                        recv(erx) -> err => {
+                            sink.fail(RpcStatus::with_message(
+                                RpcStatusCode::INTERNAL,
+                                format!("an error occurred interfacing with k8s: {}", err.unwrap()),
+                            ));
+                            return;
+                        },
                     }
                 }
                 None => default_host,
             },
         };
-        let addr = format!("{}:{}", host, req.port);
-        match self.handle_start_service(&ctx, &req, &addr) {
+        let addr = format!("{}:{}", host, req.get_port());
+        match self.handle_start_service(&ctx, req.clone(), &addr) {
             Ok(_) => {
-                let save = serde_json::json!({
-                    "name": req.name.clone(),
-                    "proto": req.proto.clone(),
-                    "port": req.port.clone(),
-                    "container_id":req.container_id.clone(),
+                let mut save = serde_json::json!({
+                    "name": req.get_name(),
+                    "proto": req.get_proto(),
+                    "port": req.get_port(),
+                    "docker_id": "",
+                    "k8s_pod": "",
+                    "k8s_service": "",
                 });
+                if req.has_docker_id() {
+                    *save.get_mut("docker_id").unwrap() = serde_json::json!(req.get_docker_id());
+                } else if req.has_k8s_pod() {
+                    *save.get_mut("k8s_pod").unwrap() = serde_json::json!(req.get_k8s_pod());
+                } else if req.has_k8s_service() {
+                    *save.get_mut("k8s_service").unwrap() =
+                        serde_json::json!(req.get_k8s_service());
+                }
                 let save = serde_json::to_vec(&save).unwrap();
-                let mut save_file_path = current_dir().unwrap().join(req.name);
+                let mut save_file_path = current_dir().unwrap().join(req.get_name());
                 save_file_path.set_extension("pandit_service");
                 let mut save_file = File::create(save_file_path).unwrap();
                 save_file.write_all(&save[..]).unwrap();
@@ -147,7 +179,7 @@ impl ApiServer {
     fn handle_start_service(
         &mut self,
         ctx: &grpcio::RpcContext,
-        req: &api::StartServiceRequest,
+        req: api::StartServiceRequest,
         addr: &String,
     ) -> ServiceResult<()> {
         let proto_dir = tempdir()?;
@@ -226,16 +258,38 @@ impl K8sHandler {
         self.server = Some(server);
     }
 
-    async fn handle_if_external(&self, req: &api::StartServiceRequest) -> ServiceResult<bool> {
+    async fn handle_if_external(
+        &self,
+        req: &api::StartServiceRequest,
+    ) -> ServiceResult<Option<String>> {
+        use api_proto::api::StartServiceRequest_oneof_container::*;
         let current_node = std::env::var("NODE_NAME")?;
-        let pod_node = {
-            let pods: kube::Api<Pod> = kube::Api::default_namespaced(self.client.clone());
-            let pod: Pod = pods.get(req.container_id.as_str()).await?;
-            let spec = pod.spec.ok_or("no pod spec")?;
-            spec.node_name.ok_or("no node name")?
+        let ip;
+        let pod_node = match req.container.as_ref().ok_or("no container in req")? {
+            k8s_pod(id) => {
+                let pods: kube::Api<Pod> = kube::Api::default_namespaced(self.client.clone());
+                let pod: Pod = pods.get(id.as_str()).await?;
+                let spec = pod.spec.ok_or("no pod spec")?;
+                ip = pod
+                    .status
+                    .ok_or("no pod status")?
+                    .pod_ip
+                    .ok_or("no pod ip")?;
+                spec.node_name.ok_or("no node name")?
+            }
+            k8s_service(id) => {
+                let services: kube::Api<K8sService> =
+                    kube::Api::default_namespaced(self.client.clone());
+                let service: K8sService = services.get(id.as_str()).await?;
+                let spec = service.spec.ok_or("no pod spec")?;
+                return Ok(Some(spec.cluster_ip.ok_or("no cluster ip")?));
+            }
+            docker_id(_) => {
+                return Err(ServiceError::new("cannot use docker_id with k8s"));
+            }
         };
         if pod_node == current_node {
-            return Ok(false);
+            return Ok(Some(ip));
         }
         let node_ip = {
             let nodes: kube::Api<Node> = kube::Api::default_namespaced(self.client.clone());
@@ -252,15 +306,16 @@ impl K8sHandler {
             api_proto::api_grpc::ApiClient::new(ch)
         };
         client.start_service(req)?;
-        Ok(true)
+        Ok(None)
     }
 
-    pub async fn is_pod_on_current(&self, container_id: &String) -> ServiceResult<bool> {
+    pub async fn is_pod_on_current(&self, pod: &String) -> ServiceResult<bool> {
         let current_node = std::env::var("NODE_NAME")?;
         let pod_node = {
             let pods: kube::Api<Pod> = kube::Api::default_namespaced(self.client.clone());
-            let pod: Pod = pods.get(container_id.as_str()).await?;
+            let pod: Pod = pods.get(pod.as_str()).await?;
             let spec = pod.spec.ok_or("no pod spec")?;
+            // TODO: remove this as node_name is optional. Maybe not.
             spec.node_name.ok_or("no node name")?
         };
         Ok(pod_node == current_node)

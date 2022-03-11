@@ -200,18 +200,22 @@ async fn start_services(cfg: &config::Config, k8s_handler: Option<K8sHandler>) {
         let save: serde_json::Value = serde_json::from_reader(save_file).unwrap();
         {
             use std::convert::TryFrom;
-            let container_id = save
-                .get("container_id")
+            let docker_id = save.get("docker_id").unwrap().as_str().unwrap().to_string();
+            let k8s_pod = save.get("k8s_pod").unwrap().as_str().unwrap().to_string();
+            let k8s_service = save
+                .get("k8s_service")
                 .unwrap()
                 .as_str()
                 .unwrap()
                 .to_string();
-            let on_current = match &k8s_handler {
-                Some(handler) => handler.is_pod_on_current(&container_id).await.unwrap(),
-                None => true,
-            };
-            if !on_current {
-                continue;
+            if k8s_pod != "" {
+                let on_current = match &k8s_handler {
+                    Some(handler) => handler.is_pod_on_current(&k8s_pod).await.unwrap(),
+                    None => true,
+                };
+                if !on_current {
+                    continue;
+                }
             }
             let name = save.get("name").unwrap().as_str().unwrap().to_string();
             println!("starting service: {}", name);
@@ -234,7 +238,13 @@ async fn start_services(cfg: &config::Config, k8s_handler: Option<K8sHandler>) {
             req.set_proto(proto);
             req.set_port(port);
             req.set_name(name);
-            req.set_container_id(container_id);
+            if k8s_pod != "" {
+                req.set_k8s_pod(k8s_pod);
+            } else if k8s_service != "" {
+                req.set_k8s_service(k8s_service);
+            } else if docker_id != "" {
+                req.set_docker_id(docker_id);
+            }
             client.start_service(&req).unwrap();
         }
     }

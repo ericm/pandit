@@ -11,7 +11,11 @@ message StartServiceRequest {
   string name = 1;
   bytes proto = 2;
   int32 port = 3;
-  string container_id = 4;
+  oneof container {
+    string docker_id = 4;
+    string k8s_pod = 5;
+    string k8s_service = 6;
+  }
 }
 
 message StartServiceReply {}

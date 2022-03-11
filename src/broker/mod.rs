@@ -307,21 +307,10 @@ impl Broker {
             msg
         };
         match msg.get_channel_name() {
-            "services" => {}
             "evicted" => match k8s_handler {
                 Some(handler) => {
                     let pod: String = msg.get_payload()?;
-                    tokio::spawn(async move {
-                        for _ in 0..10 {
-                            let on_current = handler.is_pod_on_current(&pod).await.unwrap();
-                            if on_current {
-                                log::info!("pod '{}' is now on this node", pod);
-                                return;
-                            }
-                            sleep(Duration::from_secs(6)).await;
-                        }
-                        log::debug!("pod '{}' was not found on this node", pod);
-                    });
+                    Self::handle_eviction(handler, pod);
                 }
                 None => {
                     log::error!("pod eviction received but no k8s handler")
@@ -339,6 +328,21 @@ impl Broker {
             },
         }
         Ok(())
+    }
+
+    fn handle_eviction(handler: K8sHandler, pod: String) {
+        tokio::spawn(async move {
+            for _ in 0..10 {
+                let on_current = handler.is_pod_on_current(&pod).await.unwrap();
+                if on_current {
+                    log::info!("pod '{}' is now on this node", pod);
+                    // Add service on this node
+                    return;
+                }
+                sleep(Duration::from_secs(6)).await;
+            }
+            log::debug!("pod '{}' was not found on this node", pod);
+        });
     }
 
     fn parse_service_fields(&self, name: &str, msg: &redis::Msg) -> ServiceResult<()> {
