@@ -2,6 +2,8 @@ version: '3.9'
 services:
   redis:
     image: redis
+    networks:
+      - redis
 
   example:
     build: src/proto/examples
@@ -14,7 +16,12 @@ services:
     ports:
       - "50122:50122"
       - "50121:50121"
-    entrypoint: "/pandit --docker"
+    entrypoint: "/panditd --docker"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - redis
     # entrypoint: "ldd --version"
+
+networks:
+  redis:

@@ -21,8 +21,9 @@ spec:
           operator: Exists
           effect: NoSchedule
       containers:
-        - name: fluentd-elasticsearch
-          image: quay.io/fluentd_elasticsearch/fluentd:v2.5.2
+        - name: pandit-daemon
+          image: moynihan/pandit:latest
+          imagePullPolicy: Never
           ports:
             - containerPort: 50122
               hostPort: 50122

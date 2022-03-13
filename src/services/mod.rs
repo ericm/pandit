@@ -415,7 +415,7 @@ impl Service {
                 .iter()
                 .map(|message| {
                     let name = message.get_name().to_string();
-                    println!("{}", name);
+                    log::info!("{}", name);
                     let opts = message.options.get_ref();
                     let path = exts::path.get(opts).unwrap_or("".to_string());
                     let config = Message::new(message.clone(), path, messages.clone());
@@ -669,7 +669,7 @@ pub fn new_config(path: &str) -> config::Config {
     match obj.merge(file) {
         Ok(_) => {}
         Err(_) => {
-            eprintln!("warning: no config file provided");
+            log::error!("warning: no config file provided");
             return Default::default();
         }
     }

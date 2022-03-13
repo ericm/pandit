@@ -25,7 +25,7 @@ impl JsonHandler {
 impl Handler for JsonHandler {
     fn from_payload(&self, buf: bytes::Bytes) -> ServiceResult<Fields> {
         use bytes::Buf;
-        println!("{}", String::from_utf8(buf.to_vec()).unwrap());
+        log::info!("{}", String::from_utf8(buf.to_vec()).unwrap());
         let json: serde_json::Value = serde_json::from_reader(buf.reader())?;
         let pr = self.prog.execute(&json)?;
         let result = pr.ok_or(ServiceError::new("no result"))?;

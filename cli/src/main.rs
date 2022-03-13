@@ -61,7 +61,7 @@ enum K8s {
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     // std::panic::set_hook(Box::new(|v| {
-    //     eprintln!(
+    //     log::error!(
     //         "      {}An error occurred in '{}'...",
     //         Emoji("❌ ", ""),
     //         v.to_string(),
@@ -83,7 +83,7 @@ async fn main() {
         "{} {}Using proto library '{}'...",
         style("[1/3]").bold().dim(),
         Emoji("🔍 ", ""),
-        proto_path.to_str().unwrap()
+        style(proto_path.to_str().unwrap()).green(),
     );
 
     match &app.service {
@@ -104,7 +104,7 @@ async fn main() {
                 "{} {}Using panditfile '{}'...",
                 style("[2/3]").bold().dim(),
                 Emoji("📃 ", ""),
-                path.to_str().unwrap()
+                style(path.to_str().unwrap()).green()
             );
 
             let mut proto_path = proto_path.join(&cfg.metadata.proto);
@@ -133,15 +133,15 @@ async fn main() {
 
             let pb = indicatif::ProgressBar::new_spinner();
             pb.set_message("Awaiting response from pandit...");
-            pb.enable_steady_tick(3);
+            pb.enable_steady_tick(20);
             let _resp = client.start_service(&req).unwrap();
             pb.finish_and_clear();
             println!(
                 "{} {}Successfully created service '{}' with proto '{}'...",
                 style("[3/3]").bold().dim(),
                 Emoji("✅ ", ""),
-                cfg.metadata.name,
-                cfg.metadata.proto
+                style(cfg.metadata.name).green(),
+                style(cfg.metadata.proto).green()
             );
         }
     }

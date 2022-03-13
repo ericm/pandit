@@ -22,9 +22,9 @@ use tonic;
 #[async_trait]
 pub trait Server {
     async fn run(&self, addr: String) -> Result<(), Box<dyn std::error::Error>> {
-        println!("gRPC server starting on: {}...", addr);
+        log::info!("gRPC server starting on: {}...", addr);
         let listener = TcpListener::bind(addr.clone()).await?;
-        println!("gRPC server listening on: {}", addr);
+        log::info!("gRPC server listening on: {}", addr);
         loop {
             tokio::select! {
                 _ = ctrl_c() => {
@@ -34,7 +34,7 @@ pub trait Server {
                 match self.serve(socket).await {
                     Ok(_) => {}
                     Err(e) => {
-                        println!(
+                        log::info!(
                             "error parsing packet from {}: {}",
                             saddr.to_string(),
                             e.to_string()

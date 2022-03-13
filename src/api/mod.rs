@@ -271,7 +271,7 @@ pub async fn add_service_from_file(
         }
         pods.insert(k8s_pod.clone(), name.clone());
     }
-    println!("starting service: {}", name);
+    log::info!("starting service: {}", name);
     let port: i32 = save
         .get("port")
         .unwrap()
@@ -463,7 +463,7 @@ impl NetworkRuntime for DockerNetworkRuntime {
             let container_id = match self.rx.recv() {
                 Ok(v) => v,
                 Err(err) => {
-                    eprintln!(
+                    log::error!(
                         "an error occurred receiving container id in docker network runtime: {}",
                         err
                     );
@@ -541,7 +541,7 @@ impl DockerNetworkRuntime {
             .await
         {
             Ok(_) => {
-                println!("disconnected from network: {}", pandit_name);
+                log::info!("disconnected from network: {}", pandit_name);
             }
             Err(_) => {}
         }
@@ -554,7 +554,7 @@ impl DockerNetworkRuntime {
             .await
         {
             Ok(_) => {
-                println!("disconnected from network: {}", container_id);
+                log::info!("disconnected from network: {}", container_id);
             }
             Err(_) => {}
         }

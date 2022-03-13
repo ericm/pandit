@@ -13,6 +13,7 @@ use api::add_service_from_file;
 use api_proto::api_grpc::create_api;
 use bollard::Docker;
 use clap::Parser;
+use console::style;
 use dashmap::DashMap;
 use get_if_addrs::get_if_addrs;
 use grpcio::ChannelBuilder;
@@ -20,6 +21,9 @@ use grpcio::EnvBuilder;
 use grpcio::Environment;
 use grpcio::ResourceQuota;
 use grpcio::ServerBuilder;
+use log::LevelFilter;
+use log::Metadata;
+use log::Record;
 use std::convert::TryInto;
 use std::env::current_dir;
 use std::fs::read_dir;
@@ -38,6 +42,38 @@ use crate::api::NetworkRuntime;
 use crate::broker::Broker;
 use crate::server::IntraServer;
 use crate::server::Server;
+
+struct SimpleLogger;
+
+impl log::Log for SimpleLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        metadata.level() <= log::Level::Info
+    }
+
+    fn log(&self, record: &Record) {
+        match record.level() {
+            log::Level::Error => eprintln!(
+                "{}: {}",
+                style(record.level()).red().bold(),
+                style(record.args()).bright().bold()
+            ),
+            log::Level::Warn => eprintln!(
+                "{}: {}",
+                style(record.level()).yellow().bold(),
+                style(record.args()).bright().bold()
+            ),
+            _ => println!(
+                "{}: {}",
+                style(record.level()).green().bold(),
+                style(record.args()).bright().bold()
+            ),
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+static LOGGER: SimpleLogger = SimpleLogger;
 
 #[derive(Parser)]
 #[clap(name = "panditd", author, version, about, long_about = None)]
@@ -61,6 +97,9 @@ async fn main() {
         .with_max_level(Level::ERROR)
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
+    log::set_logger(&LOGGER)
+        .map(|()| log::set_max_level(LevelFilter::Info))
+        .unwrap();
 
     let app: Args = Parser::parse();
     let cfg = services::new_config(app.config.as_str());
@@ -171,12 +210,12 @@ async fn main() {
         loop {
             match broker.receive(k8s_handler.clone()).await {
                 Ok(_) => {}
-                Err(err) => eprintln!("error interfacing with broker: {:?}", err),
+                Err(err) => log::error!("error interfacing with broker: {:?}", err),
             }
         }
     });
 
-    println!("Hit Ctrl-C to quit");
+    log::info!("Hit Ctrl-C to quit");
     server_cancelled.await.unwrap();
 }
 

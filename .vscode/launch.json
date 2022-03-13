@@ -18,7 +18,7 @@
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceRoot}/target/debug/panditd",
-            "args": ["--docker"],
+            "args": ["--docker", "-c", "./.pandit.docker.yml"],
             "cwd": "${workspaceRoot}",
             "preLaunchTask": "build",
         }

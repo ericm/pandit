@@ -1,9 +1,9 @@
 FROM archlinux
 
-WORKDIR /
+COPY target/debug/panditd /panditd
 
-COPY .pandit.docker.yml .pandit.yml
+WORKDIR /etc/pandit/services
 
-COPY target/debug/pandit /pandit
+COPY .pandit.docker.yml /.pandit.yml
 
-ENTRYPOINT [ "/pandit", "--docker" ]
+ENTRYPOINT [ "/panditd", "--k8s", "-c", "/.pandit.yml" ]

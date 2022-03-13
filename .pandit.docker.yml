@@ -1,5 +1,2 @@
-services:
-  example:
-    proto: ./src/proto/example.proto
 redis:
-  address: "redis://pandit-redis-1/"
+  address: "redis://redis.default.svc.cluster.local/"

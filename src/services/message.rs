@@ -105,7 +105,7 @@ impl Message {
             let (name, value) = match self.from_field_descriptor_proto(input) {
                 Ok(val) => val,
                 Err(e) => {
-                    eprintln!("soft proto parsing error: {:?}", e);
+                    log::error!("soft proto parsing error: {:?}", e);
                     continue;
                 }
             };
@@ -134,7 +134,7 @@ impl Message {
             let value = match kv.value().clone() {
                 Some(v) => v,
                 None => {
-                    eprintln!("no value for key {:?}", key);
+                    log::error!("no value for key {:?}", key);
                     continue;
                 }
             };
@@ -768,7 +768,7 @@ mod message_tests {
             Message::new(message2, "".to_string(), parent.clone()),
         );
 
-        println!("Testing fieldstobytes");
+        log::info!("Testing fieldstobytes");
 
         let m = Message::new(desc, "".to_string(), parent);
         let buf: Vec<u8> = Vec::with_capacity(1000);
@@ -789,7 +789,7 @@ mod message_tests {
         // let buf = buf.clone();
         // let buf = buf.as_ref();
         // buf.eq(want);
-        // println!("{:?}", buf);
+        // log::info!("{:?}", buf);
 
         Ok(())
     }
