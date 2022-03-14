@@ -53,6 +53,7 @@ impl api_grpc::Api for ApiServer {
         req: api::StartServiceRequest,
         sink: grpcio::UnarySink<api::StartServiceReply>,
     ) {
+        log::info!("received start service request for: {}", req.get_name());
         let default_host = "127.0.0.1".to_string();
         let default = StartServiceRequest_oneof_container::k8s_pod("".to_string());
         let host = match self.network.clone() {
@@ -332,6 +333,7 @@ impl K8sHandler {
     ) -> ServiceResult<Option<String>> {
         use api_proto::api::StartServiceRequest_oneof_container::*;
         let current_node = std::env::var("NODE_NAME")?;
+        log::info!("k8s: current_node: {}", current_node);
         let ip;
         let pod_node = match req.container.as_ref().ok_or("no container in req")? {
             k8s_pod(id) => {
@@ -357,6 +359,7 @@ impl K8sHandler {
                 return Err(ServiceError::new("cannot use docker_id with k8s"));
             }
         };
+        log::info!("k8s: pod's node: {}", pod_node);
         if pod_node == current_node {
             return Ok(Some(ip));
         }
@@ -368,6 +371,7 @@ impl K8sHandler {
             let addr = addresses.first().ok_or("no available node addresses")?;
             addr.address.clone()
         };
+        log::info!("k8s: node ip: {}", node_ip);
         let client = {
             let node_addr = format!("{}:{}", node_ip, self.pandit_port);
             let env = Arc::new(EnvBuilder::new().build());
@@ -422,6 +426,20 @@ impl K8sHandler {
         Ok(())
     }
 }
+
+// mod k8s_tests {
+//     use http::{Request, Response};
+//     use hyper::Body;
+
+//     #[tokio::test(flavor = "current_thread")]
+//     async fn test_handle_if_external() {
+//         use super::*;
+//         use tower_test::mock;
+//         let target = K8sHandler::new(1234).await?;
+//         let (mock_service, mut handle) = mock::pair::<Request<Body>, Response<Body>>();
+
+//     }
+// }
 
 #[async_trait]
 pub trait NetworkRuntime: Send + Sync {
