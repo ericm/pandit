@@ -4,7 +4,7 @@ cmake-build-debug
 build/**
 ubuntu-xenial-16.04-cloudimg-console.log
 *.log
-target
+target*
 xdp-tools
 *.rdb
 *.pandit_service
