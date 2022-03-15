@@ -94,7 +94,7 @@ struct Args {
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::ERROR)
+        .with_max_level(Level::DEBUG)
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
     log::set_logger(&LOGGER)

@@ -91,6 +91,7 @@ impl api_grpc::Api for ApiServer {
                                 tx.send(v).unwrap();
                             }
                             Err(err) => {
+                                log::error!("k8s error: {}", err);
                                 etx.send(err.to_string()).unwrap();
                             }
                         };
@@ -104,6 +105,7 @@ impl api_grpc::Api for ApiServer {
                             }
                         },
                         recv(erx) -> err => {
+                            log::error!("k8s error returned");
                             sink.fail(RpcStatus::with_message(
                                 RpcStatusCode::INTERNAL,
                                 format!("an error occurred interfacing with k8s: {}", err.unwrap()),
@@ -338,13 +340,16 @@ impl K8sHandler {
         let pod_node = match req.container.as_ref().ok_or("no container in req")? {
             k8s_pod(id) => {
                 let pods: kube::Api<Pod> = kube::Api::default_namespaced(self.client.clone());
+                log::info!("k8s: connected to default namespace pod api");
                 let pod: Pod = pods.get(id.as_str()).await?;
+                log::info!("k8s: found pod with id: {}", id);
                 let spec = pod.spec.ok_or("no pod spec")?;
                 ip = pod
                     .status
                     .ok_or("no pod status")?
                     .pod_ip
                     .ok_or("no pod ip")?;
+                log::info!("k8s: found pod's node ip: {}", &ip);
                 spec.node_name.ok_or("no node name")?
             }
             k8s_service(id) => {
