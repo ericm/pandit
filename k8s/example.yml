@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pandit-example
+  labels:
+    app: redis
+spec:
+  containers:
+  - name: linux
+    image: ubuntu:latest
+    imagePullPolicy: Always
+    resources:
+      limits:
+        cpu: "0.1"
+        memory: 1000Mi
+    args:
+    - sleep
+    - "604800"
