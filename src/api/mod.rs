@@ -351,6 +351,7 @@ impl K8sHandler {
     ) -> ServiceResult<Option<String>> {
         self.tx.send(req.clone())?;
         let mut hostrx = self.hostrx.blocking_write();
+        log::info!("k8s_grpcio: call handle if external");
         match hostrx
             .blocking_recv()
             .ok_or("error receiving from k8s handler runtime")?
@@ -362,7 +363,8 @@ impl K8sHandler {
 
     pub async fn run(&self) {
         loop {
-            let mut rx = self.rx.blocking_write();
+            let mut rx = self.rx.write().await;
+            log::info!("k8s: listening for calls to handle_if_external");
             let req = match rx.recv().await {
                 Some(v) => v,
                 None => {
