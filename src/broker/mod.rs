@@ -305,7 +305,7 @@ impl Broker {
         ))
     }
 
-    pub async fn receive(&self, k8s_handler: Option<K8sHandler>) -> ServiceResult<()> {
+    pub async fn receive(&self, k8s_handler: Option<Arc<K8sHandler>>) -> ServiceResult<()> {
         let msg = {
             let pubsub = self.client.get_async_connection().await?;
             let mut pubsub = pubsub.into_pubsub();
@@ -352,7 +352,7 @@ impl Broker {
         Ok(())
     }
 
-    fn handle_eviction(&self, handler: K8sHandler, (service_name, pod): (String, String)) {
+    fn handle_eviction(&self, handler: Arc<K8sHandler>, (service_name, pod): (String, String)) {
         let host_addr = self.host_addr.clone();
         tokio::spawn(async move {
             for _ in 0..10 {

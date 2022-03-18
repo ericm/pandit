@@ -30,6 +30,7 @@ use std::fs::read_dir;
 use std::fs::File;
 use std::sync::Arc;
 use tokio;
+use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tracing::Level;
@@ -127,7 +128,15 @@ async fn main() {
             .unwrap_or(50121)
             .try_into()
             .unwrap();
-        Some(K8sHandler::new(admin_port).await.unwrap())
+        let k = Arc::new(K8sHandler::new(admin_port).await.unwrap());
+        {
+            let k = k.clone();
+            tokio::spawn(async move {
+                k.run().await;
+            });
+        }
+        log::info!("Started in K8s mode");
+        Some(k)
     } else {
         None
     };
@@ -197,8 +206,8 @@ async fn main() {
         .unwrap();
     server.start();
     match k8s_handler.clone() {
-        Some(mut handler) => {
-            handler.add_server_broker(broker.clone(), intra_server.clone());
+        Some(handler) => {
+            let handler = Arc::new(handler.add_server_broker(broker.clone(), intra_server.clone()));
             start_services(&cfg, Some(handler)).await;
         }
         None => {
@@ -219,7 +228,7 @@ async fn main() {
     server_cancelled.await.unwrap();
 }
 
-async fn start_services(cfg: &config::Config, k8s_handler: Option<K8sHandler>) {
+async fn start_services(cfg: &config::Config, k8s_handler: Option<Arc<K8sHandler>>) {
     let addr = format!("0.0.0.0:{}", cfg.get_int("admin.port").unwrap_or(50121));
     let env = Arc::new(EnvBuilder::new().build());
     let ch = ChannelBuilder::new(env).connect(addr.as_str());

@@ -29,6 +29,7 @@ use kube::runtime::utils::try_flatten_applied;
 use kube::runtime::watcher;
 use std::io::prelude::*;
 use tempfile::tempdir;
+use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 
@@ -43,7 +44,7 @@ pub struct ApiServer {
     broker: Arc<Broker>,
     server: Arc<RwLock<IntraServer>>,
     network: Option<Arc<dyn NetworkRuntime>>,
-    k8s_handler: Option<K8sHandler>,
+    k8s_handler: Option<Arc<K8sHandler>>,
 }
 
 impl api_grpc::Api for ApiServer {
@@ -84,18 +85,15 @@ impl api_grpc::Api for ApiServer {
                 Some(handler) => {
                     let (tx, rx) = crossbeam_channel::unbounded();
                     let (etx, erx) = crossbeam_channel::unbounded();
-                    let req = req.clone();
-                    ctx.spawn(async move {
-                        match handler.handle_if_external(&req).await {
-                            Ok(v) => {
-                                tx.send(v).unwrap();
-                            }
-                            Err(err) => {
-                                log::error!("k8s error: {}", err);
-                                etx.send(err.to_string()).unwrap();
-                            }
-                        };
-                    });
+                    match handler.call_handle_if_external(&req) {
+                        Ok(v) => {
+                            tx.send(v).unwrap();
+                        }
+                        Err(err) => {
+                            log::error!("k8s error: {}", err);
+                            etx.send(err.to_string()).unwrap();
+                        }
+                    };
                     crossbeam_channel::select! {
                         recv(rx) -> host => {
                             let host = host.unwrap();
@@ -171,7 +169,7 @@ impl ApiServer {
         broker: Arc<Broker>,
         server: Arc<RwLock<IntraServer>>,
         network: Option<Arc<dyn NetworkRuntime>>,
-        k8s_handler: Option<K8sHandler>,
+        k8s_handler: Option<Arc<K8sHandler>>,
     ) -> Self {
         Self {
             broker,
@@ -242,7 +240,7 @@ fn proto_libraries() -> [(&'static str, &'static [u8]); 3] {
 
 pub async fn add_service_from_file(
     path: PathBuf,
-    k8s_handler: &Option<K8sHandler>,
+    k8s_handler: &Option<Arc<K8sHandler>>,
     pods: &mut DashMap<String, String>,
     client: &ApiClient,
 ) -> ServiceResult<()> {
@@ -305,40 +303,46 @@ pub async fn add_service_from_file(
     Ok(())
 }
 
+pub type K8sResult<T> = Result<T, String>;
 #[derive(Clone)]
 pub struct K8sHandler {
     pandit_port: u16,
     broker: Option<Arc<Broker>>,
     server: Option<Arc<RwLock<IntraServer>>>,
-    rx: crossbeam_channel::Receiver<api::StartServiceRequest>,
-    tx: crossbeam_channel::Sender<api::StartServiceRequest>,
-    hostrx: crossbeam_channel::Receiver<String>,
-    hosttx: crossbeam_channel::Sender<String>,
-    erx: crossbeam_channel::Receiver<String>,
-    etx: crossbeam_channel::Sender<String>,
+    rx: Arc<RwLock<mpsc::UnboundedReceiver<api::StartServiceRequest>>>,
+    tx: mpsc::UnboundedSender<api::StartServiceRequest>,
+    hostrx: Arc<RwLock<mpsc::UnboundedReceiver<K8sResult<Option<String>>>>>,
+    hosttx: mpsc::UnboundedSender<K8sResult<Option<String>>>,
 }
 
 impl K8sHandler {
     pub async fn new(pandit_port: u16) -> ServiceResult<Self> {
-        let (tx, rx) = crossbeam_channel::unbounded();
-        let (hosttx, hostrx) = crossbeam_channel::unbounded();
-        let (etx, erx) = crossbeam_channel::unbounded();
+        let (tx, rx) = mpsc::unbounded_channel();
+        let (hosttx, hostrx) = mpsc::unbounded_channel();
         Ok(Self {
             pandit_port,
             server: None,
             broker: None,
             tx,
-            rx,
+            rx: Arc::new(RwLock::new(rx)),
             hosttx,
-            hostrx,
-            etx,
-            erx,
+            hostrx: Arc::new(RwLock::new(hostrx)),
         })
     }
 
-    pub fn add_server_broker(&mut self, broker: Arc<Broker>, server: Arc<RwLock<IntraServer>>) {
-        self.broker = Some(broker);
-        self.server = Some(server);
+    pub fn add_server_broker(&self, broker: Arc<Broker>, server: Arc<RwLock<IntraServer>>) -> Self {
+        let (tx, rx) = mpsc::unbounded_channel();
+        let (hosttx, hostrx) = mpsc::unbounded_channel();
+        let s = Self {
+            pandit_port: self.pandit_port,
+            broker: Some(broker),
+            server: Some(server),
+            tx,
+            rx: Arc::new(RwLock::new(rx)),
+            hosttx,
+            hostrx: Arc::new(RwLock::new(hostrx)),
+        };
+        s
     }
 
     fn call_handle_if_external(
@@ -346,27 +350,31 @@ impl K8sHandler {
         req: &api::StartServiceRequest,
     ) -> ServiceResult<Option<String>> {
         self.tx.send(req.clone())?;
+        let mut hostrx = self.hostrx.blocking_write();
+        match hostrx
+            .blocking_recv()
+            .ok_or("error receiving from k8s handler runtime")?
+        {
+            Ok(host) => Ok(host),
+            Err(err) => Err(ServiceError::new(err.as_str())),
+        }
     }
-    async fn run(&self) {
+
+    pub async fn run(&self) {
         loop {
-            let req = match self.rx.recv() {
-                Ok(v) => v,
-                Err(err) => {
-                    log::error!(
-                        "an error occurred receiving start service request for k8s: {}",
-                        err
-                    );
+            let mut rx = self.rx.blocking_write();
+            let req = match rx.recv().await {
+                Some(v) => v,
+                None => {
+                    log::error!("an error occurred receiving start service request for k8s",);
                     continue;
                 }
             };
-            match self._handle_if_external().await {
-                Ok(host) => {
-                    self.hosttx.send().unwrap();
-                }
-                Err(err) => {
-                    self.etx.send(err.to_string()).unwrap();
-                }
-            }
+            let res = match self._handle_if_external(&req).await {
+                Ok(v) => Ok(v),
+                Err(err) => Err(err.to_string()),
+            };
+            self.hosttx.send(res).unwrap();
         }
     }
 
