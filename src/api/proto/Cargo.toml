@@ -8,7 +8,7 @@ build = "./build.rs"
 path = "lib.rs"
 
 [dependencies]
-grpcio = "0.9.1"
+grpcio = { version = "0.10", default-features = false, features = ["protobuf-codec"] }
 protobuf = "2.0"
 futures = "0.3"
 

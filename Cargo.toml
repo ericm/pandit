@@ -1,12 +1,8 @@
 [package]
 name = "pandit"
 version = "1.0.0"
-authors = ["Peter Parkanyi <p@symmetree.dev>", "Junyeong Jeong <rhdxmr@gmail.com>"]
 edition = "2018"
-repository = "https://github.com/foniod/redbpf"
-description = "Example probes for redBPF"
 license = "MIT OR Apache-2.0"
-keywords = ["bpf", "ebpf", "build", "bindgen", "redbpf"]
 publish = false
 
 [dependencies]
@@ -16,7 +12,7 @@ bollard = "0.11"
 get_if_addrs = "0.5.3"
 clap = { version = "3.1.2", features = ["derive"] }
 hostname = "0.3.1"
-kube = { version = "0.69.1", default-features = false, features = ["runtime", "derive", "client", "rustls-tls"] }
+kube = { version = "0.69.1", features = ["runtime", "derive"] }
 k8s-openapi = { version = "0.14.0", features = ["v1_22"] }
 log = "0.4.11"
 config = "0.11.0"
@@ -27,7 +23,7 @@ tower-test = "0.4.0"
 num = "0.4"
 libc = "0.2"
 hyper = { version = "0.14", features = ["full"] }
-grpcio = "0.9.1"
+grpcio = { version = "0.10.0", default-features = false, features = ["protobuf-codec"] }
 tempfile = "3.3.0"
 bytes = "1.1.0"
 http = "0.2.6"
@@ -48,6 +44,9 @@ protobuf = { git = "https://github.com/stepancheg/rust-protobuf.git", tag="v3.0.
 protoc-rust = "2.25.2"
 protobuf-parse = { git = "https://github.com/stepancheg/rust-protobuf.git", tag="v3.0.0-alpha.2" }
 redis = { version = "0.21.5", features = [ "cluster", "tokio-comp"] }
+
+[dependencies.openssl]
+features = ["vendored"]
 
 [[bin]]
 name = "panditd"

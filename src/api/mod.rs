@@ -307,20 +307,32 @@ pub async fn add_service_from_file(
 
 #[derive(Clone)]
 pub struct K8sHandler {
-    client: kube::Client,
     pandit_port: u16,
     broker: Option<Arc<Broker>>,
     server: Option<Arc<RwLock<IntraServer>>>,
+    rx: crossbeam_channel::Receiver<api::StartServiceRequest>,
+    tx: crossbeam_channel::Sender<api::StartServiceRequest>,
+    hostrx: crossbeam_channel::Receiver<String>,
+    hosttx: crossbeam_channel::Sender<String>,
+    erx: crossbeam_channel::Receiver<String>,
+    etx: crossbeam_channel::Sender<String>,
 }
 
 impl K8sHandler {
     pub async fn new(pandit_port: u16) -> ServiceResult<Self> {
-        let client = kube::Client::try_default().await?;
+        let (tx, rx) = crossbeam_channel::unbounded();
+        let (hosttx, hostrx) = crossbeam_channel::unbounded();
+        let (etx, erx) = crossbeam_channel::unbounded();
         Ok(Self {
-            client,
             pandit_port,
             server: None,
             broker: None,
+            tx,
+            rx,
+            hosttx,
+            hostrx,
+            etx,
+            erx,
         })
     }
 
@@ -329,19 +341,49 @@ impl K8sHandler {
         self.server = Some(server);
     }
 
-    async fn handle_if_external(
+    fn call_handle_if_external(
+        &self,
+        req: &api::StartServiceRequest,
+    ) -> ServiceResult<Option<String>> {
+        self.tx.send(req.clone())?;
+    }
+    async fn run(&self) {
+        loop {
+            let req = match self.rx.recv() {
+                Ok(v) => v,
+                Err(err) => {
+                    log::error!(
+                        "an error occurred receiving start service request for k8s: {}",
+                        err
+                    );
+                    continue;
+                }
+            };
+            match self._handle_if_external().await {
+                Ok(host) => {
+                    self.hosttx.send().unwrap();
+                }
+                Err(err) => {
+                    self.etx.send(err.to_string()).unwrap();
+                }
+            }
+        }
+    }
+
+    async fn _handle_if_external(
         &self,
         req: &api::StartServiceRequest,
     ) -> ServiceResult<Option<String>> {
         use api_proto::api::StartServiceRequest_oneof_container::*;
+        let client = kube::Client::try_default().await?;
         let current_node = std::env::var("NODE_NAME")?;
         log::info!("k8s: current_node: {}", current_node);
         let ip;
         let pod_node = match req.container.as_ref().ok_or("no container in req")? {
             k8s_pod(id) => {
-                let pods: kube::Api<Pod> = kube::Api::default_namespaced(self.client.clone());
+                let pods: kube::Api<Pod> = kube::Api::default_namespaced(client);
                 log::info!("k8s: connected to default namespace pod api");
-                let pod: Pod = pods.get(id.as_str()).await?;
+                let pod: Pod = pods.get_opt(id.as_str()).await?.ok_or("no pod found")?;
                 log::info!("k8s: found pod with id: {}", id);
                 let spec = pod.spec.ok_or("no pod spec")?;
                 ip = pod
@@ -353,8 +395,7 @@ impl K8sHandler {
                 spec.node_name.ok_or("no node name")?
             }
             k8s_service(id) => {
-                let services: kube::Api<K8sService> =
-                    kube::Api::default_namespaced(self.client.clone());
+                let services: kube::Api<K8sService> = kube::Api::default_namespaced(client);
                 let service: K8sService = services.get(id.as_str()).await?;
                 let spec = service.spec.ok_or("no pod spec")?;
                 // TODO: Add service to all hosts.
@@ -369,7 +410,8 @@ impl K8sHandler {
             return Ok(Some(ip));
         }
         let node_ip = {
-            let nodes: kube::Api<Node> = kube::Api::default_namespaced(self.client.clone());
+            let client = kube::Client::try_default().await?;
+            let nodes: kube::Api<Node> = kube::Api::default_namespaced(client);
             let node = nodes.get(pod_node.as_str()).await?;
             let status = node.status.ok_or("no node status")?;
             let addresses = status.addresses.ok_or("no node addresses")?;
@@ -388,9 +430,10 @@ impl K8sHandler {
     }
 
     pub async fn is_pod_on_current(&self, pod: &String) -> ServiceResult<bool> {
+        let client = kube::Client::try_default().await?;
         let current_node = std::env::var("NODE_NAME")?;
         let pod_node = {
-            let pods: kube::Api<Pod> = kube::Api::default_namespaced(self.client.clone());
+            let pods: kube::Api<Pod> = kube::Api::default_namespaced(client);
             let pod: Pod = pods.get(pod.as_str()).await?;
             let spec = pod.spec.ok_or("no pod spec")?;
             // TODO: remove this as node_name is optional. Maybe not.
@@ -401,7 +444,8 @@ impl K8sHandler {
 
     pub async fn watch_pods(&self, pods: Arc<DashMap<String, String>>) -> ServiceResult<()> {
         use futures::prelude::*;
-        let api: kube::Api<Pod> = kube::Api::default_namespaced(self.client.clone());
+        let client = kube::Client::try_default().await?;
+        let api: kube::Api<Pod> = kube::Api::default_namespaced(client);
         let pods = &pods.clone();
 
         let broker = &self.broker.clone().unwrap();
