@@ -85,6 +85,7 @@ impl Server for IntraServer {
                             .unwrap();
                     }
                     Err(err) => {
+                        log::error!("error occured handling request: {:?}", err);
                         trailers.insert("grpc-status", HeaderValue::from(13i16));
                         trailers.insert(
                             "grpc-message",
@@ -144,19 +145,28 @@ impl IntraServer {
             fqdn.rsplit(".").next().unwrap()
         };
         let service_name = service.to_string();
+        log::info!("request for {}_{}", &service_name, &method);
 
+        // subscribe for future cache.
+        if !broker.is_subbed(&service_name) {
+            log::info!("subscribing to cache for {}_{}", &service_name, &method);
+            broker
+                .sub_service(&service_name, &method.to_string())
+                .await?;
+        }
         let mut _remote_sender: RemoteSender;
         let mut _service: RefMut<String, Service>;
         let service: &mut dyn Sender = match services.get_mut(service) {
             Some(s) => {
+                log::info!("found service {} on this node", &service_name);
                 _service = s;
                 _service.value_mut()
             }
             None => {
-                // subscribe for future cache.
-                if !broker.is_subbed(&service_name) {
-                    broker.sub_service(&service_name, &method.to_string())?;
-                }
+                log::info!(
+                    "found service {} on other node... delegating",
+                    &service_name
+                );
                 // send to other node.
                 _remote_sender = broker.get_remote_sender(&service_name)?;
                 &mut _remote_sender
@@ -168,6 +178,7 @@ impl IntraServer {
             .probe_cache(&service_name, &method.to_string(), &data[..])
             .await?
         {
+            log::info!("found cache hit for {}_{}", &service_name, &method);
             return Ok(cached_data);
         }
 

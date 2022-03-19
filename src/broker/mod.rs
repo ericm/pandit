@@ -16,6 +16,7 @@ use kube::runtime::watcher;
 use protobuf::well_known_types::Field;
 use redis::cluster::ClusterClient;
 use redis::{Client, Commands, Connection, Msg, PubSubCommands};
+use tokio::net::TcpStream;
 use tokio::sync::RwLock;
 use tokio::time::sleep;
 
@@ -77,13 +78,26 @@ impl Sender for RemoteSender {
         method: &String,
         data: &[u8],
     ) -> ServiceResult<bytes::Bytes> {
-        let client = hyper::client::Client::new();
-        let req = hyper::Request::builder()
+        use h2::*;
+        log::info!(
+            "Delegating request for {}_{} to {}",
+            service_name,
+            method,
+            self.addr
+        );
+        let tcp = TcpStream::connect(&self.addr).await?;
+        let (mut client, connection) = client::handshake(tcp).await?;
+        tokio::spawn(async move {
+            connection.await.unwrap();
+        });
+        let req = http::Request::builder()
             .uri(format!("http://{}/{}/{}", self.addr, service_name, method))
+            .version(http::Version::HTTP_2)
             .method("POST")
-            .body(hyper::Body::from(data.to_vec()))?;
-        let mut resp = client.request(req).await?;
-        let body = resp.body_mut();
+            .body(())?;
+        let (response, mut send) = client.send_request(req, false)?;
+        send.send_data(bytes::Bytes::copy_from_slice(data), true)?;
+        let (_, mut body) = response.await?.into_parts();
         let body = match body.data().await {
             Some(body) => body,
             None => return Err(ServiceError::new("no body in response")),
@@ -213,23 +227,44 @@ impl Broker {
         })
     }
 
-    pub fn sub_service(&self, service_name: &String, method_name: &String) -> ServiceResult<()> {
-        let mut conn = self.client.get_connection()?;
+    pub async fn sub_service(
+        &self,
+        service_name: &String,
+        method_name: &String,
+    ) -> ServiceResult<()> {
+        use redis::AsyncCommands;
+        let mut conn = self.client.get_async_connection().await?;
 
         let method: Method = {
-            let rv: Vec<u8> = conn.get(format!("config_{}_{}", service_name, method_name))?;
+            let rv: Vec<u8> = conn
+                .get(format!("config_{}_{}", service_name, method_name))
+                .await?;
+            log::info!(
+                "parsing sub_service config for {}_{}",
+                service_name,
+                method_name
+            );
             serde_json::from_slice(&rv[..])?
         };
 
+        log::info!(
+            "querying messages config for {}_{}",
+            service_name,
+            method_name
+        );
         let message = {
             let parents = {
-                let keys: Vec<String> = conn.keys(format!("message_{}_*", service_name))?;
+                let keys: Vec<String> = conn.keys(format!("message_{}_*", service_name)).await?;
                 let out = Arc::new(DashMap::<String, Message>::new());
                 for key in keys {
-                    let rv: Vec<u8> = conn.get(format!("message_{}_{}", service_name, key))?;
+                    let rv: Vec<u8> = conn.get(&key).await?;
                     let mut message: Message = serde_json::from_slice(&rv[..])?;
                     message.parent = out.clone();
-                    out.insert(key, message);
+                    let key = key
+                        .rsplit("_")
+                        .next()
+                        .ok_or("could not parse message name")?;
+                    out.insert(key.to_string(), message);
                 }
                 out
             };
@@ -238,8 +273,9 @@ impl Broker {
             val.value().clone()
         };
 
+        log::info!("querying default cache config for {}", service_name,);
         let default_cache: CacheOptions = {
-            let rv: Vec<u8> = conn.get(format!("default_{}", service_name))?;
+            let rv: Vec<u8> = conn.get(format!("default_{}", service_name)).await?;
             serde_json::from_slice(&rv[..])?
         };
         let name = format!("{}_{}", service_name, method_name);
@@ -258,8 +294,8 @@ impl Broker {
         );
         self.subbed.insert(sub_name.clone());
         {
-            let mut pubsub = conn.as_pubsub();
-            pubsub.subscribe(sub_name)?;
+            let mut pubsub = conn.into_pubsub();
+            pubsub.subscribe(sub_name).await?;
         }
         Ok(())
     }

@@ -596,6 +596,12 @@ impl Sender for Service {
         let message = messages.get(&method.input_message).unwrap();
         let fields = message.fields_from_bytes(data)?;
 
+        log::info!(
+            "sending local data request for {}_{}",
+            service_name,
+            method.key()
+        );
+
         let writer = self.writer.get_mut();
         let context = Self::context_from_api(&method.api)?;
 

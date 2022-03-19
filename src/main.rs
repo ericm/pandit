@@ -21,6 +21,7 @@ use grpcio::EnvBuilder;
 use grpcio::Environment;
 use grpcio::ResourceQuota;
 use grpcio::ServerBuilder;
+use k8s_openapi::api::core::v1::Node;
 use log::LevelFilter;
 use log::Metadata;
 use log::Record;
@@ -152,26 +153,38 @@ async fn main() {
         None
     };
 
-    let address = match app.address {
-        Some(v) => v,
-        None => match app.interface {
-            Some(interface) => {
-                let mut ip = None;
-                for iface in get_if_addrs().unwrap() {
-                    if iface.name == interface {
-                        ip = Some(iface.addr.ip().to_string());
-                        break;
+    let address = if app.k8s {
+        let current_node = std::env::var("NODE_NAME").unwrap();
+        let client = kube::Client::try_default().await.unwrap();
+        let nodes: kube::Api<Node> = kube::Api::all(client);
+        let node = nodes.get(&current_node).await.unwrap();
+        let status = node.status.ok_or("no node status for k8s").unwrap();
+        let addrs = status.addresses.unwrap();
+        let addr = addrs.first().unwrap();
+        addr.address.clone()
+    } else {
+        match app.address {
+            Some(v) => v,
+            None => match app.interface {
+                Some(interface) => {
+                    let mut ip = None;
+                    for iface in get_if_addrs().unwrap() {
+                        if iface.name == interface {
+                            ip = Some(iface.addr.ip().to_string());
+                            break;
+                        }
+                    }
+                    match ip {
+                        Some(ip) => ip,
+                        None => "0.0.0.0".to_string(),
                     }
                 }
-                match ip {
-                    Some(ip) => ip,
-                    None => "0.0.0.0".to_string(),
-                }
-            }
-            None => "0.0.0.0".to_string(),
-        },
+                None => "0.0.0.0".to_string(),
+            },
+        }
     };
 
+    let address = format!("{}:{}", address, 50122);
     let broker = Broker::connect(cfg.clone(), address.clone()).unwrap();
     let broker = Arc::new(broker);
 
@@ -181,7 +194,7 @@ async fn main() {
         let server = Arc::new(RwLock::new(server));
         let addr = cfg
             .get_str("server.address")
-            .unwrap_or(format!("{}:50122", address));
+            .unwrap_or("0.0.0.0:50122".to_string());
         {
             let server = server.clone();
 
