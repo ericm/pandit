@@ -307,12 +307,10 @@ pub type K8sResult<T> = Result<T, String>;
 #[derive(Clone)]
 pub struct K8sHandler {
     pandit_port: u16,
-    broker: Option<Arc<Broker>>,
-    server: Option<Arc<RwLock<IntraServer>>>,
     rx: Arc<RwLock<mpsc::UnboundedReceiver<api::StartServiceRequest>>>,
-    tx: mpsc::UnboundedSender<api::StartServiceRequest>,
+    tx: Arc<mpsc::UnboundedSender<api::StartServiceRequest>>,
     hostrx: Arc<RwLock<mpsc::UnboundedReceiver<K8sResult<Option<String>>>>>,
-    hosttx: mpsc::UnboundedSender<K8sResult<Option<String>>>,
+    hosttx: Arc<mpsc::UnboundedSender<K8sResult<Option<String>>>>,
 }
 
 impl K8sHandler {
@@ -321,35 +319,19 @@ impl K8sHandler {
         let (hosttx, hostrx) = mpsc::unbounded_channel();
         Ok(Self {
             pandit_port,
-            server: None,
-            broker: None,
-            tx,
+            tx: Arc::new(tx),
             rx: Arc::new(RwLock::new(rx)),
-            hosttx,
+            hosttx: Arc::new(hosttx),
             hostrx: Arc::new(RwLock::new(hostrx)),
         })
-    }
-
-    pub fn add_server_broker(&self, broker: Arc<Broker>, server: Arc<RwLock<IntraServer>>) -> Self {
-        let (tx, rx) = mpsc::unbounded_channel();
-        let (hosttx, hostrx) = mpsc::unbounded_channel();
-        let s = Self {
-            pandit_port: self.pandit_port,
-            broker: Some(broker),
-            server: Some(server),
-            tx,
-            rx: Arc::new(RwLock::new(rx)),
-            hosttx,
-            hostrx: Arc::new(RwLock::new(hostrx)),
-        };
-        s
     }
 
     fn call_handle_if_external(
         &self,
         req: &api::StartServiceRequest,
     ) -> ServiceResult<Option<String>> {
-        self.tx.send(req.clone())?;
+        let tx = self.tx.clone();
+        tx.send(req.clone())?;
         let mut hostrx = self.hostrx.blocking_write();
         log::info!("k8s_grpcio: call handle if external");
         match hostrx
@@ -372,6 +354,7 @@ impl K8sHandler {
                     continue;
                 }
             };
+            log::info!("k8s: runtime received request");
             let res = match self._handle_if_external(&req).await {
                 Ok(v) => Ok(v),
                 Err(err) => Err(err.to_string()),
@@ -385,6 +368,7 @@ impl K8sHandler {
         req: &api::StartServiceRequest,
     ) -> ServiceResult<Option<String>> {
         use api_proto::api::StartServiceRequest_oneof_container::*;
+        log::info!("k8s: handle if external triggered");
         let client = kube::Client::try_default().await?;
         let current_node = std::env::var("NODE_NAME")?;
         log::info!("k8s: current_node: {}", current_node);
@@ -450,39 +434,6 @@ impl K8sHandler {
             spec.node_name.ok_or("no node name")?
         };
         Ok(pod_node == current_node)
-    }
-
-    pub async fn watch_pods(&self, pods: Arc<DashMap<String, String>>) -> ServiceResult<()> {
-        use futures::prelude::*;
-        let client = kube::Client::try_default().await?;
-        let api: kube::Api<Pod> = kube::Api::default_namespaced(client);
-        let pods = &pods.clone();
-
-        let broker = &self.broker.clone().unwrap();
-        let server = &self.server.clone().unwrap();
-
-        try_flatten_applied(watcher(api, Default::default()))
-            .try_for_each(|p| async move {
-                let name = p.metadata.name.unwrap();
-                if !pods.contains_key(&name) {
-                    return Ok(());
-                }
-                let status = p.status.as_ref().unwrap();
-                if status.phase.as_ref().unwrap() == "Failed" {
-                    log::warn!("pod '{}' has been evicted", name);
-
-                    // Remove from broker and server
-                    let service = pods.get(&name).unwrap();
-                    broker.remove_service(service.value(), &name).await.unwrap();
-                    {
-                        let mut server = server.write().await;
-                        server.remove_service(&name.to_string());
-                    }
-                }
-                Ok(())
-            })
-            .await?;
-        Ok(())
     }
 }
 

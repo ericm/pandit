@@ -10,12 +10,17 @@ use dashmap::{DashMap, DashSet};
 use futures::StreamExt;
 use grpcio::{ChannelBuilder, EnvBuilder};
 use hyper::body::HttpBody;
+use k8s_openapi::api::core::v1::Pod;
+use kube::runtime::utils::try_flatten_applied;
+use kube::runtime::watcher;
 use protobuf::well_known_types::Field;
 use redis::cluster::ClusterClient;
 use redis::{Client, Commands, Connection, Msg, PubSubCommands};
+use tokio::sync::RwLock;
 use tokio::time::sleep;
 
 use crate::api::{add_service_from_file, K8sHandler};
+use crate::server::IntraServer;
 use crate::services::base::CacheOptions;
 use crate::services::value::Value;
 use crate::services::{message::Message, Fields, ServiceResult};
@@ -349,6 +354,42 @@ impl Broker {
                 }
             },
         }
+        Ok(())
+    }
+
+    pub async fn watch_pods(
+        &self,
+        pods: Arc<DashMap<String, String>>,
+        server: Arc<RwLock<IntraServer>>,
+    ) -> ServiceResult<()> {
+        use futures::prelude::*;
+        let client = kube::Client::try_default().await?;
+        let api: kube::Api<Pod> = kube::Api::default_namespaced(client);
+        let pods = &pods.clone();
+
+        let server = &server.clone();
+
+        try_flatten_applied(watcher(api, Default::default()))
+            .try_for_each(|p| async move {
+                let name = p.metadata.name.unwrap();
+                if !pods.contains_key(&name) {
+                    return Ok(());
+                }
+                let status = p.status.as_ref().unwrap();
+                if status.phase.as_ref().unwrap() == "Failed" {
+                    log::warn!("pod '{}' has been evicted", name);
+
+                    // Remove from broker and server
+                    let service = pods.get(&name).unwrap();
+                    self.remove_service(service.value(), &name).await.unwrap();
+                    {
+                        let mut server = server.write().await;
+                        server.remove_service(&name.to_string());
+                    }
+                }
+                Ok(())
+            })
+            .await?;
         Ok(())
     }
 

@@ -27,10 +27,9 @@ use log::Record;
 use std::convert::TryInto;
 use std::env::current_dir;
 use std::fs::read_dir;
-use std::fs::File;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio;
-use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tracing::Level;
@@ -86,23 +85,31 @@ struct Args {
     interface: Option<String>,
     #[clap(short, long)]
     address: Option<String>,
-    #[clap(short, long)]
+    #[clap(long, default_value = "INFO")]
+    level: String,
+    #[clap(long)]
     docker: bool,
-    #[clap(short, long)]
+    #[clap(long)]
     k8s: bool,
+    #[clap(long)]
+    tokio_tracing: bool,
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::DEBUG)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber).unwrap();
-    log::set_logger(&LOGGER)
-        .map(|()| log::set_max_level(LevelFilter::Info))
-        .unwrap();
-
     let app: Args = Parser::parse();
+    if app.tokio_tracing {
+        console_subscriber::init();
+    } else {
+        let subscriber = FmtSubscriber::builder()
+            .with_max_level(Level::from_str(app.level.as_str()).unwrap())
+            .finish();
+        tracing::subscriber::set_global_default(subscriber).unwrap();
+        log::set_logger(&LOGGER)
+            .map(|()| log::set_max_level(LevelFilter::Info))
+            .unwrap();
+    }
+
     let cfg = services::new_config(app.config.as_str());
 
     if app.k8s && app.docker {
@@ -122,6 +129,7 @@ async fn main() {
     } else {
         None
     };
+
     let k8s_handler = if app.k8s {
         let admin_port: u16 = cfg
             .get_int("admin.port")
@@ -205,15 +213,13 @@ async fn main() {
         .build()
         .unwrap();
     server.start();
-    match k8s_handler.clone() {
-        Some(handler) => {
-            let handler = Arc::new(handler.add_server_broker(broker.clone(), intra_server.clone()));
-            start_services(&cfg, Some(handler)).await;
-        }
-        None => {
-            start_services(&cfg, None).await;
-        }
-    }
+    start_services(
+        &cfg,
+        k8s_handler.clone(),
+        broker.clone(),
+        intra_server.clone(),
+    )
+    .await;
 
     tokio::spawn(async move {
         loop {
@@ -228,7 +234,12 @@ async fn main() {
     server_cancelled.await.unwrap();
 }
 
-async fn start_services(cfg: &config::Config, k8s_handler: Option<Arc<K8sHandler>>) {
+async fn start_services(
+    cfg: &config::Config,
+    k8s_handler: Option<Arc<K8sHandler>>,
+    broker: Arc<Broker>,
+    server: Arc<RwLock<IntraServer>>,
+) {
     let addr = format!("0.0.0.0:{}", cfg.get_int("admin.port").unwrap_or(50121));
     let env = Arc::new(EnvBuilder::new().build());
     let ch = ChannelBuilder::new(env).connect(addr.as_str());
@@ -243,10 +254,9 @@ async fn start_services(cfg: &config::Config, k8s_handler: Option<Arc<K8sHandler
             .unwrap();
     }
     match k8s_handler {
-        Some(handler) => {
+        Some(_) => {
             let pods = Arc::new(pods);
-            let handler = Arc::new(handler);
-            tokio::spawn(async move { handler.watch_pods(pods).await.unwrap() });
+            tokio::spawn(async move { broker.watch_pods(pods, server).await.unwrap() });
         }
         None => {}
     }
