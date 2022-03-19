@@ -30,6 +30,8 @@ use std::fs::read_dir;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio;
+use tokio::runtime;
+use tokio::signal::ctrl_c;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tracing::Level;
@@ -47,7 +49,7 @@ struct SimpleLogger;
 
 impl log::Log for SimpleLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() <= log::Level::Info
+        metadata.level() <= log::Level::Debug
     }
 
     fn log(&self, record: &Record) {
@@ -97,6 +99,7 @@ struct Args {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
+    let threaded_rt = runtime::Runtime::new().unwrap();
     let app: Args = Parser::parse();
     if app.tokio_tracing {
         console_subscriber::init();
@@ -121,7 +124,7 @@ async fn main() {
         let client = Arc::new(DockerNetworkRuntime::new(docker));
         {
             let client = client.clone();
-            tokio::spawn(async move {
+            threaded_rt.spawn(async move {
                 client.run().await;
             });
         }
@@ -139,7 +142,7 @@ async fn main() {
         let k = Arc::new(K8sHandler::new(admin_port).await.unwrap());
         {
             let k = k.clone();
-            tokio::spawn(async move {
+            threaded_rt.spawn(async move {
                 k.run().await;
             });
         }
@@ -172,7 +175,7 @@ async fn main() {
     let broker = Broker::connect(cfg.clone(), address.clone()).unwrap();
     let broker = Arc::new(broker);
 
-    let server_cancelled: JoinHandle<()>;
+    let server_cancel: JoinHandle<()>;
     let intra_server = {
         let server = IntraServer::new(broker.clone());
         let server = Arc::new(RwLock::new(server));
@@ -182,7 +185,7 @@ async fn main() {
         {
             let server = server.clone();
 
-            server_cancelled = tokio::spawn(async move {
+            server_cancel = threaded_rt.spawn(async move {
                 let server = server.read().await;
                 server.run(addr).await.unwrap();
             });
@@ -218,10 +221,11 @@ async fn main() {
         k8s_handler.clone(),
         broker.clone(),
         intra_server.clone(),
+        &threaded_rt,
     )
     .await;
 
-    tokio::spawn(async move {
+    threaded_rt.spawn(async move {
         loop {
             match broker.receive(k8s_handler.clone()).await {
                 Ok(_) => {}
@@ -231,7 +235,9 @@ async fn main() {
     });
 
     log::info!("Hit Ctrl-C to quit");
-    server_cancelled.await.unwrap();
+
+    ctrl_c().await.unwrap();
+    server_cancel.abort();
 }
 
 async fn start_services(
@@ -239,6 +245,7 @@ async fn start_services(
     k8s_handler: Option<Arc<K8sHandler>>,
     broker: Arc<Broker>,
     server: Arc<RwLock<IntraServer>>,
+    threaded_rt: &runtime::Runtime,
 ) {
     let addr = format!("0.0.0.0:{}", cfg.get_int("admin.port").unwrap_or(50121));
     let env = Arc::new(EnvBuilder::new().build());
@@ -256,7 +263,7 @@ async fn start_services(
     match k8s_handler {
         Some(_) => {
             let pods = Arc::new(pods);
-            tokio::spawn(async move { broker.watch_pods(pods, server).await.unwrap() });
+            threaded_rt.spawn(async move { broker.watch_pods(pods, server).await.unwrap() });
         }
         None => {}
     }
