@@ -574,6 +574,13 @@ pub trait Sender: Send + Sync {
         method: &String,
         data: &[u8],
     ) -> ServiceResult<bytes::Bytes>;
+
+    async fn probe_cache(
+        &self,
+        service_name: &String,
+        method: &String,
+        data: &[u8],
+    ) -> ServiceResult<Option<bytes::Bytes>>;
 }
 
 #[async_trait]
@@ -584,6 +591,53 @@ impl Sender for Service {
         method: &String,
         data: &[u8],
     ) -> ServiceResult<bytes::Bytes> {
+        let method = self.methods.get_mut(method).unwrap();
+        let messages = self.messages.clone();
+        let message = messages.get(&method.input_message).unwrap();
+        let fields = message.fields_from_bytes(data)?;
+
+        let writer = self.writer.get_mut();
+        let context = Self::context_from_api(&method.api)?;
+
+        let handler = method
+            .handler
+            .as_ref()
+            .or(self.default_handler.as_ref())
+            .ok_or(ServiceError::new(
+                format!(
+                    "unable to find handler or default handler for {}.{}",
+                    service_name,
+                    method.key()
+                )
+                .as_str(),
+            ))?;
+
+        let resp = writer.write_request(context, &fields, handler).await?;
+        let resp_fields = handler.from_payload(resp)?;
+
+        let buf: Vec<u8> = Vec::with_capacity(1000);
+        use bytes::BufMut;
+        let mut buf = buf.writer();
+        {
+            let mut output = protobuf::CodedOutputStream::new(&mut buf);
+            message.write_bytes_from_fields(&mut output, &resp_fields)?;
+        }
+        {
+            self.broker
+                .publish_cache(&service_name, method.key(), resp_fields)
+                .await?;
+        }
+
+        let buf = buf.into_inner();
+        Ok(bytes::Bytes::copy_from_slice(&buf[..]))
+    }
+
+    async fn probe_cache(
+        &self,
+        service_name: &String,
+        method: &String,
+        data: &[u8],
+    ) -> ServiceResult<Option<bytes::Bytes>> {
         let method = self.methods.get_mut(method).unwrap();
         let messages = self.messages.clone();
         let message = messages.get(&method.input_message).unwrap();
@@ -604,50 +658,8 @@ impl Sender for Service {
                 format!("no entry for primary key: {}", key).as_str(),
             ))?
         };
-        let cached = {
-            self.broker
-                .probe_cache(&service_name, method.key(), &primary_key)?
-        };
-
-        let resp_fields = match cached {
-            Some(cached_fields) => cached_fields,
-            None => {
-                let writer = self.writer.get_mut();
-                let context = Self::context_from_api(&method.api)?;
-
-                let handler = method
-                    .handler
-                    .as_ref()
-                    .or(self.default_handler.as_ref())
-                    .ok_or(ServiceError::new(
-                        format!(
-                            "unable to find handler or default handler for {}.{}",
-                            service_name,
-                            method.key()
-                        )
-                        .as_str(),
-                    ))?;
-
-                let resp = writer.write_request(context, &fields, handler).await?;
-                handler.from_payload(resp)?
-            }
-        };
-
-        let buf: Vec<u8> = Vec::with_capacity(1000);
-        use bytes::BufMut;
-        let mut buf = buf.writer();
-        {
-            let mut output = protobuf::CodedOutputStream::new(&mut buf);
-            message.write_bytes_from_fields(&mut output, &resp_fields)?;
-        }
-        {
-            self.broker
-                .publish_cache(&service_name, method.key(), resp_fields)
-                .await?;
-        }
-
-        let buf = buf.into_inner();
-        Ok(bytes::Bytes::copy_from_slice(&buf[..]))
+        self.broker
+            .probe_cache(&service_name, method.key(), &primary_key)
     }
 }
 

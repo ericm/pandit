@@ -147,7 +147,6 @@ impl IntraServer {
 
         let mut _remote_sender: RemoteSender;
         let mut _service: RefMut<String, Service>;
-        // TODO: move cache check to here.
         let service: &mut dyn Sender = match services.get_mut(service) {
             Some(s) => {
                 _service = s;
@@ -163,6 +162,14 @@ impl IntraServer {
                 &mut _remote_sender
             }
         };
+
+        // Probe cache for in date cached data.
+        if let Some(cached_data) = service
+            .probe_cache(&service_name, &method.to_string(), &data[..])
+            .await?
+        {
+            return Ok(cached_data);
+        }
 
         let resp_raw = service
             .send(&service_name, &method.to_string(), &data[..])

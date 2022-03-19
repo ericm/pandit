@@ -28,6 +28,7 @@ use crate::services::{FieldsMap, Method, Sender, Service, ServiceError};
 
 struct CachedFields {
     fields: Fields,
+    data: bytes::Bytes,
     timestamp: SystemTime,
 }
 
@@ -38,8 +39,34 @@ struct CachedMessage {
     primary_key: String,
 }
 
+impl CachedMessage {
+    fn check_cache(
+        &self,
+        message: &CachedMessage,
+        primary_key: &Value,
+    ) -> ServiceResult<Option<bytes::Bytes>> {
+        // Look for existing entry or return "no hit".
+        let entry = match message.fields_for_key.get(primary_key) {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        let now = SystemTime::now();
+        let cached = match &message.cache {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+        let diff = now.duration_since(entry.timestamp)?;
+        if diff.as_secs() > cached.cache_time {
+            return Ok(None);
+        }
+        Ok(Some(entry.data.clone()))
+    }
+}
+
 pub struct RemoteSender {
     addr: String,
+    method_fields_map: Arc<DashMap<String, CachedMessage>>,
 }
 
 #[async_trait]
@@ -62,6 +89,28 @@ impl Sender for RemoteSender {
             None => return Err(ServiceError::new("no body in response")),
         };
         Ok(body?)
+    }
+
+    async fn probe_cache(
+        &self,
+        service_name: &String,
+        method: &String,
+        data: &[u8],
+    ) -> ServiceResult<Option<bytes::Bytes>> {
+        let name = format!("{}_{}", service_name, method);
+        let message = self
+            .method_fields_map
+            .get(&name)
+            .ok_or(format!("no entry for service method: {}", &name))?;
+        let fields = message.message.fields_from_bytes(data)?;
+
+        let primary_key = fields.map.get(&message.primary_key).ok_or(format!(
+            "no field for primary key: {}",
+            &message.primary_key
+        ))?;
+        let primary_key = primary_key.as_ref().ok_or("no value for primary key")?;
+
+        message.check_cache(message.value(), primary_key)
     }
 }
 
@@ -105,27 +154,11 @@ impl Broker {
         service_name: &String,
         method_name: &String,
         primary_key: &Value,
-    ) -> ServiceResult<Option<Fields>> {
+    ) -> ServiceResult<Option<bytes::Bytes>> {
         let name = format!("{}_{}", service_name, method_name);
         let val = self.get_entry(&name)?;
         let message = val.value();
-
-        // Look for existing entry or return "no hit".
-        let entry = match message.fields_for_key.get(primary_key) {
-            Some(v) => v,
-            None => return Ok(None),
-        };
-
-        let now = SystemTime::now();
-        let cached = match &message.cache {
-            Some(v) => v,
-            None => return Ok(None),
-        };
-        let diff = now.duration_since(entry.timestamp)?;
-        if diff.as_secs() > cached.cache_time {
-            return Ok(None);
-        }
-        Ok(Some(entry.fields.clone()))
+        message.check_cache(message, primary_key)
     }
 
     pub fn publish_service(&self, name: &String, service: &Service) -> ServiceResult<()> {
@@ -174,7 +207,10 @@ impl Broker {
     pub fn get_remote_sender(&self, service_name: &String) -> ServiceResult<RemoteSender> {
         let mut conn = self.client.get_connection()?;
         let addr: String = conn.get(format!("host_{}", service_name))?;
-        Ok(RemoteSender { addr })
+        Ok(RemoteSender {
+            addr,
+            method_fields_map: self.method_fields_map.clone(),
+        })
     }
 
     pub fn sub_service(&self, service_name: &String, method_name: &String) -> ServiceResult<()> {
@@ -432,6 +468,7 @@ impl Broker {
                     serde_json::from_slice(msg.get_payload_bytes())?;
                 let fields_map = cached.fields_for_key.clone();
                 let cached_fields = CachedFields {
+                    data: bytes::Bytes::copy_from_slice(&payload[..]),
                     fields: cached.message.fields_from_bytes(&payload[..])?,
                     timestamp: SystemTime::now(),
                 };
