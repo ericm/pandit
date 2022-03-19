@@ -17,7 +17,7 @@ use bollard::network::ConnectNetworkOptions;
 use bollard::network::CreateNetworkOptions;
 use bollard::network::DisconnectNetworkOptions;
 use bollard::Docker;
-use crossbeam_channel::{self, Receiver, Sender};
+use crossbeam_channel;
 use dashmap::DashMap;
 use dashmap::DashSet;
 use grpcio::ChannelBuilder;
@@ -307,22 +307,22 @@ pub type K8sResult<T> = Result<T, String>;
 #[derive(Clone)]
 pub struct K8sHandler {
     pandit_port: u16,
-    rx: Arc<RwLock<mpsc::UnboundedReceiver<api::StartServiceRequest>>>,
-    tx: Arc<mpsc::UnboundedSender<api::StartServiceRequest>>,
-    hostrx: Arc<Receiver<K8sResult<Option<String>>>>,
-    hosttx: Arc<Sender<K8sResult<Option<String>>>>,
+    rx: Arc<RwLock<mpsc::Receiver<api::StartServiceRequest>>>,
+    tx: Arc<mpsc::Sender<api::StartServiceRequest>>,
+    hostrx: Arc<RwLock<mpsc::Receiver<K8sResult<Option<String>>>>>,
+    hosttx: Arc<mpsc::Sender<K8sResult<Option<String>>>>,
 }
 
 impl K8sHandler {
     pub async fn new(pandit_port: u16) -> ServiceResult<Self> {
-        let (tx, rx) = mpsc::unbounded_channel();
-        let (hosttx, hostrx) = crossbeam_channel::unbounded();
+        let (tx, rx) = mpsc::channel(10000);
+        let (hosttx, hostrx) = mpsc::channel(10000);
         Ok(Self {
             pandit_port,
             tx: Arc::new(tx),
             rx: Arc::new(RwLock::new(rx)),
             hosttx: Arc::new(hosttx),
-            hostrx: Arc::new(hostrx),
+            hostrx: Arc::new(RwLock::new(hostrx)),
         })
     }
 
@@ -331,10 +331,13 @@ impl K8sHandler {
         req: &api::StartServiceRequest,
     ) -> ServiceResult<Option<String>> {
         let tx = self.tx.clone();
-        tx.send(req.clone())?;
-        let hostrx = self.hostrx.clone();
+        tx.blocking_send(req.clone())?;
+        let mut hostrx = self.hostrx.blocking_write();
         log::info!("k8s_grpcio: call handle if external");
-        match hostrx.recv_timeout(Duration::from_secs(30))? {
+        match hostrx
+            .blocking_recv()
+            .ok_or("error receiving from k8s handler runtime")?
+        {
             Ok(host) => Ok(host),
             Err(err) => Err(ServiceError::new(err.as_str())),
         }
@@ -356,7 +359,7 @@ impl K8sHandler {
                 Ok(v) => Ok(v),
                 Err(err) => Err(err.to_string()),
             };
-            self.hosttx.send(res).unwrap();
+            self.hosttx.send(res).await.unwrap();
         }
     }
 
