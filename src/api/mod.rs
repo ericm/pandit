@@ -17,7 +17,7 @@ use bollard::network::ConnectNetworkOptions;
 use bollard::network::CreateNetworkOptions;
 use bollard::network::DisconnectNetworkOptions;
 use bollard::Docker;
-use crossbeam_channel;
+use crossbeam_channel::{self, Receiver, Sender};
 use dashmap::DashMap;
 use dashmap::DashSet;
 use grpcio::ChannelBuilder;
@@ -309,20 +309,20 @@ pub struct K8sHandler {
     pandit_port: u16,
     rx: Arc<RwLock<mpsc::UnboundedReceiver<api::StartServiceRequest>>>,
     tx: Arc<mpsc::UnboundedSender<api::StartServiceRequest>>,
-    hostrx: Arc<RwLock<mpsc::UnboundedReceiver<K8sResult<Option<String>>>>>,
-    hosttx: Arc<mpsc::UnboundedSender<K8sResult<Option<String>>>>,
+    hostrx: Arc<Receiver<K8sResult<Option<String>>>>,
+    hosttx: Arc<Sender<K8sResult<Option<String>>>>,
 }
 
 impl K8sHandler {
     pub async fn new(pandit_port: u16) -> ServiceResult<Self> {
         let (tx, rx) = mpsc::unbounded_channel();
-        let (hosttx, hostrx) = mpsc::unbounded_channel();
+        let (hosttx, hostrx) = crossbeam_channel::unbounded();
         Ok(Self {
             pandit_port,
             tx: Arc::new(tx),
             rx: Arc::new(RwLock::new(rx)),
             hosttx: Arc::new(hosttx),
-            hostrx: Arc::new(RwLock::new(hostrx)),
+            hostrx: Arc::new(hostrx),
         })
     }
 
@@ -332,12 +332,9 @@ impl K8sHandler {
     ) -> ServiceResult<Option<String>> {
         let tx = self.tx.clone();
         tx.send(req.clone())?;
-        let mut hostrx = self.hostrx.blocking_write();
+        let hostrx = self.hostrx.clone();
         log::info!("k8s_grpcio: call handle if external");
-        match hostrx
-            .blocking_recv()
-            .ok_or("error receiving from k8s handler runtime")?
-        {
+        match hostrx.recv_timeout(Duration::from_secs(30))? {
             Ok(host) => Ok(host),
             Err(err) => Err(ServiceError::new(err.as_str())),
         }
