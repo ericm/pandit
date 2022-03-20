@@ -246,6 +246,7 @@ fn proto_libraries() -> [(&'static str, &'static [u8]); 3] {
 pub async fn add_service_from_file(
     path: PathBuf,
     k8s_handler: &Option<Arc<K8sHandler>>,
+    broker: Option<Arc<Broker>>,
     client: &ApiClient,
 ) -> ServiceResult<()> {
     let ext = match path.extension() {
@@ -267,6 +268,12 @@ pub async fn add_service_from_file(
         .to_string();
     let name = save.get("name").unwrap().as_str().unwrap().to_string();
     if k8s_pod != "" {
+        match broker {
+            Some(broker) => {
+                broker.add_pod_to_watch(&k8s_pod, &name);
+            }
+            None => {}
+        }
         let on_current = match &k8s_handler {
             Some(handler) => handler.is_pod_on_current(&k8s_pod).await.unwrap(),
             None => true,

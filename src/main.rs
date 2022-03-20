@@ -266,7 +266,7 @@ async fn start_services(
 
     for path in paths {
         let path = path.unwrap().path();
-        add_service_from_file(path, &k8s_handler, &client)
+        add_service_from_file(path, &k8s_handler, Some(broker.clone()), &client)
             .await
             .unwrap();
     }

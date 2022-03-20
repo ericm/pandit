@@ -235,8 +235,6 @@ impl Broker {
             let key = format!("host_{}", name);
             conn.del(key).await?;
         }
-
-        conn.publish("evicted", (name, pod_name)).await?;
         Ok(())
     }
 
@@ -434,14 +432,6 @@ impl Broker {
             msg
         };
         match msg.get_channel_name() {
-            "evicted" => match k8s_handler {
-                Some(handler) => {
-                    self.handle_eviction(handler, msg.get_payload()?);
-                }
-                None => {
-                    log::error!("pod eviction received but no k8s handler")
-                }
-            },
             name => match self.parse_service_fields(name, &msg) {
                 Ok(_) => {}
                 Err(err) => {
@@ -457,6 +447,7 @@ impl Broker {
     }
 
     pub fn add_pod_to_watch(&self, pod_name: &String, service_name: &String) {
+        log::info!("k8s: now watching pod '{}'", pod_name);
         self.pods.insert(pod_name.clone(), service_name.clone());
     }
 
@@ -467,6 +458,9 @@ impl Broker {
         let pods = &self.pods.clone();
 
         let server = &server.clone();
+        let current_node = std::env::var("NODE_NAME")?;
+        let current_node = current_node.as_str();
+        let host_addr = self.host_addr.as_str();
 
         try_flatten_applied(watcher(api, Default::default()))
             .try_for_each(|p| async move {
@@ -474,11 +468,15 @@ impl Broker {
                 if !pods.contains_key(&name) {
                     return Ok(());
                 }
+                log::warn!("k8s: change detected in pod '{}'", name);
+                    let service = pods.get(&name).unwrap();
+            let spec = p.spec.ok_or("no pod spec").unwrap();
+            // TODO: remove this as node_name is optional. Maybe not.
+            let pod_node = spec.node_name.ok_or("no node name").unwrap();
                 let status = p.status.as_ref().unwrap();
                 if status.phase.as_ref().unwrap() == "Failed" {
 
                     // Remove from broker and server
-                    let service = pods.get(&name).unwrap();
                     log::warn!(
                         "k8s: pod '{}', linked to service '{}' has been removed/evicted, announcing global listen...",
                         name,
@@ -489,38 +487,26 @@ impl Broker {
                         server.remove_service(&name.to_string()).await;
                     }
                 }
+                else if current_node == pod_node {
+                    log::warn!("pod '{}' is now on this node, adding service '{}'", name, service.value());
+                    // Add service on this node
+                    {
+                        let mut path = current_dir().unwrap().join(service.value());
+                        path.set_extension("pandit_service");
+                        let client = {
+                            let env = Arc::new(EnvBuilder::new().build());
+                            let ch = ChannelBuilder::new(env).connect(host_addr);
+                            api_proto::api_grpc::ApiClient::new(ch)
+                        };
+                        add_service_from_file(path, &None, None, &client)
+                            .await
+                            .unwrap();
+                    }
+                }
                 Ok(())
             })
             .await?;
         Ok(())
-    }
-
-    fn handle_eviction(&self, handler: Arc<K8sHandler>, (service_name, pod): (String, String)) {
-        let host_addr = self.host_addr.clone();
-        tokio::spawn(async move {
-            for _ in 0..10 {
-                let on_current = handler.is_pod_on_current(&pod).await.unwrap();
-                if on_current {
-                    log::info!("pod '{}' is now on this node", pod);
-                    // Add service on this node
-                    {
-                        let mut path = current_dir().unwrap().join(service_name);
-                        path.set_extension("pandit_service");
-                        let client = {
-                            let env = Arc::new(EnvBuilder::new().build());
-                            let ch = ChannelBuilder::new(env).connect(host_addr.as_str());
-                            api_proto::api_grpc::ApiClient::new(ch)
-                        };
-                        add_service_from_file(path, &Some(handler), &client)
-                            .await
-                            .unwrap();
-                    }
-                    return;
-                }
-                sleep(Duration::from_secs(6)).await;
-            }
-            log::debug!("pod '{}' was not found on this node", pod);
-        });
     }
 
     fn parse_service_fields(&self, name: &str, msg: &redis::Msg) -> ServiceResult<()> {
