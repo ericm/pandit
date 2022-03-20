@@ -217,6 +217,11 @@ impl ApiServer {
         ctx.spawn(async move {
             {
                 broker.publish_service(&name, &service).unwrap();
+                if req.has_k8s_pod() {
+                    let pod = req.get_k8s_pod();
+                    log::info!("Adding pod to watch: {}", pod);
+                    broker.add_pod_to_watch(&pod.to_string(), &name);
+                }
             }
             log::info!("broker service published: {}", &name);
             {
@@ -241,7 +246,6 @@ fn proto_libraries() -> [(&'static str, &'static [u8]); 3] {
 pub async fn add_service_from_file(
     path: PathBuf,
     k8s_handler: &Option<Arc<K8sHandler>>,
-    pods: &mut DashMap<String, String>,
     client: &ApiClient,
 ) -> ServiceResult<()> {
     let ext = match path.extension() {
@@ -270,7 +274,6 @@ pub async fn add_service_from_file(
         if !on_current {
             return Ok(());
         }
-        pods.insert(k8s_pod.clone(), name.clone());
     }
     log::info!("starting service: {}", name);
     let port: i32 = save

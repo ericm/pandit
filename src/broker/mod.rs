@@ -149,6 +149,7 @@ pub struct Broker {
     host_addr: String,
     subbed_tx: mpsc::Sender<()>,
     subbed_rx: Arc<RwLock<mpsc::Receiver<()>>>,
+    pods: Arc<DashMap<String, String>>,
 }
 
 impl Broker {
@@ -169,6 +170,7 @@ impl Broker {
             subbed: Arc::new(DashSet::new()),
             subbed_rx: Arc::new(RwLock::new(subbed_rx)),
             subbed_tx,
+            pods: Arc::new(DashMap::new()),
         })
     }
 
@@ -454,15 +456,15 @@ impl Broker {
         Ok(())
     }
 
-    pub async fn watch_pods(
-        &self,
-        pods: Arc<DashMap<String, String>>,
-        server: Arc<IntraServer>,
-    ) -> ServiceResult<()> {
+    pub fn add_pod_to_watch(&self, pod_name: &String, service_name: &String) {
+        self.pods.insert(pod_name.clone(), service_name.clone());
+    }
+
+    pub async fn watch_pods(&self, server: Arc<IntraServer>) -> ServiceResult<()> {
         use futures::prelude::*;
         let client = kube::Client::try_default().await?;
         let api: kube::Api<Pod> = kube::Api::default_namespaced(client);
-        let pods = &pods.clone();
+        let pods = &self.pods.clone();
 
         let server = &server.clone();
 
@@ -474,10 +476,14 @@ impl Broker {
                 }
                 let status = p.status.as_ref().unwrap();
                 if status.phase.as_ref().unwrap() == "Failed" {
-                    log::warn!("pod '{}' has been evicted", name);
 
                     // Remove from broker and server
                     let service = pods.get(&name).unwrap();
+                    log::warn!(
+                        "k8s: pod '{}', linked to service '{}' has been removed/evicted, announcing global listen...",
+                        name,
+                        service.value()
+                    );
                     self.remove_service(service.value(), &name).await.unwrap();
                     {
                         server.remove_service(&name.to_string()).await;
@@ -500,13 +506,12 @@ impl Broker {
                     {
                         let mut path = current_dir().unwrap().join(service_name);
                         path.set_extension("pandit_service");
-                        let mut _pods = Default::default();
                         let client = {
                             let env = Arc::new(EnvBuilder::new().build());
                             let ch = ChannelBuilder::new(env).connect(host_addr.as_str());
                             api_proto::api_grpc::ApiClient::new(ch)
                         };
-                        add_service_from_file(path, &Some(handler), &mut _pods, &client)
+                        add_service_from_file(path, &Some(handler), &client)
                             .await
                             .unwrap();
                     }

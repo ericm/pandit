@@ -264,17 +264,15 @@ async fn start_services(
     let client = api_proto::api_grpc::ApiClient::new(ch);
     let paths = read_dir(current_dir().unwrap()).unwrap();
 
-    let mut pods = DashMap::new();
     for path in paths {
         let path = path.unwrap().path();
-        add_service_from_file(path, &k8s_handler, &mut pods, &client)
+        add_service_from_file(path, &k8s_handler, &client)
             .await
             .unwrap();
     }
     match k8s_handler {
         Some(_) => {
-            let pods = Arc::new(pods);
-            threaded_rt.spawn(async move { broker.watch_pods(pods, server).await.unwrap() });
+            threaded_rt.spawn(async move { broker.watch_pods(server).await.unwrap() });
         }
         None => {}
     }
