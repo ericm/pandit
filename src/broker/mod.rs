@@ -432,7 +432,7 @@ impl Broker {
     pub async fn watch_pods(
         &self,
         pods: Arc<DashMap<String, String>>,
-        server: Arc<RwLock<IntraServer>>,
+        server: Arc<IntraServer>,
     ) -> ServiceResult<()> {
         use futures::prelude::*;
         let client = kube::Client::try_default().await?;
@@ -455,8 +455,7 @@ impl Broker {
                     let service = pods.get(&name).unwrap();
                     self.remove_service(service.value(), &name).await.unwrap();
                     {
-                        let mut server = server.write().await;
-                        server.remove_service(&name.to_string());
+                        server.remove_service(&name.to_string()).await;
                     }
                 }
                 Ok(())

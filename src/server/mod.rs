@@ -8,6 +8,7 @@ use crate::services::{self, Sender, Service, ServiceError};
 use async_trait::async_trait;
 use bytes::Bytes;
 use dashmap::mapref::one::RefMut;
+use dashmap::DashMap;
 use futures::Future;
 use h2::server::{self, SendResponse};
 use h2::RecvStream;
@@ -17,6 +18,7 @@ use std::collections::HashMap;
 use tokio;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::signal::ctrl_c;
+use tokio::sync::{RwLock, RwLockReadGuard};
 use tonic;
 
 #[async_trait]
@@ -49,7 +51,7 @@ pub trait Server {
 }
 
 pub struct IntraServer {
-    services: Arc<services::Services>,
+    services: Arc<RwLock<services::Services>>,
     broker: Arc<Broker>,
 }
 
@@ -64,6 +66,7 @@ impl Server for IntraServer {
             tokio::spawn(async move {
                 let response = http::Response::new(());
                 let mut trailers = HeaderMap::new();
+                let services = services.read().await;
                 let resp_raw = IntraServer::handle_request(services, req, broker).await;
 
                 let mut send = send_resp.send_response(response, false).unwrap();
@@ -107,21 +110,25 @@ impl Server for IntraServer {
 impl IntraServer {
     pub fn new(broker: Arc<Broker>) -> Self {
         Self {
-            services: Arc::new(services::Services::default()),
+            services: Arc::new(RwLock::new(services::Services::default())),
             broker,
         }
     }
 
-    pub fn add_servivce(&mut self, name: String, service: services::Service) {
-        self.services.insert(name.clone(), service);
+    pub async fn add_servivce(&self, name: String, service: services::Service) {
+        log::info!("adding service to intra-server: {}", &name);
+        let services = self.services.write().await;
+        services.insert(name.clone(), service);
     }
 
-    pub fn remove_service(&mut self, name: &String) {
-        self.services.remove(name);
+    pub async fn remove_service(&self, name: &String) {
+        log::info!("removing service from intra-server: {}", &name);
+        let services = self.services.write().await;
+        services.remove(name);
     }
 
     async fn handle_request(
-        services: Arc<services::Services>,
+        services: RwLockReadGuard<'_, DashMap<String, Service>>,
         mut request: Request<RecvStream>,
         broker: Arc<Broker>,
     ) -> Result<Bytes, Box<dyn Error>> {

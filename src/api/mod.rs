@@ -42,7 +42,7 @@ use crate::writers::writer_from_proto;
 
 pub struct ApiServer {
     broker: Arc<Broker>,
-    server: Arc<RwLock<IntraServer>>,
+    server: Arc<IntraServer>,
     network: Option<Arc<dyn NetworkRuntime>>,
     k8s_handler: Option<Arc<K8sHandler>>,
 }
@@ -167,7 +167,7 @@ impl Clone for ApiServer {
 impl ApiServer {
     pub fn new(
         broker: Arc<Broker>,
-        server: Arc<RwLock<IntraServer>>,
+        server: Arc<IntraServer>,
         network: Option<Arc<dyn NetworkRuntime>>,
         k8s_handler: Option<Arc<K8sHandler>>,
     ) -> Self {
@@ -218,9 +218,9 @@ impl ApiServer {
             {
                 broker.publish_service(&name, &service).unwrap();
             }
+            log::info!("broker service published: {}", &name);
             {
-                let mut server = server.write().await;
-                server.add_servivce(name, service);
+                server.add_servivce(name, service).await;
             }
         });
         Ok(())

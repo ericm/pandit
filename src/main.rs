@@ -191,15 +191,13 @@ async fn main() {
     let server_cancel: JoinHandle<()>;
     let intra_server = {
         let server = IntraServer::new(broker.clone());
-        let server = Arc::new(RwLock::new(server));
+        let server = Arc::new(server);
         let addr = cfg
             .get_str("server.address")
             .unwrap_or("0.0.0.0:50122".to_string());
         {
             let server = server.clone();
-
             server_cancel = threaded_rt.spawn(async move {
-                let server = server.read().await;
                 server.run(addr).await.unwrap();
             });
         }
@@ -257,7 +255,7 @@ async fn start_services(
     cfg: &config::Config,
     k8s_handler: Option<Arc<K8sHandler>>,
     broker: Arc<Broker>,
-    server: Arc<RwLock<IntraServer>>,
+    server: Arc<IntraServer>,
     threaded_rt: &runtime::Runtime,
 ) {
     let addr = format!("0.0.0.0:{}", cfg.get_int("admin.port").unwrap_or(50121));
