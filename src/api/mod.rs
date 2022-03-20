@@ -385,7 +385,7 @@ impl K8sHandler {
                     .ok_or("no pod status")?
                     .pod_ip
                     .ok_or("no pod ip")?;
-                log::info!("k8s: found pod's node ip: {}", &ip);
+                log::info!("k8s: found pod's ip: {}", &ip);
                 spec.node_name.ok_or("no node name")?
             }
             k8s_service(id) => {
@@ -419,6 +419,7 @@ impl K8sHandler {
             let ch = ChannelBuilder::new(env).connect(node_addr.as_str());
             api_proto::api_grpc::ApiClient::new(ch)
         };
+        // TODO: Add k8s watcher for deleted/recreated pods/services.
         client.start_service(req)?;
         Ok(None)
     }

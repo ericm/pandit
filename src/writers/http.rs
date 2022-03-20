@@ -43,6 +43,7 @@ impl Writer for HttpWriter {
         let payload = handler.to_payload(fields).await?;
         let request =
             request_from_context(self.version.clone(), context, payload, self.addr.clone())?;
+        log::info!("sending HTTP request to {}", &self.addr);
         let mut resp = self.client.request(request).await?;
 
         let body = resp.body_mut();

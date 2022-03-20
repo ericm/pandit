@@ -17,7 +17,7 @@ use protobuf::well_known_types::Field;
 use redis::cluster::ClusterClient;
 use redis::{Client, Commands, Connection, Msg, PubSubCommands};
 use tokio::net::TcpStream;
-use tokio::sync::RwLock;
+use tokio::sync::{mpsc, RwLock};
 use tokio::time::sleep;
 
 use crate::api::{add_service_from_file, K8sHandler};
@@ -41,24 +41,37 @@ struct CachedMessage {
 }
 
 impl CachedMessage {
-    fn check_cache(
-        &self,
-        message: &CachedMessage,
-        primary_key: &Value,
-    ) -> ServiceResult<Option<bytes::Bytes>> {
+    fn check_cache(&self, primary_key: &Value) -> ServiceResult<Option<bytes::Bytes>> {
         // Look for existing entry or return "no hit".
-        let entry = match message.fields_for_key.get(primary_key) {
+        log::info!(
+            "checking local cache in {} for {} = {:?}",
+            self.message.path,
+            self.primary_key,
+            primary_key
+        );
+        let entry = match self.fields_for_key.get(primary_key) {
             Some(v) => v,
-            None => return Ok(None),
+            None => {
+                log::info!(
+                    "no cache found for {:?}. Cache available: {}",
+                    primary_key,
+                    self.fields_for_key.len(),
+                );
+                return Ok(None);
+            }
         };
 
         let now = SystemTime::now();
-        let cached = match &message.cache {
+        let cached = match &self.cache {
             Some(v) => v,
-            None => return Ok(None),
+            None => {
+                log::info!("no cache config for {:?}", self.message.path);
+                return Ok(None);
+            }
         };
         let diff = now.duration_since(entry.timestamp)?;
         if diff.as_secs() > cached.cache_time {
+            log::info!("cache found for {:?} but it was out of date", primary_key);
             return Ok(None);
         }
         Ok(Some(entry.data.clone()))
@@ -124,7 +137,7 @@ impl Sender for RemoteSender {
         ))?;
         let primary_key = primary_key.as_ref().ok_or("no value for primary key")?;
 
-        message.check_cache(message.value(), primary_key)
+        message.check_cache(primary_key)
     }
 }
 
@@ -133,11 +146,14 @@ pub struct Broker {
     method_fields_map: Arc<DashMap<String, CachedMessage>>,
     subbed: Arc<DashSet<String>>,
     host_addr: String,
+    subbed_tx: mpsc::Sender<()>,
+    subbed_rx: Arc<RwLock<mpsc::Receiver<()>>>,
 }
 
 impl Broker {
     pub fn connect(mut cfg: config::Config, host_addr: String) -> ServiceResult<Self> {
         Self::set_default(&mut cfg)?;
+        let (subbed_tx, subbed_rx) = mpsc::channel(10000);
         let client = redis::Client::open(cfg.get_str("redis.address")?.as_str())?;
         let mut conn = client.get_connection()?;
         {
@@ -150,6 +166,8 @@ impl Broker {
             client,
             method_fields_map: Arc::new(Default::default()),
             subbed: Arc::new(DashSet::new()),
+            subbed_rx: Arc::new(RwLock::new(subbed_rx)),
+            subbed_tx,
         })
     }
 
@@ -172,7 +190,7 @@ impl Broker {
         let name = format!("{}_{}", service_name, method_name);
         let val = self.get_entry(&name)?;
         let message = val.value();
-        message.check_cache(message, primary_key)
+        message.check_cache(primary_key)
     }
 
     pub fn publish_service(&self, name: &String, service: &Service) -> ServiceResult<()> {
@@ -297,6 +315,7 @@ impl Broker {
             let mut pubsub = conn.into_pubsub();
             pubsub.subscribe(sub_name).await?;
         }
+        self.subbed_tx.send(()).await?;
         Ok(())
     }
 
@@ -335,6 +354,7 @@ impl Broker {
         let mut pubsub = self.client.get_async_connection().await?;
         use redis::AsyncCommands;
         pubsub.publish(service_name, to_publish).await?;
+        log::info!("new cache published for: {}", name);
         Ok(())
     }
 
@@ -383,6 +403,7 @@ impl Broker {
     }
 
     pub async fn receive(&self, k8s_handler: Option<Arc<K8sHandler>>) -> ServiceResult<()> {
+        log::info!("ready to receive updates from redis");
         let msg = {
             let pubsub = self.client.get_async_connection().await?;
             let mut pubsub = pubsub.into_pubsub();
@@ -393,14 +414,16 @@ impl Broker {
                     pubsub.subscribe(service).await?;
                 }
                 let mut on_msg = pubsub.on_message();
+                let mut subbed_rx = self.subbed_rx.write().await;
                 msg = tokio::select! {
                     v = on_msg.next() => match v {
                         Some(v) => v,
                         None => return Ok(()),
                     },
-                    _ = sleep(Duration::from_secs(30)) => {
+                    _ = subbed_rx.recv() => {
+                        log::info!("new service added to cache listener, refreshing...");
                         continue;
-                    },
+                    }
                 };
                 break;
             }
@@ -507,7 +530,13 @@ impl Broker {
                     fields: cached.message.fields_from_bytes(&payload[..])?,
                     timestamp: SystemTime::now(),
                 };
-                fields_map.insert(primary_key, cached_fields);
+                fields_map.insert(primary_key.clone(), cached_fields);
+                cached.fields_for_key = fields_map;
+                log::info!(
+                    "cache updated for {}: primary key value = {:?}",
+                    &name,
+                    &primary_key
+                );
                 Ok(())
             }
             None => Err(ServiceError::new(
