@@ -152,14 +152,17 @@ impl IntraServer {
             fqdn.rsplit(".").next().unwrap()
         };
         let service_name = service.to_string();
-        log::info!("request for {}_{}", &service_name, &method);
+        let method_name = method.to_string();
+        log::info!("request for {}_{}", &service_name, &method_name);
 
         // subscribe for future cache.
-        if !broker.is_subbed(&service_name) {
-            log::info!("subscribing to cache for {}_{}", &service_name, &method);
-            broker
-                .sub_service(&service_name, &method.to_string())
-                .await?;
+        if !broker.is_subbed(&service_name, &method_name) {
+            log::info!(
+                "subscribing to cache for {}_{}",
+                &service_name,
+                &method_name
+            );
+            broker.sub_service(&service_name, &method_name).await?;
         }
         let mut _remote_sender: RemoteSender;
         let mut _service: RefMut<String, Service>;
@@ -171,7 +174,7 @@ impl IntraServer {
             }
             None => {
                 log::info!(
-                    "found service {} on other node... delegating",
+                    "found service {} on other node, will delegate if no cache hit",
                     &service_name
                 );
                 // send to other node.
@@ -182,16 +185,14 @@ impl IntraServer {
 
         // Probe cache for in date cached data.
         if let Some(cached_data) = service
-            .probe_cache(&service_name, &method.to_string(), &data[..])
+            .probe_cache(&service_name, &method_name, &data[..])
             .await?
         {
-            log::info!("found cache hit for {}_{}", &service_name, &method);
+            log::info!("found cache hit for {}_{}", &service_name, &method_name);
             return Ok(cached_data);
         }
 
-        let resp_raw = service
-            .send(&service_name, &method.to_string(), &data[..])
-            .await;
+        let resp_raw = service.send(&service_name, &method_name, &data[..]).await;
         match resp_raw {
             Ok(v) => Ok(v),
             Err(err) => Err(ServiceError::new(

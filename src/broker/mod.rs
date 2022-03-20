@@ -33,6 +33,7 @@ struct CachedFields {
     timestamp: SystemTime,
 }
 
+#[derive(Clone)]
 struct CachedMessage {
     message: Message,
     cache: Option<CacheOptions>,
@@ -177,8 +178,9 @@ impl Broker {
         Ok(hosts)
     }
 
-    pub fn is_subbed(&self, name: &String) -> bool {
-        self.subbed.contains(name)
+    pub fn is_subbed(&self, service_name: &String, method_name: &String) -> bool {
+        self.subbed
+            .contains(&format!("service_{}_{}", service_name, method_name))
     }
 
     pub fn probe_cache(
@@ -519,30 +521,31 @@ impl Broker {
     fn parse_service_fields(&self, name: &str, msg: &redis::Msg) -> ServiceResult<()> {
         let name = name.to_string();
         let name = name.trim_start_matches("service_").to_string();
-        match self.method_fields_map.get_mut(&name) {
-            Some(mut v) => {
-                let cached = v.value_mut();
-                let (primary_key, payload): (Value, Vec<u8>) =
-                    serde_json::from_slice(msg.get_payload_bytes())?;
-                let fields_map = cached.fields_for_key.clone();
-                let cached_fields = CachedFields {
-                    data: bytes::Bytes::copy_from_slice(&payload[..]),
-                    fields: cached.message.fields_from_bytes(&payload[..])?,
-                    timestamp: SystemTime::now(),
-                };
-                fields_map.insert(primary_key.clone(), cached_fields);
-                cached.fields_for_key = fields_map;
-                log::info!(
-                    "cache updated for {}: primary key value = {:?}",
-                    &name,
-                    &primary_key
-                );
-                Ok(())
+        let mut cached = match self.method_fields_map.get(&name) {
+            Some(v) => v.value().clone(),
+            None => {
+                return Err(ServiceError::new(
+                    format!("received service fields with unknown name: {}", name).as_str(),
+                ))
             }
-            None => Err(ServiceError::new(
-                format!("received service fields with unknown name: {}", name).as_str(),
-            )),
-        }
+        };
+        let (primary_key, payload): (Value, Vec<u8>) =
+            serde_json::from_slice(msg.get_payload_bytes())?;
+        let fields_map = cached.fields_for_key.clone();
+        let cached_fields = CachedFields {
+            data: bytes::Bytes::copy_from_slice(&payload[..]),
+            fields: cached.message.fields_from_bytes(&payload[..])?,
+            timestamp: SystemTime::now(),
+        };
+        fields_map.insert(primary_key.clone(), cached_fields);
+        cached.fields_for_key = fields_map;
+        self.method_fields_map.insert(name.clone(), cached);
+        log::info!(
+            "cache updated for {}: primary key value = {:?}",
+            &name,
+            &primary_key
+        );
+        Ok(())
     }
 
     fn set_default(cfg: &mut config::Config) -> ServiceResult<()> {
