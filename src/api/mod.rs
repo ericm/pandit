@@ -369,6 +369,7 @@ impl K8sHandler {
                 Ok(v) => Ok(v),
                 Err(err) => Err(err.to_string()),
             };
+            log::info!("k8s: host found: {:?}", res);
             self.hosttx.send(res).await.unwrap();
         }
     }

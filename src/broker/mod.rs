@@ -455,8 +455,10 @@ impl Broker {
     }
 
     pub fn add_pod_to_watch(&self, pod_name: &String, service_name: &String) {
-        log::info!("k8s: now watching pod '{}'", pod_name);
-        self.pods.insert(pod_name.clone(), service_name.clone());
+        if !self.pods.contains_key(pod_name) {
+            log::info!("k8s: now watching pod '{}'", pod_name);
+            self.pods.insert(pod_name.clone(), service_name.clone());
+        }
     }
 
     pub async fn watch_pods(&self, server: Arc<IntraServer>) -> ServiceResult<()> {
@@ -491,7 +493,11 @@ impl Broker {
                 let status = p.status.as_ref().unwrap();
                 let phase = status.phase.as_ref().unwrap();
                 let deletion = p.metadata.deletion_timestamp;
-                if phase == "Failed" || phase == "Succeeded" || deletion.is_some() {
+
+                if phase == "Failed" || phase == "Succeeded" || deletion.is_some()  {
+                    // if !server.has_service(name).await {
+                    //     return Ok(());
+                    // }
                     // Remove from broker and server
                     log::warn!(
                         "k8s: pod '{}', linked to service '{}' has been removed/evicted, announcing global listen...",
@@ -502,8 +508,7 @@ impl Broker {
                     {
                         server.remove_service(name).await;
                     }
-                }
-                else if current_node == pod_node && phase == "Running" {
+                } else if current_node == pod_node && phase == "Running" && status.pod_ip.is_some() {
                     log::warn!("k8s: pod '{}' is now on this node, adding service '{}'", name, service.value());
                     // Add service on this node
                     {

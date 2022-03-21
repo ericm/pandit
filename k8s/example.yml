@@ -5,7 +5,7 @@ metadata:
 spec:
   containers:
   - name: linux
-    image: ubuntu:latest
+    image: python:latest
     imagePullPolicy: Always
     resources:
       limits:

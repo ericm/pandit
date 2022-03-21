@@ -127,6 +127,11 @@ impl IntraServer {
         services.remove(name);
     }
 
+    pub async fn has_service(&self, name: &String) -> bool {
+        let services = self.services.read().await;
+        services.contains_key(name)
+    }
+
     async fn handle_request(
         services: RwLockReadGuard<'_, DashMap<String, Service>>,
         mut request: Request<RecvStream>,
