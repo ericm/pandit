@@ -14,8 +14,8 @@ spec:
     ports:
     - containerPort: 6379
     args:
-    - sleep
-    - "604800"
+    - python
+    - /mnt/pandit/src/proto/examples/example_rest.py
     volumeMounts:
       - mountPath: /mnt/pandit
         name: host

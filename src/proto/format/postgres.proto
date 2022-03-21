@@ -1,0 +1,14 @@
+syntax = "proto3";
+import "google/protobuf/descriptor.proto";
+
+package pandit.format;
+
+message Postgres {}
+
+message PostgresService {}
+
+extend google.protobuf.MethodOptions { Postgres postgres = 50021; }
+
+extend google.protobuf.ServiceOptions {
+  PostgresService postgres_service = 50022;
+}

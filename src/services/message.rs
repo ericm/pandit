@@ -18,7 +18,7 @@ pub struct Field {
     pub cache: Option<super::base::CacheOptions>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Message {
     pub path: String,
 
@@ -27,7 +27,7 @@ pub struct Message {
 
     fields: DashMap<u32, Field>,
     pub fields_by_name: DashMap<String, Field>,
-    message: protobuf::descriptor::DescriptorProto,
+    pub message: protobuf::descriptor::DescriptorProto,
 }
 
 macro_rules! as_variant {

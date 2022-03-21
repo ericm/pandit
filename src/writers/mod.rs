@@ -8,6 +8,7 @@ use crate::services::{ServiceError, ServiceResult, WriterRef};
 use self::http::HttpWriter;
 
 pub mod http;
+pub mod postgres;
 
 pub fn writer_from_proto(
     proto_path: PathBuf,

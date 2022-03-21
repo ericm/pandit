@@ -449,20 +449,6 @@ impl K8sHandler {
     }
 }
 
-// mod k8s_tests {
-//     use http::{Request, Response};
-//     use hyper::Body;
-
-//     #[tokio::test(flavor = "current_thread")]
-//     async fn test_handle_if_external() {
-//         use super::*;
-//         use tower_test::mock;
-//         let target = K8sHandler::new(1234).await?;
-//         let (mock_service, mut handle) = mock::pair::<Request<Body>, Response<Body>>();
-
-//     }
-// }
-
 #[async_trait]
 pub trait NetworkRuntime: Send + Sync {
     fn create_network(&self, container_id: String) -> ServiceResult<String>;
