@@ -111,10 +111,18 @@ impl Sender for RemoteSender {
             .body(())?;
         let (response, mut send) = client.send_request(req, false)?;
         send.send_data(bytes::Bytes::copy_from_slice(data), true)?;
-        let (_, mut body) = response.await?.into_parts();
+        let (parts, mut body) = response.await?.into_parts();
         let body = match body.data().await {
             Some(body) => body,
-            None => return Err(ServiceError::new("no body in response")),
+            None => {
+                return Err(ServiceError::new(
+                    format!(
+                        "error on other node: {:?}",
+                        parts.headers.get("grpc-message")
+                    )
+                    .as_str(),
+                ))
+            }
         };
         Ok(body?)
     }
@@ -473,10 +481,9 @@ impl Broker {
                     init_hit.insert(name.clone());
                     return Ok(());
                 }
-                log::warn!("k8s: change detected in pod '{:?}'", &p);
+                // log::warn!("k8s: change detected in pod '{:?}'", &p);
                 let service = pods.get(name).unwrap();
                 let spec = p.spec.ok_or("no pod spec").unwrap();
-                // TODO: remove this as node_name is optional. Maybe not.
                 let pod_node = match spec.node_name {
                     Some(v) => v,
                     None => return Ok(()),
