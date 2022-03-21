@@ -495,9 +495,6 @@ impl Broker {
                 let deletion = p.metadata.deletion_timestamp;
 
                 if phase == "Failed" || phase == "Succeeded" || deletion.is_some()  {
-                    // if !server.has_service(name).await {
-                    //     return Ok(());
-                    // }
                     // Remove from broker and server
                     log::warn!(
                         "k8s: pod '{}', linked to service '{}' has been removed/evicted, announcing global listen...",
