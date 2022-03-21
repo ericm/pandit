@@ -460,35 +460,44 @@ impl Broker {
         let server = &server.clone();
         let current_node = std::env::var("NODE_NAME")?;
         let current_node = current_node.as_str();
-        let host_addr = self.host_addr.as_str();
+        let host_addr = "0.0.0.0:50121";
+
+        let init_hit = Arc::new(DashSet::<String>::new());
+        let init_hit = &init_hit;
 
         try_flatten_applied(watcher(api, Default::default()))
             .try_for_each(|p| async move {
-                let name = p.metadata.name.unwrap();
-                if !pods.contains_key(&name) {
+                let name = p.metadata.name.as_ref().unwrap();
+                // Stopping initial hit in watch.
+                if !pods.contains_key(name) || !init_hit.contains(name) {
+                    init_hit.insert(name.clone());
                     return Ok(());
                 }
-                log::warn!("k8s: change detected in pod '{}'", name);
-                    let service = pods.get(&name).unwrap();
-            let spec = p.spec.ok_or("no pod spec").unwrap();
-            // TODO: remove this as node_name is optional. Maybe not.
-            let pod_node = spec.node_name.ok_or("no node name").unwrap();
+                log::warn!("k8s: change detected in pod '{:?}'", &p);
+                let service = pods.get(name).unwrap();
+                let spec = p.spec.ok_or("no pod spec").unwrap();
+                // TODO: remove this as node_name is optional. Maybe not.
+                let pod_node = match spec.node_name {
+                    Some(v) => v,
+                    None => return Ok(()),
+                };
                 let status = p.status.as_ref().unwrap();
-                if status.phase.as_ref().unwrap() == "Failed" {
-
+                let phase = status.phase.as_ref().unwrap();
+                let deletion = p.metadata.deletion_timestamp;
+                if phase == "Failed" || phase == "Succeeded" || deletion.is_some() {
                     // Remove from broker and server
                     log::warn!(
                         "k8s: pod '{}', linked to service '{}' has been removed/evicted, announcing global listen...",
                         name,
                         service.value()
                     );
-                    self.remove_service(service.value(), &name).await.unwrap();
+                    self.remove_service(service.value(), name).await.unwrap();
                     {
-                        server.remove_service(&name.to_string()).await;
+                        server.remove_service(name).await;
                     }
                 }
-                else if current_node == pod_node {
-                    log::warn!("pod '{}' is now on this node, adding service '{}'", name, service.value());
+                else if current_node == pod_node && phase == "Running" {
+                    log::warn!("k8s: pod '{}' is now on this node, adding service '{}'", name, service.value());
                     // Add service on this node
                     {
                         let mut path = current_dir().unwrap().join(service.value());
@@ -506,6 +515,7 @@ impl Broker {
                 Ok(())
             })
             .await?;
+        log::warn!("k8s: pod watcher exited");
         Ok(())
     }
 

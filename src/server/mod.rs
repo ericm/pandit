@@ -36,7 +36,7 @@ pub trait Server {
                 match self.serve(socket).await {
                     Ok(_) => {}
                     Err(e) => {
-                        log::info!(
+                        log::error!(
                             "error parsing packet from {}: {}",
                             saddr.to_string(),
                             e.to_string()
