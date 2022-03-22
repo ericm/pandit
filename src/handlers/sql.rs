@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use postgres_types::{IsNull, ToSql};
-use sea_query::{tests_cfg::Char, ColumnDef, Iden, Table, TableCreateStatement};
+use sea_query::{
+    tests_cfg::Char, ColumnDef, Iden, IntoValueTuple, Query, Table, TableCreateStatement,
+};
 use tokio_postgres;
 
 use crate::services::{
@@ -10,7 +12,9 @@ use crate::services::{
     value::Value,
     Fields, Handler, ServiceError, ServiceResult,
 };
-pub struct SQLHandler {}
+pub struct SQLHandler {
+    message: Message,
+}
 
 impl Iden for Message {
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
@@ -24,11 +28,35 @@ impl Iden for Field {
     }
 }
 
+impl Value {
+    fn into_value(self) -> sea_query::Value {
+        match self {
+            Value::String(v) => sea_query::Value::String(Some(Box::new(v))),
+            Value::Bytes(v) => sea_query::Value::Bytes(Some(Box::new(v))),
+            Value::Int(v) => sea_query::Value::Int(Some(v.to_i32())),
+            Value::Float(v) => sea_query::Value::Float(Some(v.to_f32())),
+            Value::Bool(v) => sea_query::Value::Bool(Some(v)),
+            Value::Enum(v) => sea_query::Value::Int(Some(protobuf::ProtobufEnum::value(&v))),
+            Value::Array(vals) => {
+                let out = Vec::with_capacity(vals.len());
+                for v in vals {
+                    out.push(v.into_value());
+                }
+                sea_query::Value::Array(Some(Box::new(out)))
+            }
+            Value::Message(v) => todo!(),
+            Value::None => sea_query::Value::Int(None),
+        }
+    }
+}
+
+// impl Iden for V
+
 fn populate_table(message: &Message, table: &mut TableCreateStatement) -> ServiceResult<()> {
     use protobuf::descriptor::field_descriptor_proto::Label::*;
     use protobuf::descriptor::field_descriptor_proto::Type::*;
 
-    for (name, field) in message.fields_by_name {
+    for (_, field) in message.fields_by_name {
         let mut def = ColumnDef::new(field);
         match field.descriptor.get_label() {
             LABEL_OPTIONAL => {}
@@ -47,7 +75,10 @@ fn populate_table(message: &Message, table: &mut TableCreateStatement) -> Servic
             TYPE_BOOL => def.boolean(),
             TYPE_STRING => def.string(),
             TYPE_BYTES => def.binary(),
-            TYPE_MESSAGE => todo!(),
+            TYPE_MESSAGE => {
+                // TODO: populate sub_table from message.parents and create foreign key.
+                todo!()
+            }
             TYPE_INT64 | TYPE_UINT64 | TYPE_INT32 | TYPE_UINT32 | TYPE_FIXED64 | TYPE_FIXED32
             | TYPE_SFIXED32 | TYPE_SFIXED64 | TYPE_SINT32 | TYPE_SINT64 | TYPE_ENUM => {
                 def.integer()
@@ -63,7 +94,17 @@ impl SQLHandler {
     pub fn new(message: &Message) -> ServiceResult<Self> {
         let table = Table::create().table(message.clone()).if_not_exists();
         populate_table(message, table)?;
-        Ok(Self {})
+        Ok(Self {
+            message: message.clone(),
+        })
+    }
+
+    fn cols(&self) -> Vec<Field> {
+        self.message
+            .fields_by_name
+            .iter()
+            .map(|v| v.value().clone())
+            .collect()
     }
 }
 
@@ -80,6 +121,28 @@ impl Handler for SQLHandler {
         &self,
         fields: &crate::services::Fields,
     ) -> crate::services::ServiceResult<bytes::Bytes> {
-        todo!()
+        let vals = Vec::with_capacity(fields.map.len());
+        let cols = Vec::<Field>::with_capacity(fields.map.len());
+        for (name, value) in fields.map {
+            vals.push(match value {
+                Some(value) => value.into_value(),
+                None => sea_query::Value::Int(None),
+            });
+            cols.push(
+                self.message
+                    .fields_by_name
+                    .get(&name)
+                    .ok_or("no field error")?
+                    .value()
+                    .clone(),
+            );
+        }
+        let query = Query::insert()
+            .into_table(self.message)
+            .columns(cols)
+            .values(vals)?;
+        Ok(bytes::Bytes::from(
+            query.to_string(sea_query::PostgresQueryBuilder),
+        ))
     }
 }
