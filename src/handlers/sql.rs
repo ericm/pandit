@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use postgres_types::{IsNull, ToSql};
+use postgres_types::{FromSql, IsNull, ToSql};
 use sea_query::{
     tests_cfg::Char, ColumnDef, Iden, IntoValueTuple, Query, Table, TableCreateStatement,
 };
@@ -47,6 +47,21 @@ impl Value {
             Value::Message(v) => todo!(),
             Value::None => sea_query::Value::Int(None),
         }
+    }
+}
+
+pub struct SQLValue(pub Vec<u8>);
+
+impl<'a> FromSql<'a> for SQLValue {
+    fn from_sql(
+        ty: &postgres_types::Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        Ok(Self(raw.to_vec()))
+    }
+
+    fn accepts(ty: &postgres_types::Type) -> bool {
+        true
     }
 }
 
@@ -114,6 +129,7 @@ impl Handler for SQLHandler {
         &self,
         buf: bytes::Bytes,
     ) -> crate::services::ServiceResult<crate::services::Fields> {
+        let buf = buf.to_vec();
         todo!()
     }
 
