@@ -1,9 +1,14 @@
-pub struct PostgresWriter {}
+use std::convert::TryInto;
 
 use async_trait::async_trait;
-use diesel;
 
 use crate::services::{Writer, WriterContext};
+
+use tokio_postgres::{self, Client, NoTls};
+
+pub struct PostgresWriter {
+    client: Client,
+}
 
 #[async_trait]
 impl Writer for PostgresWriter {
@@ -13,7 +18,7 @@ impl Writer for PostgresWriter {
         fields: &crate::services::Fields,
         handler: &std::sync::Arc<dyn crate::services::Handler + Send + Sync>,
     ) -> crate::services::ServiceResult<bytes::Bytes> {
-        // diesel::insert_into(target)
-        // diesel::dyn
+        let query = String::from_utf8(handler.to_payload(fields).await?.to_vec())?;
+        let rows = self.client.query(&query, &[]).await?;
     }
 }
