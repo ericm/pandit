@@ -1,10 +1,11 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use postgres_types::{FromSql, IsNull, ToSql};
 use sea_query::{
     tests_cfg::Char, ColumnDef, Iden, IntoValueTuple, Query, Table, TableCreateStatement,
 };
+use serde::{Deserialize, Serialize};
 use tokio_postgres;
 
 use crate::services::{
@@ -38,7 +39,7 @@ impl Value {
             Value::Bool(v) => sea_query::Value::Bool(Some(v)),
             Value::Enum(v) => sea_query::Value::Int(Some(protobuf::ProtobufEnum::value(&v))),
             Value::Array(vals) => {
-                let out = Vec::with_capacity(vals.len());
+                let mut out = Vec::with_capacity(vals.len());
                 for v in vals {
                     out.push(v.into_value());
                 }
@@ -50,17 +51,18 @@ impl Value {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct SQLValue(pub Vec<u8>);
 
 impl<'a> FromSql<'a> for SQLValue {
     fn from_sql(
-        ty: &postgres_types::Type,
+        _: &postgres_types::Type,
         raw: &'a [u8],
     ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         Ok(Self(raw.to_vec()))
     }
 
-    fn accepts(ty: &postgres_types::Type) -> bool {
+    fn accepts(_: &postgres_types::Type) -> bool {
         true
     }
 }
@@ -71,8 +73,8 @@ fn populate_table(message: &Message, table: &mut TableCreateStatement) -> Servic
     use protobuf::descriptor::field_descriptor_proto::Label::*;
     use protobuf::descriptor::field_descriptor_proto::Type::*;
 
-    for (_, field) in message.fields_by_name {
-        let mut def = ColumnDef::new(field);
+    for field in message.fields_by_name.iter() {
+        let mut def = ColumnDef::new(field.clone());
         match field.descriptor.get_label() {
             LABEL_OPTIONAL => {}
             LABEL_REQUIRED => {
@@ -107,7 +109,8 @@ fn populate_table(message: &Message, table: &mut TableCreateStatement) -> Servic
 
 impl SQLHandler {
     pub fn new(message: &Message) -> ServiceResult<Self> {
-        let table = Table::create().table(message.clone()).if_not_exists();
+        let mut table = Table::create();
+        let table = table.table(message.clone()).if_not_exists();
         populate_table(message, table)?;
         Ok(Self {
             message: message.clone(),
@@ -129,32 +132,59 @@ impl Handler for SQLHandler {
         &self,
         buf: bytes::Bytes,
     ) -> crate::services::ServiceResult<crate::services::Fields> {
-        let buf = buf.to_vec();
-        todo!()
+        use protobuf::descriptor::field_descriptor_proto::Type::*;
+        let buf = &buf.to_vec()[..];
+        let map: HashMap<String, SQLValue> = serde_json::from_slice(buf)?;
+        let mut def = ColumnDef::new(field.clone());
+        for (name, value) in map {
+            match self
+                .message
+                .fields_by_name
+                .get(&name)
+                .ok_or("no field")?
+                .descriptor
+                .get_field_type()
+            {
+                TYPE_DOUBLE => def.double(),
+                TYPE_FLOAT => def.float(),
+                TYPE_BOOL => def.boolean(),
+                TYPE_STRING => def.string(),
+                TYPE_BYTES => def.binary(),
+                TYPE_MESSAGE => {
+                    // TODO: populate sub_table from message.parents and create foreign key.
+                    todo!()
+                }
+                TYPE_INT64 | TYPE_UINT64 | TYPE_INT32 | TYPE_UINT32 | TYPE_FIXED64
+                | TYPE_FIXED32 | TYPE_SFIXED32 | TYPE_SFIXED64 | TYPE_SINT32 | TYPE_SINT64
+                | TYPE_ENUM => def.integer(),
+                _ => &mut def,
+            }
+        }
     }
 
     async fn to_payload(
         &self,
         fields: &crate::services::Fields,
     ) -> crate::services::ServiceResult<bytes::Bytes> {
-        let vals = Vec::with_capacity(fields.map.len());
-        let cols = Vec::<Field>::with_capacity(fields.map.len());
-        for (name, value) in fields.map {
-            vals.push(match value {
-                Some(value) => value.into_value(),
+        let mut vals = Vec::with_capacity(fields.map.len());
+        let mut cols = Vec::<Field>::with_capacity(fields.map.len());
+        for entry in fields.map.iter() {
+            vals.push(match entry.value() {
+                Some(value) => value.clone().into_value(),
                 None => sea_query::Value::Int(None),
             });
             cols.push(
                 self.message
                     .fields_by_name
-                    .get(&name)
+                    .get(entry.key())
                     .ok_or("no field error")?
                     .value()
                     .clone(),
             );
         }
-        let query = Query::insert()
-            .into_table(self.message)
+        let mut query = Query::insert();
+        let query = query
+            .into_table(self.message.clone())
             .columns(cols)
             .values(vals)?;
         Ok(bytes::Bytes::from(
