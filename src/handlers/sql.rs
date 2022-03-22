@@ -2,91 +2,67 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use postgres_types::{IsNull, ToSql};
+use sea_query::{tests_cfg::Char, ColumnDef, Iden, Table, TableCreateStatement};
 use tokio_postgres;
 
-use crate::services::{message::Message, value::Value, Fields, Handler, ServiceResult};
+use crate::services::{
+    message::{Field, Message},
+    value::Value,
+    Fields, Handler, ServiceError, ServiceResult,
+};
+pub struct SQLHandler {}
 
-impl ToSql for Value {
-    fn to_sql(
-        &self,
-        ty: &postgres_types::Type,
-        out: &mut bytes::BytesMut,
-    ) -> Result<postgres_types::IsNull, Box<dyn std::error::Error + Sync + Send>>
-    where
-        Self: Sized,
-    {
-        match &self {
-            Value::String(s) => s.to_sql(ty, out),
-            Value::Bytes(b) => b.to_sql(ty, out),
-            Value::Int(i) => {
-                let i = i.to_i64();
-                i.to_sql(ty, out)
-            }
-            Value::Float(f) => {
-                let f = f.to_f64();
-                f.to_sql(ty, out)
-            }
-            Value::Bool(b) => b.to_sql(ty, out),
-            Value::Enum(e) => {
-                use protobuf::ProtobufEnum;
-                let e = e.value();
-                e.to_sql(ty, out)
-            }
-            Value::Array(a) => a.to_sql(ty, out),
-            Value::Message(f) => {}
-            Value::None => Ok(IsNull::Yes),
-        }
-    }
-
-    fn accepts(ty: &postgres_types::Type) -> bool
-    where
-        Self: Sized,
-    {
-        true
-    }
-
-    fn to_sql_checked(
-        &self,
-        ty: &postgres_types::Type,
-        out: &mut bytes::BytesMut,
-    ) -> Result<postgres_types::IsNull, Box<dyn std::error::Error + Sync + Send>> {
-        todo!()
+impl Iden for Message {
+    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+        write!(s, "{}", self.name).unwrap()
     }
 }
 
-// impl ToSql for Fields {
-//     fn to_sql(
-//         &self,
-//         ty: &postgres_types::Type,
-//         out: &mut bytes::BytesMut,
-//     ) -> Result<postgres_types::IsNull, Box<dyn std::error::Error + Sync + Send>>
-//     where
-//         Self: Sized,
-//     {
-//         let j = postgres_types::Json(self);
-//         j.to_sql(ty, out)
-//     }
+impl Iden for Field {
+    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+        write!(s, "{}", self.descriptor.get_name()).unwrap()
+    }
+}
 
-//     fn accepts(ty: &postgres_types::Type) -> bool
-//     where
-//         Self: Sized,
-//     {
-//         true
-//     }
+fn populate_table(message: &Message, table: &mut TableCreateStatement) -> ServiceResult<()> {
+    use protobuf::descriptor::field_descriptor_proto::Label::*;
+    use protobuf::descriptor::field_descriptor_proto::Type::*;
 
-//     fn to_sql_checked(
-//         &self,
-//         ty: &postgres_types::Type,
-//         out: &mut bytes::BytesMut,
-//     ) -> Result<postgres_types::IsNull, Box<dyn std::error::Error + Sync + Send>> {
-//         todo!()
-//     }
-// }
-
-pub struct SQLHandler {}
+    for (name, field) in message.fields_by_name {
+        let mut def = ColumnDef::new(field);
+        match field.descriptor.get_label() {
+            LABEL_OPTIONAL => {}
+            LABEL_REQUIRED => {
+                def.not_null();
+            }
+            LABEL_REPEATED => {
+                return Err(ServiceError::new(
+                    "repeated label is not currently supported in SQL",
+                ))
+            }
+        };
+        match field.descriptor.get_field_type() {
+            TYPE_DOUBLE => def.double(),
+            TYPE_FLOAT => def.float(),
+            TYPE_BOOL => def.boolean(),
+            TYPE_STRING => def.string(),
+            TYPE_BYTES => def.binary(),
+            TYPE_MESSAGE => todo!(),
+            TYPE_INT64 | TYPE_UINT64 | TYPE_INT32 | TYPE_UINT32 | TYPE_FIXED64 | TYPE_FIXED32
+            | TYPE_SFIXED32 | TYPE_SFIXED64 | TYPE_SINT32 | TYPE_SINT64 | TYPE_ENUM => {
+                def.integer()
+            }
+            _ => &mut def,
+        };
+        table.col(&mut def);
+    }
+    Ok(())
+}
 
 impl SQLHandler {
-    pub fn new(table_name: &String, message: &Message) -> ServiceResult<Self> {
+    pub fn new(message: &Message) -> ServiceResult<Self> {
+        let table = Table::create().table(message.clone()).if_not_exists();
+        populate_table(message, table)?;
         Ok(Self {})
     }
 }

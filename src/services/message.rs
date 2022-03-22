@@ -18,8 +18,9 @@ pub struct Field {
     pub cache: Option<super::base::CacheOptions>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct Message {
+    pub name: String,
     pub path: String,
 
     #[serde(skip)]
@@ -80,6 +81,7 @@ impl Message {
             })
             .collect();
         Self {
+            name: message.get_name().to_string(),
             path,
             fields,
             fields_by_name,
@@ -903,6 +905,7 @@ impl Clone for Message {
             fields: self.fields.clone(),
             parent: self.parent.clone(),
             fields_by_name: self.fields_by_name.clone(),
+            name: self.name.clone(),
         }
     }
 }
