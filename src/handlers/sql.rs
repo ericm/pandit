@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use postgres_types::{FromSql, IsNull, ToSql};
+use postgres_types::{FromSql, IsNull, ToSql, Type};
 use sea_query::{
     tests_cfg::Char, ColumnDef, Iden, IntoValueTuple, Query, Table, TableCreateStatement,
 };
@@ -11,7 +11,7 @@ use tokio_postgres;
 use crate::services::{
     message::{Field, Message},
     value::Value,
-    Fields, Handler, ServiceError, ServiceResult,
+    Fields, FieldsMap, Handler, ServiceError, ServiceResult,
 };
 pub struct SQLHandler {
     message: Message,
@@ -126,6 +126,19 @@ impl SQLHandler {
     }
 }
 
+macro_rules! handle_err {
+    ($value:expr) => {
+        match $value {
+            Ok(v) => v,
+            Err(e) => {
+                return Err(ServiceError::new(
+                    format!("conversion error: {:?}", e).as_str(),
+                ));
+            }
+        }
+    };
+}
+
 #[async_trait]
 impl Handler for SQLHandler {
     fn from_payload(
@@ -135,9 +148,9 @@ impl Handler for SQLHandler {
         use protobuf::descriptor::field_descriptor_proto::Type::*;
         let buf = &buf.to_vec()[..];
         let map: HashMap<String, SQLValue> = serde_json::from_slice(buf)?;
-        let mut def = ColumnDef::new(field.clone());
+        let fields = FieldsMap::default();
         for (name, value) in map {
-            match self
+            let value = match self
                 .message
                 .fields_by_name
                 .get(&name)
@@ -145,21 +158,33 @@ impl Handler for SQLHandler {
                 .descriptor
                 .get_field_type()
             {
-                TYPE_DOUBLE => def.double(),
-                TYPE_FLOAT => def.float(),
-                TYPE_BOOL => def.boolean(),
-                TYPE_STRING => def.string(),
-                TYPE_BYTES => def.binary(),
+                TYPE_DOUBLE => {
+                    Value::from_float(handle_err!(<f64>::from_sql(&Type::FLOAT8, &value.0[..])))
+                }
+                TYPE_FLOAT => {
+                    Value::from_float(handle_err!(<f32>::from_sql(&Type::FLOAT4, &value.0[..])))
+                }
+                TYPE_BOOL => Value::Bool(handle_err!(<bool>::from_sql(&Type::BOOL, &value.0[..]))),
+                TYPE_STRING => {
+                    Value::from_string(handle_err!(<String>::from_sql(&Type::BOOL, &value.0[..])))
+                }
+                TYPE_BYTES => {
+                    Value::Bytes(handle_err!(<Vec<u8>>::from_sql(&Type::BYTEA, &value.0[..])))
+                }
                 TYPE_MESSAGE => {
                     // TODO: populate sub_table from message.parents and create foreign key.
                     todo!()
                 }
                 TYPE_INT64 | TYPE_UINT64 | TYPE_INT32 | TYPE_UINT32 | TYPE_FIXED64
                 | TYPE_FIXED32 | TYPE_SFIXED32 | TYPE_SFIXED64 | TYPE_SINT32 | TYPE_SINT64
-                | TYPE_ENUM => def.integer(),
-                _ => &mut def,
-            }
+                | TYPE_ENUM => {
+                    Value::from_int(handle_err!(<i64>::from_sql(&Type::INT8, &value.0[..])))
+                }
+                _ => return Err(ServiceError::new("unsupported proto field type")),
+            };
+            fields.insert(name, Some(value));
         }
+        Ok(Fields::new(fields))
     }
 
     async fn to_payload(
