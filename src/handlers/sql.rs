@@ -1,17 +1,22 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, error::Error, sync::Arc};
 
+use async_recursion::async_recursion;
 use async_trait::async_trait;
 use postgres_types::{FromSql, IsNull, ToSql, Type};
 use sea_query::{
-    tests_cfg::Char, ColumnDef, Iden, IntoValueTuple, Query, Table, TableCreateStatement,
+    tests_cfg::Char, ColumnDef, ForeignKey, ForeignKeyAction, Iden, IntoValueTuple, Query, Table,
+    TableCreateStatement,
 };
 use serde::{Deserialize, Serialize};
-use tokio_postgres;
+use tokio_postgres::{self, Client};
 
-use crate::services::{
-    message::{Field, Message},
-    value::Value,
-    Fields, FieldsMap, Handler, ServiceError, ServiceResult,
+use crate::{
+    proto,
+    services::{
+        message::{Field, Message},
+        value::Value,
+        Fields, FieldsMap, Handler, ServiceError, ServiceResult,
+    },
 };
 pub struct SQLHandler {
     message: Message,
@@ -67,9 +72,19 @@ impl<'a> FromSql<'a> for SQLValue {
     }
 }
 
-// impl Iden for V
+fn primary_key_for_message(message: &Message) -> Option<Field> {
+    for entry in message.fields_by_name.iter() {
+        let opts = entry.value().descriptor.options.get_ref();
+        let is_key = proto::gen::pandit::exts::key.get(opts);
+        if is_key.unwrap_or_default() {
+            return Some(entry.value().clone());
+        }
+    }
+    None
+}
 
-fn populate_table(message: &Message, table: &mut TableCreateStatement) -> ServiceResult<()> {
+#[async_recursion(?Send)]
+async fn populate_table(message: &Message, table: &mut TableCreateStatement, client: &Client) {
     use protobuf::descriptor::field_descriptor_proto::Label::*;
     use protobuf::descriptor::field_descriptor_proto::Type::*;
 
@@ -81,9 +96,7 @@ fn populate_table(message: &Message, table: &mut TableCreateStatement) -> Servic
                 def.not_null();
             }
             LABEL_REPEATED => {
-                return Err(ServiceError::new(
-                    "repeated label is not currently supported in SQL",
-                ))
+                panic!("repeated label is not currently supported in SQL");
             }
         };
         match field.descriptor.get_field_type() {
@@ -92,26 +105,56 @@ fn populate_table(message: &Message, table: &mut TableCreateStatement) -> Servic
             TYPE_BOOL => def.boolean(),
             TYPE_STRING => def.string(),
             TYPE_BYTES => def.binary(),
-            TYPE_MESSAGE => {
-                // TODO: populate sub_table from message.parents and create foreign key.
-                todo!()
-            }
             TYPE_INT64 | TYPE_UINT64 | TYPE_INT32 | TYPE_UINT32 | TYPE_FIXED64 | TYPE_FIXED32
             | TYPE_SFIXED32 | TYPE_SFIXED64 | TYPE_SINT32 | TYPE_SINT64 | TYPE_ENUM => {
                 def.integer()
+            }
+            TYPE_MESSAGE => {
+                let (other_message, other_primary_key) = {
+                    let other_message = message
+                        .parent
+                        .get(&field.descriptor.get_type_name().to_string())
+                        .unwrap();
+                    let other_message = other_message.value();
+                    let mut table = Table::create();
+                    let table = table.table(other_message.clone()).if_not_exists();
+                    populate_table(message, table, client).await;
+                    client
+                        .execute(&table.to_string(sea_query::PostgresQueryBuilder), &[])
+                        .await
+                        .unwrap();
+                    (
+                        other_message.clone(),
+                        primary_key_for_message(message).unwrap(),
+                    )
+                };
+                table.foreign_key(
+                    ForeignKey::create()
+                        .name(field.descriptor.get_name())
+                        .from(message.clone(), field.clone())
+                        .to(other_message, other_primary_key)
+                        .on_delete(ForeignKeyAction::Cascade)
+                        .on_update(ForeignKeyAction::Cascade),
+                );
+                continue;
             }
             _ => &mut def,
         };
         table.col(&mut def);
     }
-    Ok(())
 }
 
 impl SQLHandler {
-    pub fn new(message: &Message) -> ServiceResult<Self> {
+    pub async fn new(
+        message: &Message,
+        client: Client,
+    ) -> Result<Self, Box<(dyn Error + 'static)>> {
         let mut table = Table::create();
         let table = table.table(message.clone()).if_not_exists();
-        populate_table(message, table)?;
+        populate_table(message, table, &client).await;
+        client
+            .execute(&table.to_string(sea_query::PostgresQueryBuilder), &[])
+            .await?;
         Ok(Self {
             message: message.clone(),
         })
