@@ -1,0 +1,11 @@
+[metadata]
+name = "ExampleServiceGlobal"
+proto = "example1"
+port = 8080
+
+# [docker]
+# container_id = "pandit-example-1"
+
+[k8s]
+type = "Service"
+name = "pandit-service"

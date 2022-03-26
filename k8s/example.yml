@@ -23,3 +23,15 @@ spec:
     - hostPath:
         path: /pandit
       name: host
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pandit-service
+spec:
+  selector:
+    app: pandit-example
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080

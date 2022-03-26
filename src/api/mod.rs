@@ -17,6 +17,7 @@ use bollard::network::ConnectNetworkOptions;
 use bollard::network::CreateNetworkOptions;
 use bollard::network::DisconnectNetworkOptions;
 use bollard::Docker;
+use console::style;
 use crossbeam_channel;
 use dashmap::DashMap;
 use dashmap::DashSet;
@@ -404,7 +405,9 @@ impl K8sHandler {
                 let service: K8sService = services.get(id.as_str()).await?;
                 let spec = service.spec.ok_or("no pod spec")?;
                 // TODO: Add service to all hosts.
-                return Ok(Some(spec.cluster_ip.ok_or("no cluster ip")?));
+                let ip = spec.cluster_ip.ok_or("no cluster ip")?;
+                log::info!("k8s: found service '{}' with ip: {}", style(id).green(), ip);
+                return Ok(Some(ip));
             }
             docker_id(_) => {
                 return Err(ServiceError::new("cannot use docker_id with k8s"));
@@ -430,7 +433,6 @@ impl K8sHandler {
             let ch = ChannelBuilder::new(env).connect(node_addr.as_str());
             api_proto::api_grpc::ApiClient::new(ch)
         };
-        // TODO: Add k8s watcher for deleted/recreated pods/services.
         client.start_service(req)?;
         Ok(None)
     }
@@ -442,7 +444,6 @@ impl K8sHandler {
             let pods: kube::Api<Pod> = kube::Api::default_namespaced(client);
             let pod: Pod = pods.get(pod.as_str()).await?;
             let spec = pod.spec.ok_or("no pod spec")?;
-            // TODO: remove this as node_name is optional. Maybe not.
             spec.node_name.ok_or("no node name")?
         };
         Ok(pod_node == current_node)
