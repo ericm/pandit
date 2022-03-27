@@ -285,15 +285,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "boringssl-src"
-version = "0.5.1+b9232f9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13550d246f6517024ac7f53ae2f1016bb3ed3b238f1489f8564380b635071664"
-dependencies = [
- "cmake",
-]
-
-[[package]]
 name = "byte-tools"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1041,7 +1032,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "842c75c8037bee3058ce0998b4e3d7c8d2554f2c26135aa9297fe64fab3079d3"
 dependencies = [
  "bindgen",
- "boringssl-src",
  "cc",
  "cmake",
  "libc",
