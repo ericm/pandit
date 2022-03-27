@@ -5,7 +5,8 @@ use grpcio::{ChannelBuilder, EnvBuilder};
 use indicatif::ProgressStyle;
 use serde::Deserialize;
 use std::{
-    env::current_dir, ffi::OsStr, fs::File, io::Read, path::PathBuf, sync::Arc, time::Duration,
+    env::current_dir, ffi::OsStr, fs::File, io::Read, path::PathBuf, process::exit, str::FromStr,
+    sync::Arc, time::Duration,
 };
 use tokio;
 
@@ -21,9 +22,9 @@ struct Args {
     daemon_address: String,
     #[clap(
         long,
-        default_value = "https://raw.githubusercontent.com/ericm/pandit-packages/main"
+        default_value = "https://raw.githubusercontent.com/ericm/pandit-packages/main/index.json"
     )]
-    repo_base: String,
+    repo_index: String,
     #[clap(subcommand)]
     service: ServiceCommand,
 }
@@ -156,6 +157,23 @@ async fn main() {
                 style(cfg.metadata.proto).green()
             );
         }
-        ServiceCommand::Install { name } => {}
+        ServiceCommand::Install { name } => {
+            println!(
+                "{} {}Pulling index of packages..",
+                style("[1/?]").bold().dim(),
+                Emoji("🔍 ", ""),
+            );
+            let index = match packages::Index::get(app.repo_index).await {
+                Ok(v) => v,
+                Err(e) => {
+                    eprintln!(
+                        "      {}An error occurred pulling index of packages: '{}'",
+                        Emoji("❌ ", ""),
+                        style(e).red().bold(),
+                    );
+                    exit(1);
+                }
+            };
+        }
     }
 }

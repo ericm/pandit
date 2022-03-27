@@ -6,7 +6,7 @@ use std::{collections::HashMap, error::Error};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
-pub struct Packages {
+pub struct Index {
     packages: HashMap<String, Package>,
 }
 
@@ -31,7 +31,7 @@ pub enum Image {
     },
 }
 
-impl Packages {
+impl Index {
     pub async fn get(url: String) -> Result<Self, Box<dyn Error + 'static>> {
         let https = HttpsConnector::new();
         let client = hyper::Client::builder().build::<_, hyper::Body>(https);
