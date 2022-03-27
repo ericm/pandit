@@ -8,7 +8,7 @@ use std::{
     env::current_dir, ffi::OsStr, fs::File, io::Read, path::PathBuf, process::exit, str::FromStr,
     sync::Arc, time::Duration,
 };
-use tokio;
+use tokio::{self, fs::create_dir_all};
 
 mod packages;
 
@@ -29,15 +29,16 @@ struct Args {
     service: ServiceCommand,
 }
 
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 enum ServiceCommand {
     #[clap(about = "Add a new service to pandit")]
     Add {
         #[clap(help = "Path to the panditfile. If a directory, will look for ./panditfile.toml")]
         path: String,
     },
+    #[clap(about = "Install a pandit package")]
     Install {
-        #[clap(help = "Nam of package to install")]
+        #[clap(help = "Name of package to install")]
         name: String,
     },
 }
@@ -90,7 +91,21 @@ async fn main() {
         if path.is_relative() {
             path = current_dir().unwrap().join(path);
         }
-        path.canonicalize().unwrap()
+        match path.canonicalize() {
+            Ok(v) => v,
+            Err(_) => {
+                {
+                    let path = path.clone();
+                    create_dir_all(path).await.unwrap();
+                }
+                println!(
+                    "      {}{}created empty proto directory...",
+                    Emoji("⚠️ ", ""),
+                    style("Warning: ").yellow().bold()
+                );
+                path.canonicalize().unwrap()
+            }
+        }
     };
 
     match &app.service {
@@ -159,9 +174,9 @@ async fn main() {
         }
         ServiceCommand::Install { name } => {
             println!(
-                "{} {}Pulling index of packages..",
+                "{} {}Pulling index of packages...",
                 style("[1/?]").bold().dim(),
-                Emoji("⬇️ ", ""),
+                Emoji("⬇️  ", ""),
             );
             let index = match packages::Index::get(app.repo_index).await {
                 Ok(v) => v,
