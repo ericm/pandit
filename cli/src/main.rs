@@ -4,8 +4,12 @@ use console::{style, Emoji};
 use grpcio::{ChannelBuilder, EnvBuilder};
 use indicatif::ProgressStyle;
 use serde::Deserialize;
-use std::{env::current_dir, fs::File, io::Read, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    env::current_dir, ffi::OsStr, fs::File, io::Read, path::PathBuf, sync::Arc, time::Duration,
+};
 use tokio;
+
+mod packages;
 
 #[derive(Parser)]
 #[clap(author = "Eric Moynihan", version, about, name = "pandit", long_about = None)]
@@ -15,6 +19,11 @@ struct Args {
     proto_path: String,
     #[clap(short, long, default_value = "localhost:50121")]
     daemon_address: String,
+    #[clap(
+        long,
+        default_value = "https://raw.githubusercontent.com/ericm/pandit-packages/main"
+    )]
+    repo_base: String,
     #[clap(subcommand)]
     service: ServiceCommand,
 }
@@ -25,6 +34,10 @@ enum ServiceCommand {
     Add {
         #[clap(help = "Path to the panditfile. If a directory, will look for ./panditfile.toml")]
         path: String,
+    },
+    Install {
+        #[clap(help = "Nam of package to install")]
+        name: String,
     },
 }
 
@@ -79,18 +92,17 @@ async fn main() {
         path.canonicalize().unwrap()
     };
 
-    println!(
-        "{} {}Using proto library '{}'...",
-        style("[1/3]").bold().dim(),
-        Emoji("🔍 ", ""),
-        style(proto_path.to_str().unwrap()).green(),
-    );
-
     match &app.service {
         ServiceCommand::Add { path } => {
+            println!(
+                "{} {}Using proto library '{}'...",
+                style("[1/3]").bold().dim(),
+                Emoji("🔍 ", ""),
+                style(proto_path.to_str().unwrap()).green(),
+            );
             let path = PathBuf::from(path);
             let mut path = path.canonicalize().unwrap();
-            if !path.ends_with(".toml") {
+            if path.extension() != Some(OsStr::new("toml")) {
                 path = path.join("panditfile.toml");
             }
             let cfg: Panditfile = {
@@ -144,5 +156,6 @@ async fn main() {
                 style(cfg.metadata.proto).green()
             );
         }
+        ServiceCommand::Install { name } => {}
     }
 }

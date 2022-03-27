@@ -61,5 +61,5 @@ path = "src/main.rs"
 [features]
 with-serde = ["protobuf/with-serde"]
 
-# [workspace]
-# members = ["probes"]
+[workspace]
+members = ["cli"]

@@ -16,6 +16,7 @@ spec:
         - name: linux
           image: archlinux:latest
           imagePullPolicy: Always
+          workingDir: /mnt/pandit
           env:
             - name: NODE_NAME
               valueFrom:
@@ -31,8 +32,10 @@ spec:
             - containerPort: 50121
               hostPort: 50121
           args:
-            - sleep
-            - "604800"
+            - ./target/debug/panditd 
+            - -c
+            - .pandit.docker.yml
+            - --k8s
           securityContext:
             privileged: true
             runAsGroup: 0
