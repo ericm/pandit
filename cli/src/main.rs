@@ -161,7 +161,7 @@ async fn main() {
             println!(
                 "{} {}Pulling index of packages..",
                 style("[1/?]").bold().dim(),
-                Emoji("🔍 ", ""),
+                Emoji("⬇️ ", ""),
             );
             let index = match packages::Index::get(app.repo_index).await {
                 Ok(v) => v,
