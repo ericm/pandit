@@ -1,7 +1,12 @@
 use bytes::Buf;
+use console::{style, Emoji};
 use hyper::body::Bytes;
 use hyper_tls::HttpsConnector;
-use std::{collections::HashMap, error::Error};
+use std::{
+    collections::HashMap,
+    error::Error,
+    process::{Command, Stdio},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +27,8 @@ pub struct Package {
 #[serde(tag = "type")]
 pub enum Image {
     Helm {
-        repo: String,
+        repo_url: String,
+        repo_name: String,
         chart: String,
         container_name: Option<String>,
     },
@@ -45,10 +51,82 @@ impl Package {
     pub async fn install(&self) -> Result<(), Box<dyn Error + 'static>> {
         match &self.image {
             Image::Helm {
-                repo,
+                repo_url,
+                repo_name,
                 chart,
                 container_name,
-            } => {}
+            } => {
+                {
+                    let mut cmd = Command::new("helm");
+                    let cmd = cmd
+                        .arg("repo")
+                        .arg("add")
+                        .arg(repo_name)
+                        .arg(repo_url)
+                        .stdout(Stdio::null());
+                    let pb = indicatif::ProgressBar::new_spinner();
+                    pb.set_message(format!(
+                        "Executing '{} {}'...",
+                        style("help repo add").bold(),
+                        style(repo_name).bold().blink()
+                    ));
+                    pb.enable_steady_tick(20);
+                    cmd.output()?;
+                    pb.finish_and_clear();
+                    println!(
+                        "{} {}Installed helm repo",
+                        style("[3/?]").bold().dim(),
+                        Emoji("✅️ ", ""),
+                    );
+                }
+                {
+                    let mut cmd = Command::new("helm");
+                    let cmd = cmd.arg("repo").arg("update").stdout(Stdio::null());
+                    let pb = indicatif::ProgressBar::new_spinner();
+                    pb.set_message(format!(
+                        "Executing '{}'...",
+                        style("help repo update").bold(),
+                    ));
+                    pb.enable_steady_tick(20);
+                    cmd.output()?;
+                    pb.finish_and_clear();
+                    println!(
+                        "{} {}Updated helm repo",
+                        style("[4/?]").bold().dim(),
+                        Emoji("✅️ ", ""),
+                    );
+                }
+                {
+                    let mut cmd = Command::new("helm");
+                    let cmd = cmd
+                        .arg("helm")
+                        .arg("install")
+                        .arg(chart)
+                        .stdout(Stdio::null());
+                    match container_name {
+                        Some(name) => {
+                            cmd.arg("--template-name").arg(name);
+                        }
+                        None => {
+                            cmd.arg("--generate-name");
+                        }
+                    };
+                    let pb = indicatif::ProgressBar::new_spinner();
+                    pb.set_message(format!(
+                        "Executing '{} {}'...",
+                        style("helm install").bold(),
+                        style(chart).bold().blink()
+                    ));
+                    pb.enable_steady_tick(20);
+                    cmd.output()?;
+                    pb.finish_and_clear();
+                    println!(
+                        "{} {}Installed helm chart",
+                        style("[5/?]").bold().dim(),
+                        Emoji("✅️ ", ""),
+                    );
+                }
+            }
             Image::Docker { compose_file } => todo!(),
         };
         Ok(())
