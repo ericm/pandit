@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use tokio::sync::Mutex;
 
 use crate::proto::gen::format;
+use crate::proto::gen::format::http::exts::http_service;
+use crate::proto::gen::format::postgres::exts::postgres_service;
 use crate::services::{ServiceError, ServiceResult, WriterRef};
 
 use self::http::HttpWriter;
@@ -28,11 +30,16 @@ pub fn writer_from_proto(
     let service = file.service.first().unwrap();
 
     // Generate writer.
-    match format::http::exts::http_service.get(&service.options.as_ref().unwrap_or_default()) {
+    let options = service.options.as_ref().unwrap_or_default();
+    match http_service.get(&options) {
         Some(service) => {
             let version = service.version.unwrap();
             return Ok(Box::new(Mutex::new(HttpWriter::new(addr, version))));
         }
+        None => {}
+    };
+    match postgres_service.get(&options) {
+        Some(_) => return Ok(Box::new(Mutex::new(postgres::PostgresWriter::new(addr)?))),
         None => {}
     };
 

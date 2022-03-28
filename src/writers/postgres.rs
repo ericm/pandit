@@ -1,10 +1,14 @@
-use std::{collections::HashMap, convert::TryInto};
+use std::{
+    collections::HashMap,
+    convert::{TryFrom, TryInto},
+    net::SocketAddr,
+};
 
 use async_trait::async_trait;
 
 use crate::{
     handlers::sql::SQLValue,
-    services::{Writer, WriterContext},
+    services::{Fields, Handler, ServiceResult, Writer, WriterContext},
 };
 use postgres_types::{FromSql, IsNull, ToSql};
 
@@ -12,7 +16,16 @@ use serde_json;
 use tokio_postgres::{self, Client, NoTls};
 
 pub struct PostgresWriter {
-    client: Client,
+    config: String,
+}
+
+impl PostgresWriter {
+    pub fn new(addr: &str) -> ServiceResult<Self> {
+        let addr: SocketAddr = addr.parse()?;
+        // Authentication configuration not currently supported.
+        let config = format!("host={} port={} user=postgres", addr.ip(), addr.port());
+        Ok(Self { config })
+    }
 }
 
 #[async_trait]
@@ -20,11 +33,17 @@ impl Writer for PostgresWriter {
     async fn write_request(
         &mut self,
         _: WriterContext,
-        fields: &crate::services::Fields,
-        handler: &std::sync::Arc<dyn crate::services::Handler + Send + Sync>,
-    ) -> crate::services::ServiceResult<bytes::Bytes> {
+        fields: &Fields,
+        handler: &std::sync::Arc<dyn Handler + Send + Sync>,
+    ) -> ServiceResult<bytes::Bytes> {
+        let (client, conn) = tokio_postgres::connect(&self.config, NoTls).await?;
+        tokio::spawn(async move {
+            if let Err(e) = conn.await {
+                log::error!("connection error: {}", e);
+            }
+        });
         let query = String::from_utf8(handler.to_payload(fields).await?.to_vec())?;
-        let rows = self.client.query_opt(&query, &[]).await?;
+        let rows = client.query_opt(&query, &[]).await?;
         let row = rows.ok_or("no rows in response")?;
 
         let mut out = HashMap::<String, SQLValue>::with_capacity(row.len());

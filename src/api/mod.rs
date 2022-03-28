@@ -404,11 +404,12 @@ impl K8sHandler {
                 let services: kube::Api<K8sService> = kube::Api::default_namespaced(client);
                 let service: K8sService = services.get(id.as_str()).await?;
                 let spec = service.spec.ok_or("no pod spec")?;
-                // TODO: Add service to all hosts.
+                // TODO: Add service to all it should be on hosts.
                 let ip = spec.cluster_ip.ok_or("no cluster ip")?;
                 log::info!("k8s: found service '{}' with ip: {}", style(id).green(), ip);
                 return Ok(Some(ip));
             }
+            // TODO: Add statefulset/replicaset options mimicing the service method.
             docker_id(_) => {
                 return Err(ServiceError::new("cannot use docker_id with k8s"));
             }
