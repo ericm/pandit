@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+import "pandit.proto";
+import "format/postgres.proto";
+import "handler.proto";
+
+package pg_demo;
+
+message ExampleRequest {
+  int32 id = 1 [ (pandit.key) = true ];
+  string user = 2;
+}
+
+message ExampleResponse {
+  option (pandit.path) = ".obj";
+  int32 id = 1;
+  string user = 2;
+}
+
+service PostgresService {
+  option (pandit.name) = "postgres";
+  option (pandit.format.postgres_service) = {
+  };
+
+  rpc GetExample(ExampleRequest) returns (ExampleResponse) {
+    option (pandit.format.postgres) = {
+    };
+    option (pandit.cache) = {
+      cache_time : 3000
+    };
+  }
+}

@@ -7,10 +7,10 @@ message Postgres {}
 
 message PostgresService {}
 
-enum PostgresType {}
+// enum PostgresType {}
 
 extend google.protobuf.MethodOptions { Postgres postgres = 50021; }
-extend google.protobuf.FieldOptions { PostgresType postgres_type = 50021; }
+// extend google.protobuf.FieldOptions { PostgresType postgres_type = 50021; }
 
 extend google.protobuf.ServiceOptions {
   PostgresService postgres_service = 50022;

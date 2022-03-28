@@ -3,6 +3,7 @@ pub mod value;
 
 use crate::broker::Broker;
 use crate::handlers::json::JsonHandler;
+use crate::handlers::sql::SQLHandler;
 use crate::proto;
 use crate::services::message::Message;
 use access_json::JSONQuery;
@@ -432,7 +433,7 @@ impl Service {
             match handler {
                 Some(v) => {
                     let val = v.enum_value().unwrap();
-                    Some(Self::handler(val, ".".to_string()))
+                    Self::handler(val, ".".to_string())
                 }
                 None => None,
             }
@@ -520,7 +521,16 @@ impl Service {
             match handlers::handler.get(options) {
                 Some(val) => {
                     let val = val.enum_value().unwrap();
-                    Some(Self::handler(val, message.path.clone()))
+                    match Self::handler(val, message.path.clone()) {
+                        Some(v) => Some(v),
+                        None => {
+                            // Dirty solution to default postgres service to SQL handler.
+                            match proto::gen::format::postgres::exts::postgres.get(options) {
+                                Some(_) => Some(SQLHandler::new(message.value(), client)),
+                                None => None,
+                            }
+                        }
+                    }
                 }
                 None => None,
             }
@@ -530,11 +540,12 @@ impl Service {
     fn handler(
         handler: proto::gen::handler::Handler,
         path: String,
-    ) -> Arc<dyn Handler + Sync + Send + 'static> {
+    ) -> Option<Arc<dyn Handler + Sync + Send + 'static>> {
         use proto::gen::handler::Handler::*;
-        Arc::new(match handler {
-            JSON => JsonHandler::new(path),
-        })
+        match handler {
+            JSON => Some(Arc::new(JsonHandler::new(path))),
+            _ => None,
+        }
     }
 
     fn context_from_api(api: &MethodAPI) -> ServiceResult<WriterContext> {

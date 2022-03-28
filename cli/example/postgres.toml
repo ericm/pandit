@@ -1,0 +1,5 @@
+[metadata]
+name = "PostgreSQL"
+proto = "example2"
+port = 5432
+

@@ -3,7 +3,10 @@ import "google/protobuf/descriptor.proto";
 
 package pandit;
 
-enum Handler { JSON = 0; };
+enum Handler {
+  JSON = 0;
+  POSTGRES = 1;
+};
 
 extend google.protobuf.MethodOptions { Handler handler = 50051; }
 

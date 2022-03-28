@@ -62,4 +62,4 @@ path = "src/main.rs"
 with-serde = ["protobuf/with-serde"]
 
 [workspace]
-members = ["cli"]
+members = ["cli", "src/proto/examples", "src/api/proto"]
