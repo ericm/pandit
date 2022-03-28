@@ -5,7 +5,7 @@ use hyper_tls::HttpsConnector;
 use std::{
     collections::HashMap,
     error::Error,
-    process::{Command, Stdio},
+    process::{Command, ExitStatus, Stdio},
 };
 
 use serde::{Deserialize, Serialize};
@@ -47,6 +47,15 @@ impl Index {
     }
 }
 
+macro_rules! handle_output {
+    ($value:expr) => {
+        let output = $value?;
+        if !output.status.success() {
+            return Err(String::from_utf8(output.stderr)?.into());
+        }
+    };
+}
+
 impl Package {
     pub async fn install(&self) -> Result<(), Box<dyn Error + 'static>> {
         match &self.image {
@@ -58,12 +67,7 @@ impl Package {
             } => {
                 {
                     let mut cmd = Command::new("helm");
-                    let cmd = cmd
-                        .arg("repo")
-                        .arg("add")
-                        .arg(repo_name)
-                        .arg(repo_url)
-                        .stdout(Stdio::null());
+                    let cmd = cmd.arg("repo").arg("add").arg(repo_name).arg(repo_url);
                     let pb = indicatif::ProgressBar::new_spinner();
                     pb.set_message(format!(
                         "Executing '{} {}'...",
@@ -71,7 +75,7 @@ impl Package {
                         style(repo_name).bold().blink()
                     ));
                     pb.enable_steady_tick(20);
-                    cmd.output()?;
+                    handle_output!(cmd.output());
                     pb.finish_and_clear();
                     println!(
                         "{} {}Installed helm repo",
@@ -81,14 +85,14 @@ impl Package {
                 }
                 {
                     let mut cmd = Command::new("helm");
-                    let cmd = cmd.arg("repo").arg("update").stdout(Stdio::null());
+                    let cmd = cmd.arg("repo").arg("update");
                     let pb = indicatif::ProgressBar::new_spinner();
                     pb.set_message(format!(
                         "Executing '{}'...",
                         style("help repo update").bold(),
                     ));
                     pb.enable_steady_tick(20);
-                    cmd.output()?;
+                    handle_output!(cmd.output());
                     pb.finish_and_clear();
                     println!(
                         "{} {}Updated helm repo",
@@ -98,14 +102,10 @@ impl Package {
                 }
                 {
                     let mut cmd = Command::new("helm");
-                    let cmd = cmd
-                        .arg("helm")
-                        .arg("install")
-                        .arg(chart)
-                        .stdout(Stdio::null());
+                    let cmd = cmd.arg("install").arg(chart);
                     match container_name {
                         Some(name) => {
-                            cmd.arg("--template-name").arg(name);
+                            cmd.arg("--name-template").arg(name);
                         }
                         None => {
                             cmd.arg("--generate-name");
@@ -118,7 +118,7 @@ impl Package {
                         style(chart).bold().blink()
                     ));
                     pb.enable_steady_tick(20);
-                    cmd.output()?;
+                    handle_output!(cmd.output());
                     pb.finish_and_clear();
                     println!(
                         "{} {}Installed helm chart",

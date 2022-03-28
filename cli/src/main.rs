@@ -75,13 +75,6 @@ enum K8s {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    // std::panic::set_hook(Box::new(|v| {
-    //     log::error!(
-    //         "      {}An error occurred in '{}'...",
-    //         Emoji("❌ ", ""),
-    //         v.to_string(),
-    //     );
-    // }));
     let app: Args = Parser::parse();
     let env = Arc::new(EnvBuilder::new().build());
     let ch = ChannelBuilder::new(env).connect(app.daemon_address.as_str());
