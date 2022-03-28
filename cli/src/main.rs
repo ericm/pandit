@@ -185,6 +185,12 @@ async fn main() {
                     exit(1);
                 }
             };
+            println!(
+                "{} {}Searching for package '{}'...",
+                style("[2/?]").bold().dim(),
+                Emoji("🔍 ", ""),
+                style(name).green().bold(),
+            );
             let pkg = match index.packages.get(name) {
                 Some(v) => v,
                 None => {
@@ -192,6 +198,13 @@ async fn main() {
                         "finding package in index",
                         format!("no package called '{}'", name).into(),
                     );
+                    exit(1);
+                }
+            };
+            match pkg.install().await {
+                Ok(_) => {}
+                Err(err) => {
+                    error("installing the package", err);
                     exit(1);
                 }
             };

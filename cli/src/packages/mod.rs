@@ -40,3 +40,17 @@ impl Index {
         Ok(serde_json::from_reader(body.reader())?)
     }
 }
+
+impl Package {
+    pub async fn install(&self) -> Result<(), Box<dyn Error + 'static>> {
+        match &self.image {
+            Image::Helm {
+                repo,
+                chart,
+                container_name,
+            } => {}
+            Image::Docker { compose_file } => todo!(),
+        };
+        Ok(())
+    }
+}
