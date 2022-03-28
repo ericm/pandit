@@ -7,15 +7,15 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct Index {
-    packages: HashMap<String, Package>,
+    pub packages: HashMap<String, Package>,
 }
 
 #[derive(Deserialize, Serialize)]
 pub struct Package {
-    version: String,
-    image: Image,
-    readme_url: Option<String>,
-    logo_url: Option<String>,
+    pub version: String,
+    pub image: Image,
+    pub readme_url: Option<String>,
+    pub logo_url: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]

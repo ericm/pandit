@@ -1,1 +1,1 @@
-../target/debug/pandit --proto-path ../../src/proto/examples add .
+../../target/debug/pandit --proto-path ../../src/proto/examples add .

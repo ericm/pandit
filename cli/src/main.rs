@@ -5,8 +5,8 @@ use grpcio::{ChannelBuilder, EnvBuilder};
 use indicatif::ProgressStyle;
 use serde::Deserialize;
 use std::{
-    env::current_dir, ffi::OsStr, fs::File, io::Read, path::PathBuf, process::exit, str::FromStr,
-    sync::Arc, time::Duration,
+    env::current_dir, error::Error, ffi::OsStr, fs::File, io::Read, path::PathBuf, process::exit,
+    str::FromStr, sync::Arc, time::Duration,
 };
 use tokio::{self, fs::create_dir_all};
 
@@ -181,14 +181,29 @@ async fn main() {
             let index = match packages::Index::get(app.repo_index).await {
                 Ok(v) => v,
                 Err(e) => {
-                    eprintln!(
-                        "      {}An error occurred pulling index of packages: '{}'",
-                        Emoji("❌ ", ""),
-                        style(e).red().bold(),
+                    error("pulling index of packages", e);
+                    exit(1);
+                }
+            };
+            let pkg = match index.packages.get(name) {
+                Some(v) => v,
+                None => {
+                    error(
+                        "finding package in index",
+                        format!("no package called '{}'", name).into(),
                     );
                     exit(1);
                 }
             };
         }
     }
+}
+
+fn error(info: &str, err: Box<dyn Error>) {
+    eprintln!(
+        "      {}An error occurred {}: '{}'",
+        Emoji("❌ ", ""),
+        info,
+        style(err).red().bold(),
+    );
 }
