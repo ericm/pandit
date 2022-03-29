@@ -5,6 +5,7 @@ use crate::broker::Broker;
 use crate::handlers::json::JsonHandler;
 use crate::handlers::sql::SQLHandler;
 use crate::proto;
+use crate::proto::gen::format::postgres::exts::postgres;
 use crate::services::message::Message;
 use access_json::JSONQuery;
 use async_trait::async_trait;
@@ -524,9 +525,9 @@ impl Service {
                     match Self::handler(val, message.path.clone()) {
                         Some(v) => Some(v),
                         None => {
-                            // Dirty solution to default postgres service to SQL handler.
-                            match proto::gen::format::postgres::exts::postgres.get(options) {
-                                Some(_) => Some(SQLHandler::new(message.value(), client)),
+                            // Quick solution to default postgres service to SQL handler.
+                            match postgres.get(options) {
+                                Some(opts) => Some(SQLHandler::new(message.value(), opts)?),
                                 None => None,
                             }
                         }

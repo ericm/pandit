@@ -1,11 +1,12 @@
 use std::{collections::HashMap, error::Error, sync::Arc};
 
+use crate::proto::gen::format::postgres::{Postgres, PostgresCommand};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use postgres_types::{FromSql, IsNull, ToSql, Type};
 use sea_query::{
-    tests_cfg::Char, ColumnDef, ForeignKey, ForeignKeyAction, Iden, IntoValueTuple, Query, Table,
-    TableCreateStatement,
+    tests_cfg::Char, ColumnDef, Expr, ForeignKey, ForeignKeyAction, Iden, IntoValueTuple, Query,
+    SimpleExpr, Table, TableCreateStatement,
 };
 use serde::{Deserialize, Serialize};
 use tokio_postgres::{self, Client};
@@ -20,6 +21,7 @@ use crate::{
 };
 pub struct SQLHandler {
     message: Message,
+    opts: Postgres,
 }
 
 impl Iden for Message {
@@ -50,7 +52,34 @@ impl Value {
                 }
                 sea_query::Value::Array(Some(Box::new(out)))
             }
-            Value::Message(v) => todo!(),
+            Value::Message(v) => {
+                // let (other_message, other_primary_key) = {
+                //     let other_message = message
+                //         .parent
+                //         .get(&field.descriptor.get_type_name().to_string())
+                //         .unwrap();
+                //     let other_message = other_message.value();
+                //     let mut table = Table::create();
+                //     let table = table.table(other_message.clone()).if_not_exists();
+                //     populate_table(message, table, client).await;
+                //     client
+                //         .execute(&table.to_string(sea_query::PostgresQueryBuilder), &[])
+                //         .await
+                //         .unwrap();
+                //     (
+                //         other_message.clone(),
+                //         primary_key_for_message(message).unwrap(),
+                //     )
+                // };
+                // table.foreign_key(
+                //     ForeignKey::create()
+                //         .name(field.descriptor.get_name())
+                //         .from(message.clone(), field.clone())
+                //         .to(other_message, other_primary_key)
+                //         .on_delete(ForeignKeyAction::Cascade)
+                //         .on_update(ForeignKeyAction::Cascade),
+                // );
+            }
             Value::None => sea_query::Value::Int(None),
         }
     }
@@ -110,32 +139,6 @@ async fn populate_table(message: &Message, table: &mut TableCreateStatement, cli
                 def.integer()
             }
             TYPE_MESSAGE => {
-                let (other_message, other_primary_key) = {
-                    let other_message = message
-                        .parent
-                        .get(&field.descriptor.get_type_name().to_string())
-                        .unwrap();
-                    let other_message = other_message.value();
-                    let mut table = Table::create();
-                    let table = table.table(other_message.clone()).if_not_exists();
-                    populate_table(message, table, client).await;
-                    client
-                        .execute(&table.to_string(sea_query::PostgresQueryBuilder), &[])
-                        .await
-                        .unwrap();
-                    (
-                        other_message.clone(),
-                        primary_key_for_message(message).unwrap(),
-                    )
-                };
-                table.foreign_key(
-                    ForeignKey::create()
-                        .name(field.descriptor.get_name())
-                        .from(message.clone(), field.clone())
-                        .to(other_message, other_primary_key)
-                        .on_delete(ForeignKeyAction::Cascade)
-                        .on_update(ForeignKeyAction::Cascade),
-                );
                 continue;
             }
             _ => &mut def,
@@ -145,18 +148,10 @@ async fn populate_table(message: &Message, table: &mut TableCreateStatement, cli
 }
 
 impl SQLHandler {
-    pub async fn new(
-        message: &Message,
-        client: Client,
-    ) -> Result<Self, Box<(dyn Error + 'static)>> {
-        let mut table = Table::create();
-        let table = table.table(message.clone()).if_not_exists();
-        populate_table(message, table, &client).await;
-        client
-            .execute(&table.to_string(sea_query::PostgresQueryBuilder), &[])
-            .await?;
+    pub fn new(message: &Message, opts: Postgres) -> Result<Self, Box<(dyn Error + 'static)>> {
         Ok(Self {
             message: message.clone(),
+            opts,
         })
     }
 
@@ -209,7 +204,7 @@ impl Handler for SQLHandler {
                 }
                 TYPE_BOOL => Value::Bool(handle_err!(<bool>::from_sql(&Type::BOOL, &value.0[..]))),
                 TYPE_STRING => {
-                    Value::from_string(handle_err!(<String>::from_sql(&Type::BOOL, &value.0[..])))
+                    Value::from_string(handle_err!(<String>::from_sql(&Type::TEXT, &value.0[..])))
                 }
                 TYPE_BYTES => {
                     Value::Bytes(handle_err!(<Vec<u8>>::from_sql(&Type::BYTEA, &value.0[..])))
@@ -236,9 +231,13 @@ impl Handler for SQLHandler {
     ) -> crate::services::ServiceResult<bytes::Bytes> {
         let mut vals = Vec::with_capacity(fields.map.len());
         let mut cols = Vec::<Field>::with_capacity(fields.map.len());
+        let mut cmds = Vec::<String>::with_capacity(1);
         for entry in fields.map.iter() {
             vals.push(match entry.value() {
-                Some(value) => value.clone().into_value(),
+                Some(value) => match value {
+                    Value::Message(fields) => {}
+                    _ => value.clone().into_value(),
+                },
                 None => sea_query::Value::Int(None),
             });
             cols.push(
@@ -250,13 +249,32 @@ impl Handler for SQLHandler {
                     .clone(),
             );
         }
-        let mut query = Query::insert();
-        let query = query
-            .into_table(self.message.clone())
-            .columns(cols)
-            .values(vals)?;
-        Ok(bytes::Bytes::from(
-            query.to_string(sea_query::PostgresQueryBuilder),
-        ))
+        match self.opts.command.enum_value().unwrap_or_default() {
+            PostgresCommand::INSERT => {
+                let mut query = Query::insert();
+                let query = query
+                    .into_table(self.message.clone())
+                    .columns(cols)
+                    .values(vals)?;
+                cmds.push(query.to_string(sea_query::PostgresQueryBuilder));
+            }
+            PostgresCommand::DELETE => {
+                let mut query = Query::delete();
+                for (val, col) in vals.iter().zip(cols.iter()) {
+                    match val {
+                        sea_query::Value::Int(v) => match v {
+                            Some(_) => {}
+                            None => continue,
+                        },
+                        _ => {}
+                    }
+                    query.and_where(Expr::col(col.clone()).eq(val.clone()));
+                }
+                cmds.push(query.to_string(sea_query::PostgresQueryBuilder));
+            }
+            PostgresCommand::UPDATE => {}
+            PostgresCommand::SELECT => {}
+        }
+        Ok(bytes::Bytes::from(serde_json::to_string(&cmds)?))
     }
 }

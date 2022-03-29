@@ -3,7 +3,14 @@ import "google/protobuf/descriptor.proto";
 
 package pandit.format;
 
-message Postgres {}
+enum PostgresCommand {
+  INSERT = 0;
+  UPDATE = 1;
+  DELETE = 2;
+  SELECT = 3;
+}
+
+message Postgres { PostgresCommand command = 50023; }
 
 message PostgresService {}
 
