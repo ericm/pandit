@@ -1,9 +1,17 @@
 use std::{collections::HashMap, error::Error, sync::Arc};
 
-use crate::proto::gen::format::postgres::{Postgres, PostgresCommand};
+use crate::{
+    proto::gen::format::postgres::{
+        exts::{postgres, postgres_field},
+        Postgres, PostgresCommand,
+    },
+    services::{Fields, Method, ServiceResult},
+};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
+use dashmap::{mapref::one::Ref, DashMap};
 use postgres_types::{FromSql, IsNull, ToSql, Type};
+use protobuf::descriptor::MethodOptions;
 use sea_query::{
     tests_cfg::Char, ColumnDef, Expr, ForeignKey, ForeignKeyAction, Iden, IntoValueTuple, Query,
     SimpleExpr, Table, TableCreateStatement,
@@ -20,8 +28,9 @@ use crate::{
     },
 };
 pub struct SQLHandler {
-    message: Message,
-    opts: Postgres,
+    messages: Arc<DashMap<String, Message>>,
+    method: Method,
+    opts: MethodOptions,
 }
 
 impl Iden for Message {
@@ -112,55 +121,17 @@ fn primary_key_for_message(message: &Message) -> Option<Field> {
     None
 }
 
-#[async_recursion(?Send)]
-async fn populate_table(message: &Message, table: &mut TableCreateStatement, client: &Client) {
-    use protobuf::descriptor::field_descriptor_proto::Label::*;
-    use protobuf::descriptor::field_descriptor_proto::Type::*;
-
-    for field in message.fields_by_name.iter() {
-        let mut def = ColumnDef::new(field.clone());
-        match field.descriptor.get_label() {
-            LABEL_OPTIONAL => {}
-            LABEL_REQUIRED => {
-                def.not_null();
-            }
-            LABEL_REPEATED => {
-                panic!("repeated label is not currently supported in SQL");
-            }
-        };
-        match field.descriptor.get_field_type() {
-            TYPE_DOUBLE => def.double(),
-            TYPE_FLOAT => def.float(),
-            TYPE_BOOL => def.boolean(),
-            TYPE_STRING => def.string(),
-            TYPE_BYTES => def.binary(),
-            TYPE_INT64 | TYPE_UINT64 | TYPE_INT32 | TYPE_UINT32 | TYPE_FIXED64 | TYPE_FIXED32
-            | TYPE_SFIXED32 | TYPE_SFIXED64 | TYPE_SINT32 | TYPE_SINT64 | TYPE_ENUM => {
-                def.integer()
-            }
-            TYPE_MESSAGE => {
-                continue;
-            }
-            _ => &mut def,
-        };
-        table.col(&mut def);
-    }
-}
-
 impl SQLHandler {
-    pub fn new(message: &Message, opts: Postgres) -> Result<Self, Box<(dyn Error + 'static)>> {
+    pub fn new(
+        messages: Arc<DashMap<String, Message>>,
+        method: Method,
+        opts: MethodOptions,
+    ) -> Result<Self, Box<(dyn Error + 'static)>> {
         Ok(Self {
-            message: message.clone(),
+            messages,
+            method,
             opts,
         })
-    }
-
-    fn cols(&self) -> Vec<Field> {
-        self.message
-            .fields_by_name
-            .iter()
-            .map(|v| v.value().clone())
-            .collect()
     }
 }
 
@@ -179,10 +150,7 @@ macro_rules! handle_err {
 
 #[async_trait]
 impl Handler for SQLHandler {
-    fn from_payload(
-        &self,
-        buf: bytes::Bytes,
-    ) -> crate::services::ServiceResult<crate::services::Fields> {
+    fn from_payload(&self, buf: bytes::Bytes) -> ServiceResult<Fields> {
         use protobuf::descriptor::field_descriptor_proto::Type::*;
         let buf = &buf.to_vec()[..];
         let map: HashMap<String, SQLValue> = serde_json::from_slice(buf)?;
@@ -225,35 +193,70 @@ impl Handler for SQLHandler {
         Ok(Fields::new(fields))
     }
 
-    async fn to_payload(
+    async fn to_payload(&self, fields: &Fields) -> ServiceResult<bytes::Bytes> {
+        let mut cmds = Vec::<String>::with_capacity(1);
+        let message = {
+            self.messages
+                .get(&self.method.input_message)
+                .ok_or("no input message")?
+        };
+        self._to_payload(
+            message,
+            &mut cmds,
+            fields,
+            postgres
+                .get(&self.opts)
+                .as_ref()
+                .ok_or("no postgres options")?,
+        );
+        Ok(bytes::Bytes::from(serde_json::to_string(&cmds)?))
+    }
+}
+
+impl SQLHandler {
+    fn _to_payload(
         &self,
-        fields: &crate::services::Fields,
-    ) -> crate::services::ServiceResult<bytes::Bytes> {
+        message: Ref<String, Message>,
+        cmds: &mut Vec<String>,
+        fields: &Fields,
+        opts: &Postgres,
+    ) -> ServiceResult<()> {
         let mut vals = Vec::with_capacity(fields.map.len());
         let mut cols = Vec::<Field>::with_capacity(fields.map.len());
-        let mut cmds = Vec::<String>::with_capacity(1);
         for entry in fields.map.iter() {
             vals.push(match entry.value() {
                 Some(value) => match value {
-                    Value::Message(fields) => {}
+                    Value::Message(other_fields) => {
+                        let field = message
+                            .fields_by_name
+                            .get(entry.key())
+                            .ok_or("no field error")?
+                            .value();
+                        let message_name = field.descriptor.get_type_name().to_string();
+                        let other_message =
+                            self.messages.get(&message_name).ok_or("no message found")?;
+                        self._to_payload(other_message, cmds, other_fields, opts)?;
+                    }
                     _ => value.clone().into_value(),
                 },
                 None => sea_query::Value::Int(None),
             });
-            cols.push(
-                self.message
-                    .fields_by_name
-                    .get(entry.key())
-                    .ok_or("no field error")?
-                    .value()
-                    .clone(),
-            );
+            let col = message
+                .fields_by_name
+                .get(entry.key())
+                .ok_or("no field error")?
+                .value();
+            match postgres_field.get(col.descriptor.options.as_ref().ok_or("no field options")?) {
+                Some(field_opts) => field_opts.key,
+                None => {}
+            };
+            cols.push(col.clone());
         }
-        match self.opts.command.enum_value().unwrap_or_default() {
+        match opts.command.enum_value().unwrap_or_default() {
             PostgresCommand::INSERT => {
                 let mut query = Query::insert();
                 let query = query
-                    .into_table(self.message.clone())
+                    .into_table(message.value().clone())
                     .columns(cols)
                     .values(vals)?;
                 cmds.push(query.to_string(sea_query::PostgresQueryBuilder));
@@ -274,7 +277,7 @@ impl Handler for SQLHandler {
             }
             PostgresCommand::UPDATE => {}
             PostgresCommand::SELECT => {}
-        }
-        Ok(bytes::Bytes::from(serde_json::to_string(&cmds)?))
+        };
+        Ok(())
     }
 }

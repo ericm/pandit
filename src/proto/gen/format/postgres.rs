@@ -254,6 +254,151 @@ impl ::protobuf::reflect::ProtobufValue for PostgresService {
     type RuntimeType = ::protobuf::reflect::runtime_types::RuntimeTypeMessage<Self>;
 }
 
+#[derive(PartialEq,Clone,Default)]
+pub struct PostgresField {
+    // message fields
+    pub where_condition: ::std::string::String,
+    pub key: bool,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::rt::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a PostgresField {
+    fn default() -> &'a PostgresField {
+        <PostgresField as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl PostgresField {
+    pub fn new() -> PostgresField {
+        ::std::default::Default::default()
+    }
+
+    fn generated_message_descriptor_data() -> ::protobuf::reflect::GeneratedMessageDescriptorData {
+        let mut fields = ::std::vec::Vec::new();
+        fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
+            "where_condition",
+            |m: &PostgresField| { &m.where_condition },
+            |m: &mut PostgresField| { &mut m.where_condition },
+        ));
+        fields.push(::protobuf::reflect::rt::v2::make_simpler_field_accessor::<_, _>(
+            "key",
+            |m: &PostgresField| { &m.key },
+            |m: &mut PostgresField| { &mut m.key },
+        ));
+        ::protobuf::reflect::GeneratedMessageDescriptorData::new_2::<PostgresField>(
+            "PostgresField",
+            2,
+            fields,
+        )
+    }
+}
+
+impl ::protobuf::Message for PostgresField {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                50025 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeLengthDelimited {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    self.where_condition = is.read_string()?;
+                },
+                50026 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    self.key = is.read_bool()?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if !self.where_condition.is_empty() {
+            my_size += ::protobuf::rt::string_size(50025, &self.where_condition);
+        }
+        if self.key != false {
+            my_size += 4;
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if !self.where_condition.is_empty() {
+            os.write_string(50025, &self.where_condition)?;
+        }
+        if self.key != false {
+            os.write_bool(50026, self.key)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn new() -> PostgresField {
+        PostgresField::new()
+    }
+
+    fn descriptor_static() -> ::protobuf::reflect::MessageDescriptor {
+        ::protobuf::reflect::MessageDescriptor::new_generated_2(file_descriptor(), 2)
+    }
+
+    fn default_instance() -> &'static PostgresField {
+        static instance: PostgresField = PostgresField {
+            where_condition: ::std::string::String::new(),
+            key: false,
+            unknown_fields: ::protobuf::UnknownFields::new(),
+            cached_size: ::protobuf::rt::CachedSize::new(),
+        };
+        &instance
+    }
+}
+
+impl ::protobuf::Clear for PostgresField {
+    fn clear(&mut self) {
+        self.where_condition.clear();
+        self.key = false;
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for PostgresField {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for PostgresField {
+    type RuntimeType = ::protobuf::reflect::runtime_types::RuntimeTypeMessage<Self>;
+}
+
 #[derive(Clone,Copy,PartialEq,Eq,Debug,Hash)]
 pub enum PostgresCommand {
     INSERT = 0,
@@ -308,46 +453,137 @@ impl PostgresCommand {
     }
 }
 
+#[derive(Clone,Copy,PartialEq,Eq,Debug,Hash)]
+pub enum PostgresCondition {
+    EQ = 0,
+    NE = 1,
+    LE = 2,
+    LT = 3,
+    GE = 4,
+    GT = 5,
+}
+
+impl ::protobuf::ProtobufEnum for PostgresCondition {
+    fn value(&self) -> i32 {
+        *self as i32
+    }
+
+    fn from_i32(value: i32) -> ::std::option::Option<PostgresCondition> {
+        match value {
+            0 => ::std::option::Option::Some(PostgresCondition::EQ),
+            1 => ::std::option::Option::Some(PostgresCondition::NE),
+            2 => ::std::option::Option::Some(PostgresCondition::LE),
+            3 => ::std::option::Option::Some(PostgresCondition::LT),
+            4 => ::std::option::Option::Some(PostgresCondition::GE),
+            5 => ::std::option::Option::Some(PostgresCondition::GT),
+            _ => ::std::option::Option::None
+        }
+    }
+
+    fn values() -> &'static [Self] {
+        static values: &'static [PostgresCondition] = &[
+            PostgresCondition::EQ,
+            PostgresCondition::NE,
+            PostgresCondition::LE,
+            PostgresCondition::LT,
+            PostgresCondition::GE,
+            PostgresCondition::GT,
+        ];
+        values
+    }
+
+    fn enum_descriptor_static() -> ::protobuf::reflect::EnumDescriptor {
+        ::protobuf::reflect::EnumDescriptor::new_generated_2(file_descriptor(), 1)
+    }
+}
+
+impl ::std::default::Default for PostgresCondition {
+    fn default() -> Self {
+        PostgresCondition::EQ
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for PostgresCondition {
+    type RuntimeType = ::protobuf::reflect::runtime_types::RuntimeTypeEnum<Self>;
+}
+
+impl PostgresCondition {
+    fn generated_enum_descriptor_data() -> ::protobuf::reflect::GeneratedEnumDescriptorData {
+        ::protobuf::reflect::GeneratedEnumDescriptorData::new_2::<PostgresCondition>("PostgresCondition", 1)
+    }
+}
+
 /// Extension fields
 pub mod exts {
 
     pub const postgres: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::MethodOptions, ::protobuf::reflect::types::ProtobufTypeMessage<super::Postgres>> = ::protobuf::ext::ExtFieldOptional { field_number: 50021, phantom: ::std::marker::PhantomData };
 
     pub const postgres_service: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::ServiceOptions, ::protobuf::reflect::types::ProtobufTypeMessage<super::PostgresService>> = ::protobuf::ext::ExtFieldOptional { field_number: 50022, phantom: ::std::marker::PhantomData };
+
+    pub const postgres_field: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::FieldOptions, ::protobuf::reflect::types::ProtobufTypeMessage<super::PostgresField>> = ::protobuf::ext::ExtFieldOptional { field_number: 50024, phantom: ::std::marker::PhantomData };
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n\x0epostgres.proto\x12\rpandit.format\x1a\x20google/protobuf/descripto\
     r.proto\"F\n\x08Postgres\x12:\n\x07command\x18\xe7\x86\x03\x20\x01(\x0e2\
     \x1e.pandit.format.PostgresCommandR\x07command\"\x11\n\x0fPostgresServic\
-    e*A\n\x0fPostgresCommand\x12\n\n\x06INSERT\x10\0\x12\n\n\x06UPDATE\x10\
-    \x01\x12\n\n\x06DELETE\x10\x02\x12\n\n\x06SELECT\x10\x03:U\n\x08postgres\
-    \x18\xe5\x86\x03\x20\x01(\x0b2\x17.pandit.format.Postgres\x12\x1e.google\
-    .protobuf.MethodOptionsR\x08postgres:l\n\x10postgres_service\x18\xe6\x86\
-    \x03\x20\x01(\x0b2\x1e.pandit.format.PostgresService\x12\x1f.google.prot\
-    obuf.ServiceOptionsR\x0fpostgresServiceJ\xeb\x03\n\x06\x12\x04\0\0\x17\
-    \x01\n\x08\n\x01\x0c\x12\x03\0\0\x12\n\t\n\x02\x03\0\x12\x03\x01\0*\n\
-    \x08\n\x01\x02\x12\x03\x03\0\x16\n\n\n\x02\x05\0\x12\x04\x05\0\n\x01\n\n\
-    \n\x03\x05\0\x01\x12\x03\x05\x05\x14\n\x0b\n\x04\x05\0\x02\0\x12\x03\x06\
-    \x02\r\n\x0c\n\x05\x05\0\x02\0\x01\x12\x03\x06\x02\x08\n\x0c\n\x05\x05\0\
-    \x02\0\x02\x12\x03\x06\x0b\x0c\n\x0b\n\x04\x05\0\x02\x01\x12\x03\x07\x02\
-    \r\n\x0c\n\x05\x05\0\x02\x01\x01\x12\x03\x07\x02\x08\n\x0c\n\x05\x05\0\
-    \x02\x01\x02\x12\x03\x07\x0b\x0c\n\x0b\n\x04\x05\0\x02\x02\x12\x03\x08\
-    \x02\r\n\x0c\n\x05\x05\0\x02\x02\x01\x12\x03\x08\x02\x08\n\x0c\n\x05\x05\
-    \0\x02\x02\x02\x12\x03\x08\x0b\x0c\n\x0b\n\x04\x05\0\x02\x03\x12\x03\t\
-    \x02\r\n\x0c\n\x05\x05\0\x02\x03\x01\x12\x03\t\x02\x08\n\x0c\n\x05\x05\0\
-    \x02\x03\x02\x12\x03\t\x0b\x0c\n\t\n\x02\x04\0\x12\x03\x0c\05\n\n\n\x03\
-    \x04\0\x01\x12\x03\x0c\x08\x10\n\x0b\n\x04\x04\0\x02\0\x12\x03\x0c\x133\
-    \n\x0c\n\x05\x04\0\x02\0\x06\x12\x03\x0c\x13\"\n\x0c\n\x05\x04\0\x02\0\
-    \x01\x12\x03\x0c#*\n\x0c\n\x05\x04\0\x02\0\x03\x12\x03\x0c-2\n\t\n\x02\
-    \x04\x01\x12\x03\x0e\0\x1a\n\n\n\x03\x04\x01\x01\x12\x03\x0e\x08\x17\n\
-    \x20\n\x01\x07\x12\x03\x12\0C2\x16\x20enum\x20PostgresType\x20{}\n\n\t\n\
-    \x02\x07\0\x12\x03\x12'A\n\n\n\x03\x07\0\x02\x12\x03\x12\x07$\n\n\n\x03\
-    \x07\0\x06\x12\x03\x12'/\n\n\n\x03\x07\0\x01\x12\x03\x1208\n\n\n\x03\x07\
-    \0\x03\x12\x03\x12;@\n\t\n\x01\x07\x12\x04\x15\0\x17\x01\n\t\n\x02\x07\
-    \x01\x12\x03\x16\x02+\n\n\n\x03\x07\x01\x02\x12\x03\x15\x07%\n\n\n\x03\
-    \x07\x01\x06\x12\x03\x16\x02\x11\n\n\n\x03\x07\x01\x01\x12\x03\x16\x12\"\
-    \n\n\n\x03\x07\x01\x03\x12\x03\x16%*b\x06proto3\
+    e\"N\n\rPostgresField\x12)\n\x0fwhere_condition\x18\xe9\x86\x03\x20\x01(\
+    \tR\x0ewhereCondition\x12\x12\n\x03key\x18\xea\x86\x03\x20\x01(\x08R\x03\
+    key*A\n\x0fPostgresCommand\x12\n\n\x06INSERT\x10\0\x12\n\n\x06UPDATE\x10\
+    \x01\x12\n\n\x06DELETE\x10\x02\x12\n\n\x06SELECT\x10\x03*C\n\x11Postgres\
+    Condition\x12\x06\n\x02EQ\x10\0\x12\x06\n\x02NE\x10\x01\x12\x06\n\x02LE\
+    \x10\x02\x12\x06\n\x02LT\x10\x03\x12\x06\n\x02GE\x10\x04\x12\x06\n\x02GT\
+    \x10\x05:U\n\x08postgres\x18\xe5\x86\x03\x20\x01(\x0b2\x17.pandit.format\
+    .Postgres\x12\x1e.google.protobuf.MethodOptionsR\x08postgres:l\n\x10post\
+    gres_service\x18\xe6\x86\x03\x20\x01(\x0b2\x1e.pandit.format.PostgresSer\
+    vice\x12\x1f.google.protobuf.ServiceOptionsR\x0fpostgresService:d\n\x0ep\
+    ostgres_field\x18\xe8\x86\x03\x20\x01(\x0b2\x1c.pandit.format.PostgresFi\
+    eld\x12\x1d.google.protobuf.FieldOptionsR\rpostgresFieldJ\xac\x07\n\x06\
+    \x12\x04\0\0\"M\n\x08\n\x01\x0c\x12\x03\0\0\x12\n\t\n\x02\x03\0\x12\x03\
+    \x01\0*\n\x08\n\x01\x02\x12\x03\x03\0\x16\n\n\n\x02\x05\0\x12\x04\x05\0\
+    \n\x01\n\n\n\x03\x05\0\x01\x12\x03\x05\x05\x14\n\x0b\n\x04\x05\0\x02\0\
+    \x12\x03\x06\x02\r\n\x0c\n\x05\x05\0\x02\0\x01\x12\x03\x06\x02\x08\n\x0c\
+    \n\x05\x05\0\x02\0\x02\x12\x03\x06\x0b\x0c\n\x0b\n\x04\x05\0\x02\x01\x12\
+    \x03\x07\x02\r\n\x0c\n\x05\x05\0\x02\x01\x01\x12\x03\x07\x02\x08\n\x0c\n\
+    \x05\x05\0\x02\x01\x02\x12\x03\x07\x0b\x0c\n\x0b\n\x04\x05\0\x02\x02\x12\
+    \x03\x08\x02\r\n\x0c\n\x05\x05\0\x02\x02\x01\x12\x03\x08\x02\x08\n\x0c\n\
+    \x05\x05\0\x02\x02\x02\x12\x03\x08\x0b\x0c\n\x0b\n\x04\x05\0\x02\x03\x12\
+    \x03\t\x02\r\n\x0c\n\x05\x05\0\x02\x03\x01\x12\x03\t\x02\x08\n\x0c\n\x05\
+    \x05\0\x02\x03\x02\x12\x03\t\x0b\x0c\n\t\n\x02\x04\0\x12\x03\x0c\05\n\n\
+    \n\x03\x04\0\x01\x12\x03\x0c\x08\x10\n\x0b\n\x04\x04\0\x02\0\x12\x03\x0c\
+    \x133\n\x0c\n\x05\x04\0\x02\0\x06\x12\x03\x0c\x13\"\n\x0c\n\x05\x04\0\
+    \x02\0\x01\x12\x03\x0c#*\n\x0c\n\x05\x04\0\x02\0\x03\x12\x03\x0c-2\n\t\n\
+    \x02\x04\x01\x12\x03\x0e\0\x1a\n\n\n\x03\x04\x01\x01\x12\x03\x0e\x08\x17\
+    \n\n\n\x02\x05\x01\x12\x04\x10\0\x17\x01\n\n\n\x03\x05\x01\x01\x12\x03\
+    \x10\x05\x16\n\x0b\n\x04\x05\x01\x02\0\x12\x03\x11\x02\t\n\x0c\n\x05\x05\
+    \x01\x02\0\x01\x12\x03\x11\x02\x04\n\x0c\n\x05\x05\x01\x02\0\x02\x12\x03\
+    \x11\x07\x08\n\x0b\n\x04\x05\x01\x02\x01\x12\x03\x12\x02\t\n\x0c\n\x05\
+    \x05\x01\x02\x01\x01\x12\x03\x12\x02\x04\n\x0c\n\x05\x05\x01\x02\x01\x02\
+    \x12\x03\x12\x07\x08\n\x0b\n\x04\x05\x01\x02\x02\x12\x03\x13\x02\t\n\x0c\
+    \n\x05\x05\x01\x02\x02\x01\x12\x03\x13\x02\x04\n\x0c\n\x05\x05\x01\x02\
+    \x02\x02\x12\x03\x13\x07\x08\n\x0b\n\x04\x05\x01\x02\x03\x12\x03\x14\x02\
+    \t\n\x0c\n\x05\x05\x01\x02\x03\x01\x12\x03\x14\x02\x04\n\x0c\n\x05\x05\
+    \x01\x02\x03\x02\x12\x03\x14\x07\x08\n\x0b\n\x04\x05\x01\x02\x04\x12\x03\
+    \x15\x02\t\n\x0c\n\x05\x05\x01\x02\x04\x01\x12\x03\x15\x02\x04\n\x0c\n\
+    \x05\x05\x01\x02\x04\x02\x12\x03\x15\x07\x08\n\x0b\n\x04\x05\x01\x02\x05\
+    \x12\x03\x16\x02\t\n\x0c\n\x05\x05\x01\x02\x05\x01\x12\x03\x16\x02\x04\n\
+    \x0c\n\x05\x05\x01\x02\x05\x02\x12\x03\x16\x07\x08\n\n\n\x02\x04\x02\x12\
+    \x04\x19\0\x1c\x01\n\n\n\x03\x04\x02\x01\x12\x03\x19\x08\x15\n\x0b\n\x04\
+    \x04\x02\x02\0\x12\x03\x1a\x02!\n\x0c\n\x05\x04\x02\x02\0\x05\x12\x03\
+    \x1a\x02\x08\n\x0c\n\x05\x04\x02\x02\0\x01\x12\x03\x1a\t\x18\n\x0c\n\x05\
+    \x04\x02\x02\0\x03\x12\x03\x1a\x1b\x20\n\x0b\n\x04\x04\x02\x02\x01\x12\
+    \x03\x1b\x02\x13\n\x0c\n\x05\x04\x02\x02\x01\x05\x12\x03\x1b\x02\x06\n\
+    \x0c\n\x05\x04\x02\x02\x01\x01\x12\x03\x1b\x07\n\n\x0c\n\x05\x04\x02\x02\
+    \x01\x03\x12\x03\x1b\r\x12\n\x08\n\x01\x07\x12\x03\x1e\0C\n\t\n\x02\x07\
+    \0\x12\x03\x1e'A\n\n\n\x03\x07\0\x02\x12\x03\x1e\x07$\n\n\n\x03\x07\0\
+    \x06\x12\x03\x1e'/\n\n\n\x03\x07\0\x01\x12\x03\x1e08\n\n\n\x03\x07\0\x03\
+    \x12\x03\x1e;@\n\t\n\x01\x07\x12\x04\x1f\0!\x01\n\t\n\x02\x07\x01\x12\
+    \x03\x20\x02+\n\n\n\x03\x07\x01\x02\x12\x03\x1f\x07%\n\n\n\x03\x07\x01\
+    \x06\x12\x03\x20\x02\x11\n\n\n\x03\x07\x01\x01\x12\x03\x20\x12\"\n\n\n\
+    \x03\x07\x01\x03\x12\x03\x20%*\n\x08\n\x01\x07\x12\x03\"\0M\n\t\n\x02\
+    \x07\x02\x12\x03\"&K\n\n\n\x03\x07\x02\x02\x12\x03\"\x07#\n\n\n\x03\x07\
+    \x02\x06\x12\x03\"&3\n\n\n\x03\x07\x02\x01\x12\x03\"4B\n\n\n\x03\x07\x02\
+    \x03\x12\x03\"EJb\x06proto3\
 ";
 
 /// `FileDescriptorProto` object which was a source for this generated file
@@ -367,8 +603,10 @@ pub fn file_descriptor() -> ::protobuf::reflect::FileDescriptor {
         let mut messages = ::std::vec::Vec::new();
         messages.push(Postgres::generated_message_descriptor_data());
         messages.push(PostgresService::generated_message_descriptor_data());
+        messages.push(PostgresField::generated_message_descriptor_data());
         let mut enums = ::std::vec::Vec::new();
         enums.push(PostgresCommand::generated_enum_descriptor_data());
+        enums.push(PostgresCondition::generated_enum_descriptor_data());
         ::protobuf::reflect::GeneratedFileDescriptor::new_generated(
             file_descriptor_proto(),
             deps,

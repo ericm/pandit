@@ -14,11 +14,22 @@ message Postgres { PostgresCommand command = 50023; }
 
 message PostgresService {}
 
-// enum PostgresType {}
+enum PostgresCondition {
+  EQ = 0;
+  NE = 1;
+  LE = 2;
+  LT = 3;
+  GE = 4;
+  GT = 5;
+}
+
+message PostgresField {
+  string where_condition = 50025;
+  bool key = 50026;
+}
 
 extend google.protobuf.MethodOptions { Postgres postgres = 50021; }
-// extend google.protobuf.FieldOptions { PostgresType postgres_type = 50021; }
-
 extend google.protobuf.ServiceOptions {
   PostgresService postgres_service = 50022;
 }
+extend google.protobuf.FieldOptions { PostgresField postgres_field = 50024; }
