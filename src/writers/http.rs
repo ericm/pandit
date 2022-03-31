@@ -9,25 +9,26 @@ use crate::{
     services::{Fields, Handler, ServiceError, ServiceResult, Writer, WriterContext},
 };
 
+use super::LoadBalancer;
+
 pub struct HttpWriter {
     client: hyper::Client<hyper::client::HttpConnector>,
     version: http::Version,
-    addr: String,
+    lb: LoadBalancer,
 }
 
 impl HttpWriter {
-    pub fn new(addr: &str, version: HTTPVersion) -> HttpWriter {
+    pub fn new(lb: LoadBalancer, version: HTTPVersion) -> HttpWriter {
         let version = match version {
             HTTPVersion::VERSION_1_0 => http::Version::HTTP_10,
             HTTPVersion::VERSION_1_1 => http::Version::HTTP_11,
             HTTPVersion::VERSION_2_0 => http::Version::HTTP_2,
         };
         let client = hyper::Client::new();
-        let addr = addr.to_string();
         Self {
             client,
             version,
-            addr,
+            lb,
         }
     }
 }
@@ -41,9 +42,10 @@ impl Writer for HttpWriter {
         handler: &Arc<dyn Handler + Send + Sync>,
     ) -> ServiceResult<bytes::Bytes> {
         let payload = handler.to_payload(fields).await?;
+        let addr = self.lb.get_addr().await;
         let request =
-            request_from_context(self.version.clone(), context, payload, self.addr.clone())?;
-        log::info!("sending HTTP request to {}", &self.addr);
+            request_from_context(self.version.clone(), context, payload, addr.clone())?;
+        log::info!("sending HTTP request to {}", &addr);
         let mut resp = self.client.request(request).await?;
 
         let body = resp.body_mut();

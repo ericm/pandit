@@ -15,16 +15,15 @@ use postgres_types::{FromSql, IsNull, ToSql};
 use serde_json;
 use tokio_postgres::{self, Client, NoTls};
 
+use super::LoadBalancer;
+
 pub struct PostgresWriter {
-    config: String,
+    lb: LoadBalancer,
 }
 
 impl PostgresWriter {
-    pub fn new(addr: &str) -> ServiceResult<Self> {
-        let addr: SocketAddr = addr.parse()?;
-        // Authentication configuration not currently supported.
-        let config = format!("host={} port={} user=postgres", addr.ip(), addr.port());
-        Ok(Self { config })
+    pub fn new(lb: LoadBalancer) -> ServiceResult<Self> {
+        Ok(Self { lb })
     }
 }
 
@@ -36,7 +35,11 @@ impl Writer for PostgresWriter {
         fields: &Fields,
         handler: &std::sync::Arc<dyn Handler + Send + Sync>,
     ) -> ServiceResult<bytes::Bytes> {
-        let (client, conn) = tokio_postgres::connect(&self.config, NoTls).await?;
+        let addr = self.lb.get_addr().await;
+        let addr: SocketAddr = addr.parse()?;
+        // Authentication configuration not currently supported.
+        let config = format!("host={} port={} user=postgres", addr.ip(), addr.port());
+        let (client, conn) = tokio_postgres::connect(&config, NoTls).await?;
         tokio::spawn(async move {
             if let Err(e) = conn.await {
                 log::error!("connection error: {}", e);
