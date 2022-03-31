@@ -288,8 +288,8 @@ impl SQLHandler {
                 }
                 cmds.push(query.to_string(sea_query::PostgresQueryBuilder));
             }
-            PostgresCommand::UPDATE => {}
-            PostgresCommand::SELECT => {}
+            PostgresCommand::UPDATE => todo!(), // TODO: Implement
+            PostgresCommand::SELECT => todo!(), // TODO: Implement
         };
         Ok(primary_key)
     }

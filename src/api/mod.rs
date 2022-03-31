@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::convert::{TryFrom, TryInto};
 use std::env::current_dir;
 use std::error::Error;
@@ -26,6 +27,7 @@ use grpcio::EnvBuilder;
 use grpcio::RpcStatus;
 use grpcio::RpcStatusCode;
 use k8s_openapi::api::core::v1::{Node, Pod, Service as K8sService};
+use kube::api::ListParams;
 use kube::runtime::utils::try_flatten_applied;
 use kube::runtime::watcher;
 use std::io::prelude::*;
@@ -385,7 +387,7 @@ impl K8sHandler {
         let current_node = std::env::var("NODE_NAME")?;
         log::info!("k8s: current_node: {}", current_node);
         let ip;
-        let pod_node = match req.container.as_ref().ok_or("no container in req")? {
+        let pod_nodes = match req.container.as_ref().ok_or("no container in req")? {
             k8s_pod(id) => {
                 let pods: kube::Api<Pod> = kube::Api::default_namespaced(client);
                 log::info!("k8s: connected to default namespace pod api");
@@ -398,43 +400,64 @@ impl K8sHandler {
                     .pod_ip
                     .ok_or("no pod ip")?;
                 log::info!("k8s: found pod's ip: {}", &ip);
-                spec.node_name.ok_or("no node name")?
+                let mut nodes = HashSet::<String>::new();
+                nodes.insert(spec.node_name.ok_or("no node name")?);
+                nodes
             }
             k8s_service(id) => {
-                let services: kube::Api<K8sService> = kube::Api::default_namespaced(client);
+                let services: kube::Api<K8sService> = kube::Api::default_namespaced(client.clone());
                 let service: K8sService = services.get(id.as_str()).await?;
                 let spec = service.spec.ok_or("no pod spec")?;
-                // TODO: Add service to all it should be on hosts.
-                let ip = spec.cluster_ip.ok_or("no cluster ip")?;
+
+                let selectors = spec.selector.unwrap_or_default();
+                let pods: kube::Api<Pod> = kube::Api::default_namespaced(client);
+                let mut nodes = HashSet::<String>::default();
+                for (key, value) in selectors {
+                    let lp = ListParams::default().labels(format!("{}={}", key, value).as_str());
+                    let list = pods.list(&lp).await?;
+                    for pod in list.items {
+                        let node = pod
+                            .spec
+                            .unwrap_or_default()
+                            .node_name
+                            .ok_or("no node name for pod")?;
+                        nodes.insert(node);
+                    }
+                }
+
+                ip = spec.cluster_ip.ok_or("no cluster ip")?;
                 log::info!("k8s: found service '{}' with ip: {}", style(id).green(), ip);
-                return Ok(Some(ip));
+                nodes
             }
-            // TODO: Add statefulset/replicaset options mimicing the service method.
+            // TODO: Add statefulset/replicaset options mimicking the service method.
             docker_id(_) => {
                 return Err(ServiceError::new("cannot use docker_id with k8s"));
             }
         };
-        log::info!("k8s: pod's node: {}", pod_node);
-        if pod_node == current_node {
+        log::info!("k8s: pod nodes: {:?}", pod_nodes);
+        if pod_nodes.contains(&current_node) {
             return Ok(Some(ip));
         }
-        let node_ip = {
-            let client = kube::Client::try_default().await?;
-            let nodes: kube::Api<Node> = kube::Api::default_namespaced(client);
-            let node = nodes.get(pod_node.as_str()).await?;
-            let status = node.status.ok_or("no node status")?;
-            let addresses = status.addresses.ok_or("no node addresses")?;
-            let addr = addresses.first().ok_or("no available node addresses")?;
-            addr.address.clone()
-        };
-        log::info!("k8s: node ip: {}", node_ip);
-        let client = {
-            let node_addr = format!("{}:{}", node_ip, self.pandit_port);
-            let env = Arc::new(EnvBuilder::new().build());
-            let ch = ChannelBuilder::new(env).connect(node_addr.as_str());
-            api_proto::api_grpc::ApiClient::new(ch)
-        };
-        client.start_service(req)?;
+        // Send to other pod nodes *if* this node is not required to host the service.
+        for pod_node in pod_nodes {
+            let node_ip = {
+                let client = kube::Client::try_default().await?;
+                let nodes: kube::Api<Node> = kube::Api::default_namespaced(client);
+                let node = nodes.get(pod_node.as_str()).await?;
+                let status = node.status.ok_or("no node status")?;
+                let addresses = status.addresses.ok_or("no node addresses")?;
+                let addr = addresses.first().ok_or("no available node addresses")?;
+                addr.address.clone()
+            };
+            log::info!("k8s: node ip: {}", node_ip);
+            let client = {
+                let node_addr = format!("{}:{}", node_ip, self.pandit_port);
+                let env = Arc::new(EnvBuilder::new().build());
+                let ch = ChannelBuilder::new(env).connect(node_addr.as_str());
+                api_proto::api_grpc::ApiClient::new(ch)
+            };
+            client.start_service(req)?;
+        }
         Ok(None)
     }
 
