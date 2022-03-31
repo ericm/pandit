@@ -220,9 +220,10 @@ impl SQLHandler {
         cmds: &mut Vec<String>,
         fields: &Fields,
         opts: &Postgres,
-    ) -> ServiceResult<()> {
+    ) -> ServiceResult<sea_query::Value> {
         let mut vals = Vec::with_capacity(fields.map.len());
         let mut cols = Vec::<Field>::with_capacity(fields.map.len());
+        let mut primary_key: Option<Value> = None;
         for entry in fields.map.iter() {
             vals.push(match entry.value() {
                 Some(value) => match value {
@@ -235,8 +236,9 @@ impl SQLHandler {
                         let message_name = field.descriptor.get_type_name().to_string();
                         let other_message =
                             self.messages.get(&message_name).ok_or("no message found")?;
-                        self._to_payload(other_message, cmds, other_fields, opts)?;
-                    }
+                        let foreign_key = self._to_payload(other_message, cmds, other_fields, opts)?;
+                        value.clone().into_value()
+                    },
                     _ => value.clone().into_value(),
                 },
                 None => sea_query::Value::Int(None),
@@ -246,12 +248,15 @@ impl SQLHandler {
                 .get(entry.key())
                 .ok_or("no field error")?
                 .value();
-            match postgres_field.get(col.descriptor.options.as_ref().ok_or("no field options")?) {
+            if match postgres_field.get(col.descriptor.options.as_ref().ok_or("no field options")?) {
                 Some(field_opts) => field_opts.key,
-                None => {}
-            };
+                None => false,
+            } {
+                primary_key = Some(vals.last().unwrap());
+            }
             cols.push(col.clone());
         }
+        let primary_key = primary_key.ok_or("no primary key")?;
         match opts.command.enum_value().unwrap_or_default() {
             PostgresCommand::INSERT => {
                 let mut query = Query::insert();
@@ -278,6 +283,6 @@ impl SQLHandler {
             PostgresCommand::UPDATE => {}
             PostgresCommand::SELECT => {}
         };
-        Ok(())
+        Ok(primary_key)
     }
 }
