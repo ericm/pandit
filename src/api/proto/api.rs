@@ -47,6 +47,8 @@ pub enum StartServiceRequest_oneof_container {
     docker_id(::std::string::String),
     k8s_pod(::std::string::String),
     k8s_service(::std::string::String),
+    k8s_replica_set(::std::string::String),
+    k8s_stateful_set(::std::string::String),
 }
 
 impl StartServiceRequest {
@@ -267,6 +269,104 @@ impl StartServiceRequest {
             ::std::string::String::new()
         }
     }
+
+    // string k8s_replica_set = 7;
+
+
+    pub fn get_k8s_replica_set(&self) -> &str {
+        match self.container {
+            ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_replica_set(ref v)) => v,
+            _ => "",
+        }
+    }
+    pub fn clear_k8s_replica_set(&mut self) {
+        self.container = ::std::option::Option::None;
+    }
+
+    pub fn has_k8s_replica_set(&self) -> bool {
+        match self.container {
+            ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_replica_set(..)) => true,
+            _ => false,
+        }
+    }
+
+    // Param is passed by value, moved
+    pub fn set_k8s_replica_set(&mut self, v: ::std::string::String) {
+        self.container = ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_replica_set(v))
+    }
+
+    // Mutable pointer to the field.
+    pub fn mut_k8s_replica_set(&mut self) -> &mut ::std::string::String {
+        if let ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_replica_set(_)) = self.container {
+        } else {
+            self.container = ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_replica_set(::std::string::String::new()));
+        }
+        match self.container {
+            ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_replica_set(ref mut v)) => v,
+            _ => panic!(),
+        }
+    }
+
+    // Take field
+    pub fn take_k8s_replica_set(&mut self) -> ::std::string::String {
+        if self.has_k8s_replica_set() {
+            match self.container.take() {
+                ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_replica_set(v)) => v,
+                _ => panic!(),
+            }
+        } else {
+            ::std::string::String::new()
+        }
+    }
+
+    // string k8s_stateful_set = 8;
+
+
+    pub fn get_k8s_stateful_set(&self) -> &str {
+        match self.container {
+            ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_stateful_set(ref v)) => v,
+            _ => "",
+        }
+    }
+    pub fn clear_k8s_stateful_set(&mut self) {
+        self.container = ::std::option::Option::None;
+    }
+
+    pub fn has_k8s_stateful_set(&self) -> bool {
+        match self.container {
+            ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_stateful_set(..)) => true,
+            _ => false,
+        }
+    }
+
+    // Param is passed by value, moved
+    pub fn set_k8s_stateful_set(&mut self, v: ::std::string::String) {
+        self.container = ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_stateful_set(v))
+    }
+
+    // Mutable pointer to the field.
+    pub fn mut_k8s_stateful_set(&mut self) -> &mut ::std::string::String {
+        if let ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_stateful_set(_)) = self.container {
+        } else {
+            self.container = ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_stateful_set(::std::string::String::new()));
+        }
+        match self.container {
+            ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_stateful_set(ref mut v)) => v,
+            _ => panic!(),
+        }
+    }
+
+    // Take field
+    pub fn take_k8s_stateful_set(&mut self) -> ::std::string::String {
+        if self.has_k8s_stateful_set() {
+            match self.container.take() {
+                ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_stateful_set(v)) => v,
+                _ => panic!(),
+            }
+        } else {
+            ::std::string::String::new()
+        }
+    }
 }
 
 impl ::protobuf::Message for StartServiceRequest {
@@ -309,6 +409,18 @@ impl ::protobuf::Message for StartServiceRequest {
                     }
                     self.container = ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_service(is.read_string()?));
                 },
+                7 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeLengthDelimited {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    self.container = ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_replica_set(is.read_string()?));
+                },
+                8 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeLengthDelimited {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    self.container = ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_stateful_set(is.read_string()?));
+                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -341,6 +453,12 @@ impl ::protobuf::Message for StartServiceRequest {
                 &StartServiceRequest_oneof_container::k8s_service(ref v) => {
                     my_size += ::protobuf::rt::string_size(6, &v);
                 },
+                &StartServiceRequest_oneof_container::k8s_replica_set(ref v) => {
+                    my_size += ::protobuf::rt::string_size(7, &v);
+                },
+                &StartServiceRequest_oneof_container::k8s_stateful_set(ref v) => {
+                    my_size += ::protobuf::rt::string_size(8, &v);
+                },
             };
         }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
@@ -368,6 +486,12 @@ impl ::protobuf::Message for StartServiceRequest {
                 },
                 &StartServiceRequest_oneof_container::k8s_service(ref v) => {
                     os.write_string(6, v)?;
+                },
+                &StartServiceRequest_oneof_container::k8s_replica_set(ref v) => {
+                    os.write_string(7, v)?;
+                },
+                &StartServiceRequest_oneof_container::k8s_stateful_set(ref v) => {
+                    os.write_string(8, v)?;
                 },
             };
         }
@@ -439,6 +563,16 @@ impl ::protobuf::Message for StartServiceRequest {
                 StartServiceRequest::has_k8s_service,
                 StartServiceRequest::get_k8s_service,
             ));
+            fields.push(::protobuf::reflect::accessor::make_singular_string_accessor::<_>(
+                "k8s_replica_set",
+                StartServiceRequest::has_k8s_replica_set,
+                StartServiceRequest::get_k8s_replica_set,
+            ));
+            fields.push(::protobuf::reflect::accessor::make_singular_string_accessor::<_>(
+                "k8s_stateful_set",
+                StartServiceRequest::has_k8s_stateful_set,
+                StartServiceRequest::get_k8s_stateful_set,
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<StartServiceRequest>(
                 "StartServiceRequest",
                 fields,
@@ -458,6 +592,8 @@ impl ::protobuf::Clear for StartServiceRequest {
         self.name.clear();
         self.proto.clear();
         self.port = 0;
+        self.container = ::std::option::Option::None;
+        self.container = ::std::option::Option::None;
         self.container = ::std::option::Option::None;
         self.container = ::std::option::Option::None;
         self.container = ::std::option::Option::None;
@@ -594,14 +730,16 @@ impl ::protobuf::reflect::ProtobufValue for StartServiceReply {
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\tapi.proto\x12\x03api\"\xbd\x01\n\x13StartServiceRequest\x12\x12\n\
+    \n\tapi.proto\x12\x03api\"\x93\x02\n\x13StartServiceRequest\x12\x12\n\
     \x04name\x18\x01\x20\x01(\tR\x04name\x12\x14\n\x05proto\x18\x02\x20\x01(\
     \x0cR\x05proto\x12\x12\n\x04port\x18\x03\x20\x01(\x05R\x04port\x12\x1d\n\
     \tdocker_id\x18\x04\x20\x01(\tH\0R\x08dockerId\x12\x19\n\x07k8s_pod\x18\
     \x05\x20\x01(\tH\0R\x06k8sPod\x12!\n\x0bk8s_service\x18\x06\x20\x01(\tH\
-    \0R\nk8sServiceB\x0b\n\tcontainer\"\x13\n\x11StartServiceReply2I\n\x03AP\
-    I\x12B\n\x0cStartService\x12\x18.api.StartServiceRequest\x1a\x16.api.Sta\
-    rtServiceReply\"\0b\x06proto3\
+    \0R\nk8sService\x12(\n\x0fk8s_replica_set\x18\x07\x20\x01(\tH\0R\rk8sRep\
+    licaSet\x12*\n\x10k8s_stateful_set\x18\x08\x20\x01(\tH\0R\x0ek8sStateful\
+    SetB\x0b\n\tcontainer\"\x13\n\x11StartServiceReply2I\n\x03API\x12B\n\x0c\
+    StartService\x12\x18.api.StartServiceRequest\x1a\x16.api.StartServiceRep\
+    ly\"\0b\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

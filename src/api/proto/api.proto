@@ -14,9 +14,9 @@ message StartServiceRequest {
   oneof container {
     string docker_id = 4;
     string k8s_pod = 5;
-    // TODO: Add label selector option to find which nodes have pods proxied by
-    // service.
     string k8s_service = 6;
+    string k8s_replica_set = 7;
+    string k8s_stateful_set = 8;
   }
 }
 
