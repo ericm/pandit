@@ -412,17 +412,18 @@ impl K8sHandler {
                 let selectors = spec.selector.unwrap_or_default();
                 let pods: kube::Api<Pod> = kube::Api::default_namespaced(client);
                 let mut nodes = HashSet::<String>::default();
+                let mut lp = ListParams::default();
                 for (key, value) in selectors {
-                    let lp = ListParams::default().labels(format!("{}={}", key, value).as_str());
-                    let list = pods.list(&lp).await?;
-                    for pod in list.items {
-                        let node = pod
-                            .spec
-                            .unwrap_or_default()
-                            .node_name
-                            .ok_or("no node name for pod")?;
-                        nodes.insert(node);
-                    }
+                    lp = lp.labels(format!("{}={}", key, value).as_str());
+                }
+                let list = pods.list(&lp).await?;
+                for pod in list.items {
+                    let node = pod
+                        .spec
+                        .unwrap_or_default()
+                        .node_name
+                        .ok_or("no node name for pod")?;
+                    nodes.insert(node);
                 }
 
                 ip = spec.cluster_ip.ok_or("no cluster ip")?;
