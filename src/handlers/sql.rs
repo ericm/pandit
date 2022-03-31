@@ -27,11 +27,6 @@ use crate::{
         FieldsMap, Handler, ServiceError,
     },
 };
-pub struct SQLHandler {
-    messages: Arc<DashMap<String, Message>>,
-    method: Method,
-    opts: MethodOptions,
-}
 
 impl Iden for Message {
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
@@ -94,17 +89,26 @@ fn primary_key_for_message(message: &Message) -> Option<Field> {
     None
 }
 
+pub struct SQLHandler {
+    messages: Arc<DashMap<String, Message>>,
+    input_message: String,
+    output_message: String,
+    opts: Postgres,
+}
+
 impl SQLHandler {
     pub fn new(
         messages: Arc<DashMap<String, Message>>,
-        method: Method,
-        opts: MethodOptions,
-    ) -> Result<Self, Box<(dyn Error + 'static)>> {
-        Ok(Self {
+        input_message: String,
+        output_message: String,
+        opts: Postgres,
+    ) -> Self {
+        Self {
             messages,
-            method,
+            input_message,
+            output_message,
             opts,
-        })
+        }
     }
 }
 
@@ -130,7 +134,7 @@ impl Handler for SQLHandler {
         let fields = FieldsMap::default();
         let message = {
             self.messages
-                .get(&self.method.output_message)
+                .get(&self.output_message)
                 .ok_or("output message not found")?
         };
         for (name, value) in map {
@@ -174,18 +178,10 @@ impl Handler for SQLHandler {
         let mut cmds = Vec::<String>::with_capacity(1);
         let message = {
             self.messages
-                .get(&self.method.input_message)
+                .get(&self.input_message)
                 .ok_or("no input message")?
         };
-        self._to_payload(
-            message,
-            &mut cmds,
-            fields,
-            postgres
-                .get(&self.opts)
-                .as_ref()
-                .ok_or("no postgres options")?,
-        );
+        self._to_payload(message, &mut cmds, fields);
         Ok(bytes::Bytes::from(serde_json::to_string(&cmds)?))
     }
 }
@@ -196,7 +192,6 @@ impl SQLHandler {
         message: Ref<String, Message>,
         cmds: &mut Vec<String>,
         fields: &Fields,
-        opts: &Postgres,
     ) -> ServiceResult<sea_query::Value> {
         let mut vals = Vec::with_capacity(fields.map.len());
         let mut cols = Vec::<Field>::with_capacity(fields.map.len());
@@ -205,25 +200,25 @@ impl SQLHandler {
             vals.push(match entry.value() {
                 Some(value) => match value {
                     Value::Message(other_fields) => {
-                        let field = message
-                            .fields_by_name
-                            .get(entry.key())
-                            .ok_or("no field error")?
-                            .value();
+                        let field = {
+                            let m = message.fields_by_name.get(entry.key());
+                            let m = m.ok_or("no field error")?;
+                            m.value().clone()
+                        };
                         let message_name = field.descriptor.get_type_name().to_string();
                         let other_message =
                             self.messages.get(&message_name).ok_or("no message found")?;
-                        self._to_payload(other_message, cmds, other_fields, opts)?
+                        self._to_payload(other_message, cmds, other_fields)?
                     }
                     _ => value.clone().into_value(),
                 },
                 None => sea_query::Value::Int(None),
             });
-            let col = message
-                .fields_by_name
-                .get(entry.key())
-                .ok_or("no field error")?
-                .value();
+            let col = {
+                let m = message.fields_by_name.get(entry.key());
+                let m = m.ok_or("no field error")?;
+                m.value().clone()
+            };
             if match postgres_field.get(col.descriptor.options.as_ref().ok_or("no field options")?)
             {
                 Some(field_opts) => field_opts.key,
@@ -234,7 +229,7 @@ impl SQLHandler {
             cols.push(col.clone());
         }
         let primary_key = primary_key.ok_or("no primary key")?;
-        match opts.command.enum_value().unwrap_or_default() {
+        match self.opts.command.enum_value().unwrap_or_default() {
             PostgresCommand::INSERT => {
                 let mut query = Query::insert();
                 let query = query

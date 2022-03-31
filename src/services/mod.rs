@@ -527,11 +527,20 @@ impl Service {
                         None => {
                             // Quick solution to default postgres service to SQL handler.
                             match postgres.get(options) {
-                                Some(opts) => Some(Arc::new(SQLHandler::new(
-                                    self.messages.clone(),
-                                    method.clone(),
-                                    opts,
-                                )?)),
+                                Some(opts) => {
+                                    let input_message = method.get_input_type().to_string();
+                                    let input_message =
+                                        input_message.split('.').last().unwrap().to_string();
+                                    let output_message = method.get_output_type().to_string();
+                                    let output_message =
+                                        output_message.split('.').last().unwrap().to_string();
+                                    Some(Arc::new(SQLHandler::new(
+                                        self.messages.clone(),
+                                        input_message,
+                                        output_message,
+                                        opts,
+                                    )))
+                                }
                                 None => None,
                             }
                         }
@@ -750,6 +759,7 @@ mod tests {
         .unwrap();
         broker
             .sub_service(&"ExampleService".to_string(), &"GetExample".to_string())
+            .await
             .unwrap();
         let buf: &[u8] = &[
             0, 0, 0, 0, 0, // gRPC header.
