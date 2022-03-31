@@ -223,7 +223,7 @@ impl SQLHandler {
     ) -> ServiceResult<sea_query::Value> {
         let mut vals = Vec::with_capacity(fields.map.len());
         let mut cols = Vec::<Field>::with_capacity(fields.map.len());
-        let mut primary_key: Option<Value> = None;
+        let mut primary_key: Option<sea_query::Value> = None;
         for entry in fields.map.iter() {
             vals.push(match entry.value() {
                 Some(value) => match value {
@@ -236,8 +236,7 @@ impl SQLHandler {
                         let message_name = field.descriptor.get_type_name().to_string();
                         let other_message =
                             self.messages.get(&message_name).ok_or("no message found")?;
-                        let foreign_key = self._to_payload(other_message, cmds, other_fields, opts)?;
-                        value.clone().into_value()
+                        self._to_payload(other_message, cmds, other_fields, opts)?
                     },
                     _ => value.clone().into_value(),
                 },
@@ -252,7 +251,7 @@ impl SQLHandler {
                 Some(field_opts) => field_opts.key,
                 None => false,
             } {
-                primary_key = Some(vals.last().unwrap());
+                primary_key = Some(vals.last().unwrap().clone());
             }
             cols.push(col.clone());
         }
