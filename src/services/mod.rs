@@ -527,7 +527,11 @@ impl Service {
                         None => {
                             // Quick solution to default postgres service to SQL handler.
                             match postgres.get(options) {
-                                Some(opts) => Some(SQLHandler::new(message.value(), opts)?),
+                                Some(opts) => Some(Arc::new(SQLHandler::new(
+                                    self.messages.clone(),
+                                    method.clone(),
+                                    opts,
+                                )?)),
                                 None => None,
                             }
                         }

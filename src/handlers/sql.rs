@@ -3,7 +3,7 @@ use std::{collections::HashMap, error::Error, sync::Arc};
 use crate::{
     proto::gen::format::postgres::{
         exts::{postgres, postgres_field},
-        Postgres, PostgresCommand,
+        Postgres, PostgresCommand, PostgresCondition,
     },
     services::{Fields, Method, ServiceResult},
 };
@@ -24,7 +24,7 @@ use crate::{
     services::{
         message::{Field, Message},
         value::Value,
-        Fields, FieldsMap, Handler, ServiceError, ServiceResult,
+        FieldsMap, Handler, ServiceError,
     },
 };
 pub struct SQLHandler {
@@ -61,34 +61,7 @@ impl Value {
                 }
                 sea_query::Value::Array(Some(Box::new(out)))
             }
-            Value::Message(v) => {
-                // let (other_message, other_primary_key) = {
-                //     let other_message = message
-                //         .parent
-                //         .get(&field.descriptor.get_type_name().to_string())
-                //         .unwrap();
-                //     let other_message = other_message.value();
-                //     let mut table = Table::create();
-                //     let table = table.table(other_message.clone()).if_not_exists();
-                //     populate_table(message, table, client).await;
-                //     client
-                //         .execute(&table.to_string(sea_query::PostgresQueryBuilder), &[])
-                //         .await
-                //         .unwrap();
-                //     (
-                //         other_message.clone(),
-                //         primary_key_for_message(message).unwrap(),
-                //     )
-                // };
-                // table.foreign_key(
-                //     ForeignKey::create()
-                //         .name(field.descriptor.get_name())
-                //         .from(message.clone(), field.clone())
-                //         .to(other_message, other_primary_key)
-                //         .on_delete(ForeignKeyAction::Cascade)
-                //         .on_update(ForeignKeyAction::Cascade),
-                // );
-            }
+            Value::Message(v) => sea_query::Value::Int(None),
             Value::None => sea_query::Value::Int(None),
         }
     }
@@ -155,9 +128,13 @@ impl Handler for SQLHandler {
         let buf = &buf.to_vec()[..];
         let map: HashMap<String, SQLValue> = serde_json::from_slice(buf)?;
         let fields = FieldsMap::default();
+        let message = {
+            self.messages
+                .get(&self.method.output_message)
+                .ok_or("output message not found")?
+        };
         for (name, value) in map {
-            let value = match self
-                .message
+            let value = match message
                 .fields_by_name
                 .get(&name)
                 .ok_or("no field")?
@@ -237,7 +214,7 @@ impl SQLHandler {
                         let other_message =
                             self.messages.get(&message_name).ok_or("no message found")?;
                         self._to_payload(other_message, cmds, other_fields, opts)?
-                    },
+                    }
                     _ => value.clone().into_value(),
                 },
                 None => sea_query::Value::Int(None),
@@ -247,7 +224,8 @@ impl SQLHandler {
                 .get(entry.key())
                 .ok_or("no field error")?
                 .value();
-            if match postgres_field.get(col.descriptor.options.as_ref().ok_or("no field options")?) {
+            if match postgres_field.get(col.descriptor.options.as_ref().ok_or("no field options")?)
+            {
                 Some(field_opts) => field_opts.key,
                 None => false,
             } {
@@ -275,7 +253,43 @@ impl SQLHandler {
                         },
                         _ => {}
                     }
-                    query.and_where(Expr::col(col.clone()).eq(val.clone()));
+                    let cond = match postgres_field
+                        .get(col.descriptor.options.as_ref().unwrap_or_default())
+                    {
+                        Some(opts) => match opts.condition.enum_value() {
+                            Ok(opts) => opts,
+                            Err(_) => continue,
+                        },
+                        None => continue,
+                    };
+                    match cond {
+                        PostgresCondition::EQ => {
+                            query.and_where(Expr::col(col.clone()).eq(val.clone()));
+                        }
+                        PostgresCondition::NE => {
+                            query.and_where(Expr::col(col.clone()).ne(val.clone()));
+                        }
+                        PostgresCondition::LE => {
+                            query.and_where(
+                                Expr::col(col.clone()).less_or_equal(Expr::val(val.clone())),
+                            );
+                        }
+                        PostgresCondition::LT => {
+                            query.and_where(
+                                Expr::col(col.clone()).less_than(Expr::val(val.clone())),
+                            );
+                        }
+                        PostgresCondition::GE => {
+                            query.and_where(
+                                Expr::col(col.clone()).greater_or_equal(Expr::val(val.clone())),
+                            );
+                        }
+                        PostgresCondition::GT => {
+                            query.and_where(
+                                Expr::col(col.clone()).greater_than(Expr::val(val.clone())),
+                            );
+                        }
+                    };
                 }
                 cmds.push(query.to_string(sea_query::PostgresQueryBuilder));
             }
