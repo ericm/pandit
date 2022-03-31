@@ -24,7 +24,7 @@ enum PostgresCondition {
 }
 
 message PostgresField {
-  string where_condition = 50025;
+  PostgresCondition condition = 50025;
   bool key = 50026;
 }
 
