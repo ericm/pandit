@@ -385,8 +385,8 @@ impl Service {
         let service = file.service.first().unwrap();
 
         let mut output = Self::get_service_attrs_base(file, writer, broker, &service)?;
-        match Self::get_service_type(service) {
-            Protocol::HTTP => output.get_service_attrs_http(service)?,
+        match Self::get_service_type(&service) {
+            Protocol::HTTP => output.get_service_attrs_http(&service)?,
             _ => panic!("unknown protocol"),
         };
 

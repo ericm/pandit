@@ -78,17 +78,6 @@ impl<'a> FromSql<'a> for SQLValue {
     }
 }
 
-fn primary_key_for_message(message: &Message) -> Option<Field> {
-    for entry in message.fields_by_name.iter() {
-        let opts = entry.value().descriptor.options.get_ref();
-        let is_key = proto::gen::pandit::exts::key.get(opts);
-        if is_key.unwrap_or_default() {
-            return Some(entry.value().clone());
-        }
-    }
-    None
-}
-
 pub struct SQLHandler {
     messages: Arc<DashMap<String, Message>>,
     input_message: String,
@@ -181,7 +170,7 @@ impl Handler for SQLHandler {
                 .get(&self.input_message)
                 .ok_or("no input message")?
         };
-        self._to_payload(message, &mut cmds, fields);
+        self._to_payload(message, &mut cmds, fields)?;
         Ok(bytes::Bytes::from(serde_json::to_string(&cmds)?))
     }
 }

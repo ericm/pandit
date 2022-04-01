@@ -45,17 +45,24 @@ impl Writer for PostgresWriter {
                 log::error!("connection error: {}", e);
             }
         });
-        let query = String::from_utf8(handler.to_payload(fields).await?.to_vec())?;
-        let rows = client.query_opt(&query, &[]).await?;
-        let row = rows.ok_or("no rows in response")?;
+        let queries = handler.to_payload(fields).await?;
+        use bytes::Buf;
+        let queries: Vec<String> = serde_json::from_reader(queries.reader())?;
+        let mut out_rows = Vec::<HashMap<String, SQLValue>>::with_capacity(queries.len());
+        for query in queries {
+            let rows = client.query_opt(&query, &[]).await?;
+            let row = rows.ok_or("no rows in response")?;
 
-        let mut out = HashMap::<String, SQLValue>::with_capacity(row.len());
-        let cols = row.columns();
-        for i in 0..row.len() {
-            out.insert(cols[i].name().to_string(), row.get(i));
+            let mut out = HashMap::<String, SQLValue>::with_capacity(row.len());
+            let cols = row.columns();
+            for i in 0..row.len() {
+                out.insert(cols[i].name().to_string(), row.get(i));
+            }
+            out_rows.push(out);
         }
+        
         Ok(bytes::Bytes::copy_from_slice(
-            &serde_json::to_vec(&out)?[..],
+            &serde_json::to_vec(&out_rows)?[..],
         ))
     }
 }
