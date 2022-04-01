@@ -119,46 +119,51 @@ impl Handler for SQLHandler {
     fn from_payload(&self, buf: bytes::Bytes) -> ServiceResult<Fields> {
         use protobuf::descriptor::field_descriptor_proto::Type::*;
         let buf = &buf.to_vec()[..];
-        let map: HashMap<String, SQLValue> = serde_json::from_slice(buf)?;
-        let fields = FieldsMap::default();
-        let message = {
-            self.messages
-                .get(&self.output_message)
-                .ok_or("output message not found")?
-        };
-        for (name, value) in map {
-            let value = match message
-                .fields_by_name
-                .get(&name)
-                .ok_or("no field")?
-                .descriptor
-                .get_field_type()
-            {
-                TYPE_DOUBLE => {
-                    Value::from_float(handle_err!(<f64>::from_sql(&Type::FLOAT8, &value.0[..])))
-                }
-                TYPE_FLOAT => {
-                    Value::from_float(handle_err!(<f32>::from_sql(&Type::FLOAT4, &value.0[..])))
-                }
-                TYPE_BOOL => Value::Bool(handle_err!(<bool>::from_sql(&Type::BOOL, &value.0[..]))),
-                TYPE_STRING => {
-                    Value::from_string(handle_err!(<String>::from_sql(&Type::TEXT, &value.0[..])))
-                }
-                TYPE_BYTES => {
-                    Value::Bytes(handle_err!(<Vec<u8>>::from_sql(&Type::BYTEA, &value.0[..])))
-                }
-                TYPE_MESSAGE => {
-                    // TODO: populate sub_table from message.parents and create foreign key.
-                    todo!()
-                }
-                TYPE_INT64 | TYPE_UINT64 | TYPE_INT32 | TYPE_UINT32 | TYPE_FIXED64
-                | TYPE_FIXED32 | TYPE_SFIXED32 | TYPE_SFIXED64 | TYPE_SINT32 | TYPE_SINT64
-                | TYPE_ENUM => {
-                    Value::from_int(handle_err!(<i64>::from_sql(&Type::INT8, &value.0[..])))
-                }
-                _ => return Err(ServiceError::new("unsupported proto field type")),
+        let rows: Vec<HashMap<String, SQLValue>> = serde_json::from_slice(buf)?;
+        for map in rows {
+            let fields = FieldsMap::default();
+            let message = {
+                self.messages
+                    .get(&self.output_message)
+                    .ok_or("output message not found")?
             };
-            fields.insert(name, Some(value));
+            for (name, value) in map {
+                let value = match message
+                    .fields_by_name
+                    .get(&name)
+                    .ok_or("no field")?
+                    .descriptor
+                    .get_field_type()
+                {
+                    TYPE_DOUBLE => {
+                        Value::from_float(handle_err!(<f64>::from_sql(&Type::FLOAT8, &value.0[..])))
+                    }
+                    TYPE_FLOAT => {
+                        Value::from_float(handle_err!(<f32>::from_sql(&Type::FLOAT4, &value.0[..])))
+                    }
+                    TYPE_BOOL => {
+                        Value::Bool(handle_err!(<bool>::from_sql(&Type::BOOL, &value.0[..])))
+                    }
+                    TYPE_STRING => Value::from_string(handle_err!(<String>::from_sql(
+                        &Type::TEXT,
+                        &value.0[..]
+                    ))),
+                    TYPE_BYTES => {
+                        Value::Bytes(handle_err!(<Vec<u8>>::from_sql(&Type::BYTEA, &value.0[..])))
+                    }
+                    TYPE_MESSAGE => {
+                        // TODO: populate sub_table from message.parents and create foreign key.
+                        todo!()
+                    }
+                    TYPE_INT64 | TYPE_UINT64 | TYPE_INT32 | TYPE_UINT32 | TYPE_FIXED64
+                    | TYPE_FIXED32 | TYPE_SFIXED32 | TYPE_SFIXED64 | TYPE_SINT32 | TYPE_SINT64
+                    | TYPE_ENUM => {
+                        Value::from_int(handle_err!(<i64>::from_sql(&Type::INT8, &value.0[..])))
+                    }
+                    _ => return Err(ServiceError::new("unsupported proto field type")),
+                };
+                fields.insert(name, Some(value));
+            }
         }
         Ok(Fields::new(fields))
     }
