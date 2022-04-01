@@ -43,8 +43,7 @@ impl Writer for HttpWriter {
     ) -> ServiceResult<bytes::Bytes> {
         let payload = handler.to_payload(fields).await?;
         let addr = self.lb.get_addr().await;
-        let request =
-            request_from_context(self.version.clone(), context, payload, addr.clone())?;
+        let request = request_from_context(self.version.clone(), context, payload, addr.clone())?;
         log::info!("sending HTTP request to {}", &addr);
         let mut resp = self.client.request(request).await?;
 

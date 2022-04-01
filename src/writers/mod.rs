@@ -57,10 +57,7 @@ pub struct LoadBalancer {
 }
 
 impl LoadBalancer {
-    pub fn new(
-    hosts: HashSet<String>,
-    port: i32,
-    ) -> Self {
+    pub fn new(hosts: HashSet<String>, port: i32) -> Self {
         let mut ips = VecDeque::with_capacity(hosts.len());
         for host in hosts {
             ips.push_front(host);
