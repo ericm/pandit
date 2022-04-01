@@ -26,7 +26,7 @@ use grpcio::ChannelBuilder;
 use grpcio::EnvBuilder;
 use grpcio::RpcStatus;
 use grpcio::RpcStatusCode;
-use k8s_openapi::api::apps::v1::ReplicaSet;
+use k8s_openapi::api::apps::v1::{ReplicaSet, StatefulSet};
 use k8s_openapi::api::core::v1::{Node, Pod, Service as K8sService};
 use kube::api::ListParams;
 use kube::runtime::utils::try_flatten_applied;
@@ -464,7 +464,14 @@ impl K8sHandler {
                 let selectors = spec.selector.match_labels.unwrap_or_default();
                 pods_from_labels(selectors, &mut ips, &current_node).await?
             }
-            k8s_stateful_set(_) => todo!(),
+            k8s_stateful_set(id) => {
+                let sets: kube::Api<StatefulSet> = kube::Api::default_namespaced(client.clone());
+                let set = sets.get(id.as_str()).await?;
+                let spec = set.spec.ok_or("no set spec")?;
+
+                let selectors = spec.selector.match_labels.unwrap_or_default();
+                pods_from_labels(selectors, &mut ips, &current_node).await?
+            },
             docker_id(_) => {
                 return Err(ServiceError::new("cannot use docker_id with k8s"));
             }
