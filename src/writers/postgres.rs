@@ -47,9 +47,10 @@ impl Writer for PostgresWriter {
         });
         let queries = handler.to_payload(fields).await?;
         use bytes::Buf;
-        let queries: Vec<String> = serde_json::from_reader(queries.reader())?;
-        let mut out_rows = Vec::<HashMap<String, SQLValue>>::with_capacity(queries.len());
-        for query in queries {
+        let queries: HashMap<String, String> = serde_json::from_reader(queries.reader())?;
+        let mut out_rows =
+            HashMap::<String, HashMap<String, SQLValue>>::with_capacity(queries.len());
+        for (name, query) in queries {
             let rows = client.query_opt(&query, &[]).await?;
             let row = rows.ok_or("no rows in response")?;
 
@@ -58,9 +59,9 @@ impl Writer for PostgresWriter {
             for i in 0..row.len() {
                 out.insert(cols[i].name().to_string(), row.get(i));
             }
-            out_rows.push(out);
+            out_rows.insert(name, out);
         }
-        
+
         Ok(bytes::Bytes::copy_from_slice(
             &serde_json::to_vec(&out_rows)?[..],
         ))

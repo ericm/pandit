@@ -153,6 +153,12 @@ impl Handler for SQLHandler {
                     }
                     TYPE_MESSAGE => {
                         // TODO: populate sub_table from message.parents and create foreign key.
+                        let table_name = message
+                            .fields_by_name
+                            .get(&name)
+                            .ok_or("no field")?
+                            .descriptor
+                            .get_type_name();
                         todo!()
                     }
                     TYPE_INT64 | TYPE_UINT64 | TYPE_INT32 | TYPE_UINT32 | TYPE_FIXED64
@@ -169,7 +175,7 @@ impl Handler for SQLHandler {
     }
 
     async fn to_payload(&self, fields: &Fields) -> ServiceResult<bytes::Bytes> {
-        let mut cmds = Vec::<String>::with_capacity(1);
+        let mut cmds = HashMap::<String, String>::with_capacity(1);
         let message = {
             self.messages
                 .get(&self.input_message)
@@ -184,7 +190,7 @@ impl SQLHandler {
     fn _to_payload(
         &self,
         message: Ref<String, Message>,
-        cmds: &mut Vec<String>,
+        cmds: &mut HashMap<String, String>,
         fields: &Fields,
     ) -> ServiceResult<sea_query::Value> {
         let mut vals = Vec::with_capacity(fields.map.len());
@@ -230,7 +236,10 @@ impl SQLHandler {
                     .into_table(message.value().clone())
                     .columns(cols)
                     .values(vals)?;
-                cmds.push(query.to_string(sea_query::PostgresQueryBuilder));
+                cmds.insert(
+                    message.key().clone(),
+                    query.to_string(sea_query::PostgresQueryBuilder),
+                );
             }
             PostgresCommand::DELETE => {
                 let mut query = Query::delete();
@@ -280,7 +289,10 @@ impl SQLHandler {
                         }
                     };
                 }
-                cmds.push(query.to_string(sea_query::PostgresQueryBuilder));
+                cmds.insert(
+                    message.key().clone(),
+                    query.to_string(sea_query::PostgresQueryBuilder),
+                );
             }
             PostgresCommand::UPDATE => todo!(), // TODO: Implement
             PostgresCommand::SELECT => todo!(), // TODO: Implement
