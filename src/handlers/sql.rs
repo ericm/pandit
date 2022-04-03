@@ -119,8 +119,13 @@ impl Handler for SQLHandler {
     fn from_payload(&self, buf: bytes::Bytes) -> ServiceResult<Fields> {
         use protobuf::descriptor::field_descriptor_proto::Type::*;
         let buf = &buf.to_vec()[..];
-        let rows: Vec<HashMap<String, SQLValue>> = serde_json::from_slice(buf)?;
-        for map in rows {
+        let rows: Vec<(String, HashMap<String, SQLValue>)> = serde_json::from_slice(buf)?;
+
+        let mut main_table: String = Default::default();
+        let mut table_fields_map = HashMap::<String, Fields>::with_capacity(rows.len());
+        let mut wanted_table_refs = HashMap::<String, (String, String)>::new();
+
+        for (table_name, map) in rows {
             let fields = FieldsMap::default();
             let message = {
                 self.messages
@@ -152,14 +157,12 @@ impl Handler for SQLHandler {
                         Value::Bytes(handle_err!(<Vec<u8>>::from_sql(&Type::BYTEA, &value.0[..])))
                     }
                     TYPE_MESSAGE => {
-                        // TODO: populate sub_table from message.parents and create foreign key.
-                        let table_name = message
-                            .fields_by_name
-                            .get(&name)
-                            .ok_or("no field")?
-                            .descriptor
-                            .get_type_name();
-                        todo!()
+                        let other_table = message.fields_by_name.get(&name);
+                        let other_table_name = other_table.ok_or("no field")?;
+                        let other_table_name = other_table_name.descriptor.get_type_name();
+                        wanted_table_refs
+                            .insert(table_name.clone(), (name, other_table_name.to_string()));
+                        continue;
                     }
                     TYPE_INT64 | TYPE_UINT64 | TYPE_INT32 | TYPE_UINT32 | TYPE_FIXED64
                     | TYPE_FIXED32 | TYPE_SFIXED32 | TYPE_SFIXED64 | TYPE_SINT32 | TYPE_SINT64
@@ -170,12 +173,26 @@ impl Handler for SQLHandler {
                 };
                 fields.insert(name, Some(value));
             }
+            main_table = table_name.clone();
+            table_fields_map.insert(table_name, Fields::new(fields));
         }
-        Ok(Fields::new(fields))
+
+        for (table, (other_field_name, other_table_name)) in wanted_table_refs {
+            let other_fields = table_fields_map
+                .get(&other_table_name)
+                .ok_or("other table")?;
+            let fields = table_fields_map.get(&table).ok_or("table")?;
+            fields
+                .map
+                .insert(other_field_name, Some(Value::Message(other_fields.clone())));
+        }
+
+        let fields = table_fields_map.get(&main_table).ok_or("table")?;
+        Ok(fields.clone())
     }
 
     async fn to_payload(&self, fields: &Fields) -> ServiceResult<bytes::Bytes> {
-        let mut cmds = HashMap::<String, String>::with_capacity(1);
+        let mut cmds = Vec::<(String, String)>::with_capacity(1);
         let message = {
             self.messages
                 .get(&self.input_message)
@@ -190,7 +207,7 @@ impl SQLHandler {
     fn _to_payload(
         &self,
         message: Ref<String, Message>,
-        cmds: &mut HashMap<String, String>,
+        cmds: &mut Vec<(String, String)>,
         fields: &Fields,
     ) -> ServiceResult<sea_query::Value> {
         let mut vals = Vec::with_capacity(fields.map.len());
@@ -236,10 +253,10 @@ impl SQLHandler {
                     .into_table(message.value().clone())
                     .columns(cols)
                     .values(vals)?;
-                cmds.insert(
+                cmds.push((
                     message.key().clone(),
                     query.to_string(sea_query::PostgresQueryBuilder),
-                );
+                ));
             }
             PostgresCommand::DELETE => {
                 let mut query = Query::delete();
@@ -289,10 +306,10 @@ impl SQLHandler {
                         }
                     };
                 }
-                cmds.insert(
+                cmds.push((
                     message.key().clone(),
                     query.to_string(sea_query::PostgresQueryBuilder),
-                );
+                ));
             }
             PostgresCommand::UPDATE => todo!(), // TODO: Implement
             PostgresCommand::SELECT => todo!(), // TODO: Implement
