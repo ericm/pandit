@@ -236,8 +236,7 @@ impl SQLHandler {
                 let m = m.ok_or("no field error")?;
                 m.value().clone()
             };
-            if match postgres_field.get(col.descriptor.options.as_ref().ok_or("no field options")?)
-            {
+            if match postgres_field.get(col.descriptor.options.as_ref().unwrap_or_default()) {
                 Some(field_opts) => field_opts.key,
                 None => false,
             } {
@@ -245,7 +244,10 @@ impl SQLHandler {
             }
             cols.push(col.clone());
         }
-        let primary_key = primary_key.ok_or("no primary key")?;
+        let primary_key = match primary_key {
+            Some(v) => v,
+            None => sea_query::Value::Int(None),
+        };
         match self.opts.command.enum_value().unwrap_or_default() {
             PostgresCommand::INSERT => {
                 let mut query = Query::insert();
@@ -315,5 +317,48 @@ impl SQLHandler {
             PostgresCommand::SELECT => todo!(), // TODO: Implement
         };
         Ok(primary_key)
+    }
+}
+
+mod tests {
+    use protobuf::ProtobufEnumOrUnknown;
+
+    #[tokio::test]
+    async fn test_to_payload_insert() {
+        use super::*;
+        let messages = Arc::new(DashMap::new());
+        {
+            let mut s = protobuf::descriptor::FieldDescriptorProto::new();
+            s.set_name("str".to_string());
+            s.set_field_type(protobuf::descriptor::field_descriptor_proto::Type::TYPE_STRING);
+            let mut message = protobuf::descriptor::DescriptorProto::new();
+            message.field.push(s);
+            messages.insert(
+                "input_message".to_string(),
+                Message::new(message, "".to_string(), Arc::new(Default::default())),
+            );
+        }
+        let opts = Postgres {
+            command: ProtobufEnumOrUnknown::new(PostgresCommand::INSERT),
+            unknown_fields: Default::default(),
+            cached_size: Default::default(),
+        };
+        let handler = SQLHandler::new(
+            messages,
+            "input_message".to_string(),
+            Default::default(),
+            opts,
+        );
+        let fields = FieldsMap::new();
+        fields.insert(
+            "str".to_string(),
+            Some(Value::String("str_value".to_string())),
+        );
+        let output = handler.to_payload(&Fields::new(fields)).await.unwrap();
+        use bytes::Buf;
+        let queries: Vec<(String, String)> = serde_json::from_reader(output.reader()).unwrap();
+        let (table, query) = &queries[0];
+        assert_eq!(table, "input_message");
+        assert_eq!(query, "INSERT INTO \"\" (\"str\") VALUES ('str_value')");
     }
 }
