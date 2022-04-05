@@ -29,14 +29,22 @@ use crate::{
 };
 
 impl Iden for Message {
+    fn quoted(&self, _:char) -> String {
+        self.name.clone().to_lowercase()
+    }
+
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(s, "{}", self.name).unwrap()
+        write!(s, "{}", self.name.to_lowercase()).unwrap()
     }
 }
 
 impl Iden for Field {
+    fn quoted(&self, _:char) -> String {
+        self.descriptor.get_name().to_string().to_lowercase()
+    }
+
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(s, "{}", self.descriptor.get_name()).unwrap()
+        write!(s, "{}", self.descriptor.get_name().to_lowercase()).unwrap()
     }
 }
 
@@ -121,17 +129,23 @@ impl Handler for SQLHandler {
         let buf = &buf.to_vec()[..];
         let rows: Vec<(String, HashMap<String, SQLValue>)> = serde_json::from_slice(buf)?;
 
+        // Not all queries return data.
+        if self.output_message == "Empty" {
+            return Ok(Fields::new(Default::default()));
+        }
+
+        let message = {
+            self.messages
+                .get(&self.output_message)
+                .ok_or("output message not found")?
+        };
+
         let mut main_table: String = Default::default();
         let mut table_fields_map = HashMap::<String, Fields>::with_capacity(rows.len());
         let mut wanted_table_refs = HashMap::<String, (String, String)>::new();
 
         for (table_name, map) in rows {
             let fields = FieldsMap::default();
-            let message = {
-                self.messages
-                    .get(&self.output_message)
-                    .ok_or("output message not found")?
-            };
             for (name, value) in map {
                 let value = match message
                     .fields_by_name

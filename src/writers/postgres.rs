@@ -38,7 +38,11 @@ impl Writer for PostgresWriter {
         let addr = self.lb.get_addr().await;
         let addr: SocketAddr = addr.parse()?;
         // Authentication configuration not currently supported.
-        let config = format!("host={} port={} user=postgres", addr.ip(), addr.port());
+        let config = format!(
+            "host={} port={} user=root dbname=root",
+            addr.ip(),
+            addr.port()
+        );
         let (client, conn) = tokio_postgres::connect(&config, NoTls).await?;
         tokio::spawn(async move {
             if let Err(e) = conn.await {
@@ -50,8 +54,12 @@ impl Writer for PostgresWriter {
         let queries: Vec<(String, String)> = serde_json::from_reader(queries.reader())?;
         let mut out_rows = Vec::<(String, HashMap<String, SQLValue>)>::with_capacity(queries.len());
         for (name, query) in queries {
+            log::info!("pg: executing query '{}'", query);
             let rows = client.query_opt(&query, &[]).await?;
-            let row = rows.ok_or("no rows in response")?;
+            let row = match rows {
+                Some(v) => v,
+                None => continue,
+            };
 
             let mut out = HashMap::<String, SQLValue>::with_capacity(row.len());
             let cols = row.columns();

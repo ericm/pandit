@@ -24,23 +24,23 @@
 // const _PROTOBUF_VERSION_CHECK: () = ::protobuf::VERSION_2_27_1;
 
 #[derive(PartialEq,Clone,Default)]
-pub struct ExampleRequest {
+pub struct ExampleTable {
     // message fields
     pub id: i32,
-    pub user: ::std::string::String,
+    pub name: ::std::string::String,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
 }
 
-impl<'a> ::std::default::Default for &'a ExampleRequest {
-    fn default() -> &'a ExampleRequest {
-        <ExampleRequest as ::protobuf::Message>::default_instance()
+impl<'a> ::std::default::Default for &'a ExampleTable {
+    fn default() -> &'a ExampleTable {
+        <ExampleTable as ::protobuf::Message>::default_instance()
     }
 }
 
-impl ExampleRequest {
-    pub fn new() -> ExampleRequest {
+impl ExampleTable {
+    pub fn new() -> ExampleTable {
         ::std::default::Default::default()
     }
 
@@ -59,34 +59,34 @@ impl ExampleRequest {
         self.id = v;
     }
 
-    // string user = 2;
+    // string name = 2;
 
 
-    pub fn get_user(&self) -> &str {
-        &self.user
+    pub fn get_name(&self) -> &str {
+        &self.name
     }
-    pub fn clear_user(&mut self) {
-        self.user.clear();
+    pub fn clear_name(&mut self) {
+        self.name.clear();
     }
 
     // Param is passed by value, moved
-    pub fn set_user(&mut self, v: ::std::string::String) {
-        self.user = v;
+    pub fn set_name(&mut self, v: ::std::string::String) {
+        self.name = v;
     }
 
     // Mutable pointer to the field.
     // If field is not initialized, it is initialized with default value first.
-    pub fn mut_user(&mut self) -> &mut ::std::string::String {
-        &mut self.user
+    pub fn mut_name(&mut self) -> &mut ::std::string::String {
+        &mut self.name
     }
 
     // Take field
-    pub fn take_user(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.user, ::std::string::String::new())
+    pub fn take_name(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.name, ::std::string::String::new())
     }
 }
 
-impl ::protobuf::Message for ExampleRequest {
+impl ::protobuf::Message for ExampleTable {
     fn is_initialized(&self) -> bool {
         true
     }
@@ -103,7 +103,7 @@ impl ::protobuf::Message for ExampleRequest {
                     self.id = tmp;
                 },
                 2 => {
-                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.user)?;
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.name)?;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -120,8 +120,8 @@ impl ::protobuf::Message for ExampleRequest {
         if self.id != 0 {
             my_size += ::protobuf::rt::value_size(1, self.id, ::protobuf::wire_format::WireTypeVarint);
         }
-        if !self.user.is_empty() {
-            my_size += ::protobuf::rt::string_size(2, &self.user);
+        if !self.name.is_empty() {
+            my_size += ::protobuf::rt::string_size(2, &self.name);
         }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
@@ -132,8 +132,8 @@ impl ::protobuf::Message for ExampleRequest {
         if self.id != 0 {
             os.write_int32(1, self.id)?;
         }
-        if !self.user.is_empty() {
-            os.write_string(2, &self.user)?;
+        if !self.name.is_empty() {
+            os.write_string(2, &self.name)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -165,8 +165,8 @@ impl ::protobuf::Message for ExampleRequest {
         Self::descriptor_static()
     }
 
-    fn new() -> ExampleRequest {
-        ExampleRequest::new()
+    fn new() -> ExampleTable {
+        ExampleTable::new()
     }
 
     fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
@@ -175,112 +175,68 @@ impl ::protobuf::Message for ExampleRequest {
             let mut fields = ::std::vec::Vec::new();
             fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeInt32>(
                 "id",
-                |m: &ExampleRequest| { &m.id },
-                |m: &mut ExampleRequest| { &mut m.id },
+                |m: &ExampleTable| { &m.id },
+                |m: &mut ExampleTable| { &mut m.id },
             ));
             fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "user",
-                |m: &ExampleRequest| { &m.user },
-                |m: &mut ExampleRequest| { &mut m.user },
+                "name",
+                |m: &ExampleTable| { &m.name },
+                |m: &mut ExampleTable| { &mut m.name },
             ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<ExampleRequest>(
-                "ExampleRequest",
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<ExampleTable>(
+                "ExampleTable",
                 fields,
                 file_descriptor_proto()
             )
         })
     }
 
-    fn default_instance() -> &'static ExampleRequest {
-        static instance: ::protobuf::rt::LazyV2<ExampleRequest> = ::protobuf::rt::LazyV2::INIT;
-        instance.get(ExampleRequest::new)
+    fn default_instance() -> &'static ExampleTable {
+        static instance: ::protobuf::rt::LazyV2<ExampleTable> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(ExampleTable::new)
     }
 }
 
-impl ::protobuf::Clear for ExampleRequest {
+impl ::protobuf::Clear for ExampleTable {
     fn clear(&mut self) {
         self.id = 0;
-        self.user.clear();
+        self.name.clear();
         self.unknown_fields.clear();
     }
 }
 
-impl ::std::fmt::Debug for ExampleRequest {
+impl ::std::fmt::Debug for ExampleTable {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         ::protobuf::text_format::fmt(self, f)
     }
 }
 
-impl ::protobuf::reflect::ProtobufValue for ExampleRequest {
+impl ::protobuf::reflect::ProtobufValue for ExampleTable {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
 #[derive(PartialEq,Clone,Default)]
-pub struct ExampleResponse {
-    // message fields
-    pub id: i32,
-    pub user: ::std::string::String,
+pub struct Empty {
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
 }
 
-impl<'a> ::std::default::Default for &'a ExampleResponse {
-    fn default() -> &'a ExampleResponse {
-        <ExampleResponse as ::protobuf::Message>::default_instance()
+impl<'a> ::std::default::Default for &'a Empty {
+    fn default() -> &'a Empty {
+        <Empty as ::protobuf::Message>::default_instance()
     }
 }
 
-impl ExampleResponse {
-    pub fn new() -> ExampleResponse {
+impl Empty {
+    pub fn new() -> Empty {
         ::std::default::Default::default()
     }
-
-    // int32 id = 1;
-
-
-    pub fn get_id(&self) -> i32 {
-        self.id
-    }
-    pub fn clear_id(&mut self) {
-        self.id = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_id(&mut self, v: i32) {
-        self.id = v;
-    }
-
-    // string user = 2;
-
-
-    pub fn get_user(&self) -> &str {
-        &self.user
-    }
-    pub fn clear_user(&mut self) {
-        self.user.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_user(&mut self, v: ::std::string::String) {
-        self.user = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_user(&mut self) -> &mut ::std::string::String {
-        &mut self.user
-    }
-
-    // Take field
-    pub fn take_user(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.user, ::std::string::String::new())
-    }
 }
 
-impl ::protobuf::Message for ExampleResponse {
+impl ::protobuf::Message for Empty {
     fn is_initialized(&self) -> bool {
         true
     }
@@ -289,16 +245,6 @@ impl ::protobuf::Message for ExampleResponse {
         while !is.eof()? {
             let (field_number, wire_type) = is.read_tag_unpack()?;
             match field_number {
-                1 => {
-                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
-                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
-                    }
-                    let tmp = is.read_int32()?;
-                    self.id = tmp;
-                },
-                2 => {
-                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.user)?;
-                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -311,24 +257,12 @@ impl ::protobuf::Message for ExampleResponse {
     #[allow(unused_variables)]
     fn compute_size(&self) -> u32 {
         let mut my_size = 0;
-        if self.id != 0 {
-            my_size += ::protobuf::rt::value_size(1, self.id, ::protobuf::wire_format::WireTypeVarint);
-        }
-        if !self.user.is_empty() {
-            my_size += ::protobuf::rt::string_size(2, &self.user);
-        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
     }
 
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
-        if self.id != 0 {
-            os.write_int32(1, self.id)?;
-        }
-        if !self.user.is_empty() {
-            os.write_string(2, &self.user)?;
-        }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -359,53 +293,41 @@ impl ::protobuf::Message for ExampleResponse {
         Self::descriptor_static()
     }
 
-    fn new() -> ExampleResponse {
-        ExampleResponse::new()
+    fn new() -> Empty {
+        Empty::new()
     }
 
     fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
         static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
         descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeInt32>(
-                "id",
-                |m: &ExampleResponse| { &m.id },
-                |m: &mut ExampleResponse| { &mut m.id },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "user",
-                |m: &ExampleResponse| { &m.user },
-                |m: &mut ExampleResponse| { &mut m.user },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<ExampleResponse>(
-                "ExampleResponse",
+            let fields = ::std::vec::Vec::new();
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Empty>(
+                "Empty",
                 fields,
                 file_descriptor_proto()
             )
         })
     }
 
-    fn default_instance() -> &'static ExampleResponse {
-        static instance: ::protobuf::rt::LazyV2<ExampleResponse> = ::protobuf::rt::LazyV2::INIT;
-        instance.get(ExampleResponse::new)
+    fn default_instance() -> &'static Empty {
+        static instance: ::protobuf::rt::LazyV2<Empty> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(Empty::new)
     }
 }
 
-impl ::protobuf::Clear for ExampleResponse {
+impl ::protobuf::Clear for Empty {
     fn clear(&mut self) {
-        self.id = 0;
-        self.user.clear();
         self.unknown_fields.clear();
     }
 }
 
-impl ::std::fmt::Debug for ExampleResponse {
+impl ::std::fmt::Debug for Empty {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         ::protobuf::text_format::fmt(self, f)
     }
 }
 
-impl ::protobuf::reflect::ProtobufValue for ExampleResponse {
+impl ::protobuf::reflect::ProtobufValue for Empty {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
@@ -413,14 +335,12 @@ impl ::protobuf::reflect::ProtobufValue for ExampleResponse {
 
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n\x17examples/example2.proto\x12\x07pg_demo\x1a\x0cpandit.proto\x1a\x15\
-    format/postgres.proto\x1a\rhandler.proto\"B\n\x0eExampleRequest\x12\x1c\
-    \n\x02id\x18\x01\x20\x01(\x05R\x02idB\x0c\xc2\xb6\x18\x04\xd0\xb6\x18\
-    \x01\xa8\xb7\x18\x01\x12\x12\n\x04user\x18\x02\x20\x01(\tR\x04user\"?\n\
-    \x0fExampleResponse\x12\x0e\n\x02id\x18\x01\x20\x01(\x05R\x02id\x12\x12\
-    \n\x04user\x18\x02\x20\x01(\tR\x04user:\x08\xf2\xb6\x18\x04.obj2n\n\nPos\
-    tgreSQL\x12N\n\nGetExample\x12\x17.pg_demo.ExampleRequest\x1a\x18.pg_dem\
-    o.ExampleResponse\"\r\x92\xb7\x18\x05\x80\xa8\x1d\xb8\x17\xaa\xb6\x18\0\
-    \x1a\x10\xb2\xb6\x18\0\xd2\xb5\x18\x08postgresb\x06proto3\
+    format/postgres.proto\x1a\rhandler.proto\"@\n\x0cExampleTable\x12\x1c\n\
+    \x02id\x18\x01\x20\x01(\x05R\x02idB\x0c\xc2\xb6\x18\x04\xd0\xb6\x18\x01\
+    \xa8\xb7\x18\x01\x12\x12\n\x04name\x18\x02\x20\x01(\tR\x04name\"\x07\n\
+    \x05Empty2b\n\nPostgreSQL\x12B\n\nGetExample\x12\x15.pg_demo.ExampleTabl\
+    e\x1a\x0e.pg_demo.Empty\"\r\x92\xb7\x18\x05\x80\xa8\x1d\xb8\x17\xaa\xb6\
+    \x18\0\x1a\x10\xb2\xb6\x18\0\xd2\xb5\x18\x08postgresb\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

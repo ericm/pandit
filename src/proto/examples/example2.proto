@@ -6,15 +6,12 @@ import "handler.proto";
 
 package pg_demo;
 
-message ExampleRequest {
+message ExampleTable {
   int32 id = 1 [ (pandit.key) = true, (pandit.format.postgres_field) = {key : true} ];
-  string user = 2;
+  string name = 2;
 }
 
-message ExampleResponse {
-  option (pandit.path) = ".obj";
-  int32 id = 1;
-  string user = 2;
+message Empty {
 }
 
 service PostgreSQL {
@@ -22,7 +19,7 @@ service PostgreSQL {
   option (pandit.format.postgres_service) = {
   };
 
-  rpc GetExample(ExampleRequest) returns (ExampleResponse) {
+  rpc GetExample(ExampleTable) returns (Empty) {
     option (pandit.format.postgres) = {
       command : INSERT
     };
