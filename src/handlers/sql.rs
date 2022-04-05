@@ -327,8 +327,60 @@ impl SQLHandler {
                     query.to_string(sea_query::PostgresQueryBuilder),
                 ));
             }
+            PostgresCommand::SELECT => {
+                let mut query = Query::select();
+                for (val, col) in vals.iter().zip(cols.iter()) {
+                    match val {
+                        sea_query::Value::Int(v) => match v {
+                            Some(_) => {}
+                            None => continue,
+                        },
+                        _ => {}
+                    }
+                    let cond = match postgres_field
+                        .get(col.descriptor.options.as_ref().unwrap_or_default())
+                    {
+                        Some(opts) => match opts.condition.enum_value() {
+                            Ok(opts) => opts,
+                            Err(_) => continue,
+                        },
+                        None => continue,
+                    };
+                    match cond {
+                        PostgresCondition::EQ => {
+                            query.and_where(Expr::col(col.clone()).eq(val.clone()));
+                        }
+                        PostgresCondition::NE => {
+                            query.and_where(Expr::col(col.clone()).ne(val.clone()));
+                        }
+                        PostgresCondition::LE => {
+                            query.and_where(
+                                Expr::col(col.clone()).less_or_equal(Expr::val(val.clone())),
+                            );
+                        }
+                        PostgresCondition::LT => {
+                            query.and_where(
+                                Expr::col(col.clone()).less_than(Expr::val(val.clone())),
+                            );
+                        }
+                        PostgresCondition::GE => {
+                            query.and_where(
+                                Expr::col(col.clone()).greater_or_equal(Expr::val(val.clone())),
+                            );
+                        }
+                        PostgresCondition::GT => {
+                            query.and_where(
+                                Expr::col(col.clone()).greater_than(Expr::val(val.clone())),
+                            );
+                        }
+                    };
+                }
+                cmds.push((
+                    message.key().clone(),
+                    query.to_string(sea_query::PostgresQueryBuilder),
+                ));
+            },
             PostgresCommand::UPDATE => todo!(), // TODO: Implement
-            PostgresCommand::SELECT => todo!(), // TODO: Implement
         };
         Ok(primary_key)
     }

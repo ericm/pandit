@@ -28,6 +28,9 @@ message PostgresField {
   bool key = 50026;
 }
 
+message Empty {
+}
+
 extend google.protobuf.MethodOptions { Postgres postgres = 50021; }
 extend google.protobuf.ServiceOptions {
   PostgresService postgres_service = 50022;

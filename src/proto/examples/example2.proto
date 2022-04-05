@@ -8,7 +8,7 @@ package pg_demo;
 
 message ExampleTable {
   int32 id = 1 [ (pandit.key) = true, (pandit.format.postgres_field) = {key : true} ];
-  string name = 2;
+  string name = 2 [];
 }
 
 message Empty {
@@ -19,12 +19,21 @@ service PostgreSQL {
   option (pandit.format.postgres_service) = {
   };
 
-  rpc GetExample(ExampleTable) returns (Empty) {
+  rpc SetExample(ExampleTable) returns (Empty) {
     option (pandit.format.postgres) = {
       command : INSERT
     };
     option (pandit.cache) = {
       cache_time : 3000
+    };
+  }
+
+  rpc GetExample(ExampleTable) returns (ExampleTable) {
+    option (pandit.format.postgres) = {
+      command : SELECT
+    };
+    option (pandit.cache) = {
+      cache_time : 4000
     };
   }
 }
