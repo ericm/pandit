@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+import "pandit.proto";
+import "format/http.proto";
+import "handler.proto";
+
+package http_demo;
+
+message FactorialRequest {
+  int32 number = 1 [ (pandit.key) = true ];
+}
+
+message FactorialResponse {
+  int32 response = 1;
+}
+
+service FactorialService {
+  option (pandit.name) = "factorial";
+  option (pandit.format.http_service) = {
+    hostname : "localhost"
+    version : VERSION_1_1
+  };
+
+  rpc GetFactorial(FactorialRequest) returns (FactorialResponse) {
+    option (pandit.format.http) = {
+      post : "/factorial"
+    };
+    option (pandit.handler) = JSON;
+    option (pandit.cache) = {
+      cache_time : 3000
+    };
+  }
+}

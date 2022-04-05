@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+import "pandit.proto";
+import "format/postgres.proto";
+import "handler.proto";
+
+package pg_demo;
+
+message NumberTable {
+  int32 num = 1 [ (pandit.key) = true, (pandit.format.postgres_field) = {key : true} ];
+}
+
+message Empty {
+}
+
+service PostgreNumStore {
+  option (pandit.name) = "postgres";
+  option (pandit.format.postgres_service) = {
+  };
+
+  rpc SetNumber(NumberTable) returns (Empty) {
+    option (pandit.format.postgres) = {
+      command : INSERT
+    };
+    option (pandit.cache) = {
+      cache_time : 3000
+    };
+  }
+
+  rpc GetNumber(NumberTable) returns (NumberTable) {
+    option (pandit.format.postgres) = {
+      command : SELECT
+    };
+    option (pandit.cache) = {
+      cache_time : 4000
+    };
+  }
+}
