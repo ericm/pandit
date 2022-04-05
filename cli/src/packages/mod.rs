@@ -5,10 +5,13 @@ use hyper_tls::HttpsConnector;
 use std::{
     collections::HashMap,
     error::Error,
-    process::{Command, ExitStatus, Stdio},
+    path::PathBuf,
+    process::{Command, ExitStatus, Stdio}, fs::File, io::Write,
 };
 
 use serde::{Deserialize, Serialize};
+
+use crate::Args;
 
 #[derive(Deserialize, Serialize)]
 pub struct Index {
@@ -21,6 +24,7 @@ pub struct Package {
     pub image: Image,
     pub readme_url: Option<String>,
     pub logo_url: Option<String>,
+    pub proto_url: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -57,7 +61,7 @@ macro_rules! handle_output {
 }
 
 impl Package {
-    pub async fn install(&self) -> Result<(), Box<dyn Error + 'static>> {
+    pub async fn install(&self, name: String, args: &Args) -> Result<(), Box<dyn Error + 'static>> {
         match &self.image {
             Image::Helm {
                 repo_url,
@@ -129,6 +133,25 @@ impl Package {
             }
             Image::Docker { compose_file } => todo!(),
         };
+
+        let https = HttpsConnector::new();
+        let client = hyper::Client::builder().build::<_, hyper::Body>(https);
+        let res = client.get(self.proto_url.parse()?).await?;
+        let body = hyper::body::to_bytes(res.into_body()).await?;
+        let path = PathBuf::from(&args.proto_path)
+            .join(name)
+            .with_extension("proto")
+            .to_str()
+            .unwrap()
+            .to_string();
+        let mut save_file = File::create(&path)?;
+        save_file.write_all(&body.to_vec()[..])?;
+        println!(
+            "{} {}Installed proto to '{}'",
+            style("[6/?]").bold().dim(),
+            Emoji("✅️ ", ""),
+            style(path).green(),
+        );
         Ok(())
     }
 }

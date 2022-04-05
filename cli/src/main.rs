@@ -29,7 +29,7 @@ struct Args {
     service: ServiceCommand,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Subcommand, Clone)]
 enum ServiceCommand {
     #[clap(about = "Add a new service to pandit")]
     Add {
@@ -80,7 +80,7 @@ async fn main() {
     let ch = ChannelBuilder::new(env).connect(app.daemon_address.as_str());
     let client = api_proto::api_grpc::ApiClient::new(ch);
     let proto_path = {
-        let mut path = PathBuf::from(app.proto_path);
+        let mut path = PathBuf::from(app.proto_path.clone());
         if path.is_relative() {
             path = current_dir().unwrap().join(path);
         }
@@ -101,7 +101,7 @@ async fn main() {
         }
     };
 
-    match &app.service {
+    match app.service.clone() {
         ServiceCommand::Add { path } => {
             println!(
                 "{} {}Using proto library '{}'...",
@@ -171,7 +171,7 @@ async fn main() {
                 style("[1/?]").bold().dim(),
                 Emoji("⬇️  ", ""),
             );
-            let index = match packages::Index::get(app.repo_index).await {
+            let index = match packages::Index::get(app.repo_index.clone()).await {
                 Ok(v) => v,
                 Err(e) => {
                     error("pulling index of packages", e);
@@ -182,9 +182,9 @@ async fn main() {
                 "{} {}Searching for package '{}'...",
                 style("[2/?]").bold().dim(),
                 Emoji("🔍 ", ""),
-                style(name).green().bold(),
+                style(&name).green().bold(),
             );
-            let pkg = match index.packages.get(name) {
+            let pkg = match index.packages.get(&name) {
                 Some(v) => v,
                 None => {
                     error(
@@ -194,7 +194,7 @@ async fn main() {
                     exit(1);
                 }
             };
-            match pkg.install().await {
+            match pkg.install(name, &app).await {
                 Ok(_) => {}
                 Err(err) => {
                     error("installing the package", err);
