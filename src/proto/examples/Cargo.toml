@@ -5,8 +5,12 @@ edition = '2018'
 build = "./build.rs"
 
 [[bin]]
-name = "test_examples"
-path = "main.rs"
+name = "test_example1"
+path = "main1.rs"
+
+[[bin]]
+name = "test_example2"
+path = "main2.rs"
 
 [dependencies]
 grpcio = "0.9.1"

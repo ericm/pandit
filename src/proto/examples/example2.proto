@@ -7,7 +7,7 @@ import "handler.proto";
 package pg_demo;
 
 message ExampleRequest {
-  int32 id = 1 [ (pandit.key) = true ];
+  int32 id = 1 [ (pandit.key) = true, (pandit.format.postgres_field) = {key : true} ];
   string user = 2;
 }
 
@@ -17,13 +17,14 @@ message ExampleResponse {
   string user = 2;
 }
 
-service PostgresService {
+service PostgreSQL {
   option (pandit.name) = "postgres";
   option (pandit.format.postgres_service) = {
   };
 
   rpc GetExample(ExampleRequest) returns (ExampleResponse) {
     option (pandit.format.postgres) = {
+      command : INSERT
     };
     option (pandit.cache) = {
       cache_time : 3000

@@ -33,6 +33,7 @@ use value::Value;
 pub enum Protocol {
     None,
     HTTP,
+    Postgres,
 }
 
 pub mod format {
@@ -86,18 +87,6 @@ impl std::error::Error for ServiceError {}
 pub trait Handler {
     fn from_payload(&self, buf: bytes::Bytes) -> ServiceResult<Fields>;
     async fn to_payload(&self, fields: &Fields) -> ServiceResult<bytes::Bytes>;
-    // fn fields_to_payload(&self, fields: &Fields) {
-    //     for field in fields.iter() {
-    //         let value = match field.value() {
-    //             Some(v) => v,
-    //             None => continue,
-    //         };
-    //     }
-    // }
-}
-
-pub union MethodAPI {
-    pub http: ManuallyDrop<format::HTTP>,
 }
 
 pub struct MessageField {
@@ -208,7 +197,7 @@ impl Serialize for Fields {
 }
 
 pub struct Method {
-    pub api: MethodAPI,
+    pub api: Option<format::HTTP>,
     pub handler: Option<Arc<dyn Handler + Sync + Send + 'static>>,
     pub input_message: String,
     pub output_message: String,
@@ -333,9 +322,7 @@ impl<'de> Deserialize<'de> for Method {
                     cache: cache.ok_or_else(|| de::Error::missing_field("cache"))?,
                     primary_key: primary_key
                         .ok_or_else(|| de::Error::missing_field("primary_key"))?,
-                    api: MethodAPI {
-                        http: Default::default(),
-                    },
+                    api: None,
                     handler: None,
                 };
                 Ok(out)
@@ -387,6 +374,7 @@ impl Service {
         let mut output = Self::get_service_attrs_base(file, writer, broker, &service)?;
         match Self::get_service_type(&service) {
             Protocol::HTTP => output.get_service_attrs_http(&service)?,
+            Protocol::Postgres => output.get_service_attrs_postgres(&service)?,
             _ => panic!("unknown protocol"),
         };
 
@@ -394,11 +382,16 @@ impl Service {
     }
 
     fn get_service_type(service: &protobuf::descriptor::ServiceDescriptorProto) -> Protocol {
-        if crate::proto::gen::pandit::exts::name
+        if crate::proto::gen::format::http::exts::http_service
             .get(service.options.get_ref())
             .is_some()
         {
             Protocol::HTTP
+        } else if crate::proto::gen::format::postgres::exts::postgres_service
+            .get(service.options.get_ref())
+            .is_some()
+        {
+            Protocol::Postgres
         } else {
             Protocol::None
         }
@@ -481,9 +474,42 @@ impl Service {
                         input_message: input_message.clone(),
                         output_message: output_message.clone(),
                         handler: self.handler_for_method(&method),
-                        api: MethodAPI {
-                            http: ManuallyDrop::new(api),
-                        },
+                        api: Some(api),
+                        cache: base::method_cache.get(method.options.get_ref()),
+                        primary_key: self.primary_key_for_method(&input_message),
+                    },
+                )
+            })
+            .collect();
+
+        Ok(())
+    }
+
+    fn get_service_attrs_postgres(
+        &mut self,
+        service: &protobuf::descriptor::ServiceDescriptorProto,
+    ) -> Result<(), ServiceError> {
+        use proto::gen::pandit::exts;
+
+        let opts = service.options.get_ref();
+        self.name = exts::name.get(opts).unwrap();
+        self.protocol = Protocol::Postgres;
+
+        self.methods = service
+            .method
+            .iter()
+            .map(|method| {
+                let input_message = method.get_input_type().to_string();
+                let input_message = input_message.split('.').last().unwrap().to_string();
+                let output_message = method.get_output_type().to_string();
+                let output_message = output_message.split('.').last().unwrap().to_string();
+                (
+                    method.get_name().to_string(),
+                    Method {
+                        input_message: input_message.clone(),
+                        output_message: output_message.clone(),
+                        handler: self.handler_for_method(&method),
+                        api: None,
                         cache: base::method_cache.get(method.options.get_ref()),
                         primary_key: self.primary_key_for_method(&input_message),
                     },
@@ -524,29 +550,29 @@ impl Service {
                     let val = val.enum_value().unwrap();
                     match Self::handler(val, message.path.clone()) {
                         Some(v) => Some(v),
-                        None => {
-                            // Quick solution to default postgres service to SQL handler.
-                            match postgres.get(options) {
-                                Some(opts) => {
-                                    let input_message = method.get_input_type().to_string();
-                                    let input_message =
-                                        input_message.split('.').last().unwrap().to_string();
-                                    let output_message = method.get_output_type().to_string();
-                                    let output_message =
-                                        output_message.split('.').last().unwrap().to_string();
-                                    Some(Arc::new(SQLHandler::new(
-                                        self.messages.clone(),
-                                        input_message,
-                                        output_message,
-                                        opts,
-                                    )))
-                                }
-                                None => None,
-                            }
-                        }
+                        None => None
                     }
                 }
-                None => None,
+                None => {
+                    // Quick solution to default postgres service to SQL handler.
+                    match postgres.get(options) {
+                        Some(opts) => {
+                            let input_message = method.get_input_type().to_string();
+                            let input_message =
+                                input_message.split('.').last().unwrap().to_string();
+                            let output_message = method.get_output_type().to_string();
+                            let output_message =
+                                output_message.split('.').last().unwrap().to_string();
+                            Some(Arc::new(SQLHandler::new(
+                                self.messages.clone(),
+                                input_message,
+                                output_message,
+                                opts,
+                            )))
+                        }
+                        None => None,
+                    }
+                }
             }
         }
     }
@@ -562,31 +588,39 @@ impl Service {
         }
     }
 
-    fn context_from_api(api: &MethodAPI) -> ServiceResult<WriterContext> {
+    fn context_from_api(api: &Option<format::HTTP>) -> ServiceResult<WriterContext> {
         let context = WriterContext::new();
         use crate::proto::gen::format::http::http::Pattern;
-        match unsafe { api.http.pattern.as_ref() }.ok_or(ServiceError::new("no pattern in api"))? {
-            Pattern::get(s) => {
-                context.insert("method".to_string(), "GET".to_string());
-                context.insert("uri".to_string(), s.clone());
-            }
-            Pattern::put(s) => {
-                context.insert("method".to_string(), "PUT".to_string());
-                context.insert("uri".to_string(), s.clone());
-            }
-            Pattern::post(s) => {
-                context.insert("method".to_string(), "POST".to_string());
-                context.insert("uri".to_string(), s.clone());
-            }
-            Pattern::delete(s) => {
-                context.insert("method".to_string(), "DELETE".to_string());
-                context.insert("uri".to_string(), s.clone());
-            }
-            Pattern::patch(s) => {
-                context.insert("method".to_string(), "PATCH".to_string());
-                context.insert("uri".to_string(), s.clone());
-            }
+        match api {
+            Some(http) => match http
+                .pattern
+                .as_ref()
+                .ok_or(ServiceError::new("no pattern in api"))?
+            {
+                Pattern::get(s) => {
+                    context.insert("method".to_string(), "GET".to_string());
+                    context.insert("uri".to_string(), s.clone());
+                }
+                Pattern::put(s) => {
+                    context.insert("method".to_string(), "PUT".to_string());
+                    context.insert("uri".to_string(), s.clone());
+                }
+                Pattern::post(s) => {
+                    context.insert("method".to_string(), "POST".to_string());
+                    context.insert("uri".to_string(), s.clone());
+                }
+                Pattern::delete(s) => {
+                    context.insert("method".to_string(), "DELETE".to_string());
+                    context.insert("uri".to_string(), s.clone());
+                }
+                Pattern::patch(s) => {
+                    context.insert("method".to_string(), "PATCH".to_string());
+                    context.insert("uri".to_string(), s.clone());
+                }
+            },
+            None => {}
         }
+
         Ok(context)
     }
 }

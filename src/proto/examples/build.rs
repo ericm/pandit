@@ -8,7 +8,7 @@ fn main() {
     let output_dir = current_dir().unwrap();
     println!("cargo:rerun-if-changed={}", proto_root.to_str().unwrap());
     protoc_grpcio::compile_grpc_protos(
-        &["example1.proto"],
+        &["example1.proto", "example2.proto"],
         &[proto_root.to_str().unwrap().to_string()],
         &output_dir,
         None,

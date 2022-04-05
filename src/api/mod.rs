@@ -241,13 +241,17 @@ impl ApiServer {
     }
 }
 
-fn proto_libraries() -> [(&'static str, &'static [u8]); 3] {
+fn proto_libraries() -> [(&'static str, &'static [u8]); 4] {
     [
         ("pandit", include_bytes!("../proto/pandit.proto")),
         ("handler", include_bytes!("../proto/handler.proto")),
         (
             "format/http.proto",
             include_bytes!("../proto/format/http.proto"),
+        ),
+        (
+            "format/postgres.proto",
+            include_bytes!("../proto/format/postgres.proto"),
         ),
     ]
 }
