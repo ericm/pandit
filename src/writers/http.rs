@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::Arc};
+use std::{str::FromStr, sync::Arc, convert::TryInto};
 
 use async_trait::async_trait;
 use hyper::{body::HttpBody, client::conn};
@@ -67,6 +67,7 @@ fn request_from_context(
     body: bytes::Bytes,
     addr: String,
 ) -> ServiceResult<http::request::Request<hyper::Body>> {
+    let len = body.len();
     let body = hyper::Body::from(body);
     let mut builder = http::Request::builder();
     let mut uri = http::Uri::builder().scheme("http");
@@ -87,6 +88,12 @@ fn request_from_context(
         let value = http::HeaderValue::from_str(v.as_str())?;
         builder = builder.header(name, value)
     }
+
+    // Set Content-Length.
+    builder = builder.header(
+        http::header::HeaderName::from_static("Content-Length"),
+        http::HeaderValue::from_str(len.to_string().as_str())?,
+    );
 
     uri = uri.authority(addr);
     let uri = uri.build()?;
