@@ -25,15 +25,15 @@ fn main() {
         resp.response
     };
 
-    // Set value in postgres.
-    let env = Arc::new(EnvBuilder::new().build());
-    let ch = ChannelBuilder::new(env).connect("localhost:50122");
-    let client = postgres_numstore_grpc::PostgreNumStoreClient::new(ch);
+    // // Set value in postgres.
+    // let env = Arc::new(EnvBuilder::new().build());
+    // let ch = ChannelBuilder::new(env).connect("localhost:50122");
+    // let client = postgres_numstore_grpc::PostgreNumStoreClient::new(ch);
 
-    let mut req = postgres_numstore::NumberTable::new();
-    req.set_num(fact);
-    let _ = client.set_number(&req).unwrap();
+    // let mut req = postgres_numstore::NumberTable::new();
+    // req.set_num(fact);
+    // let _ = client.set_number(&req).unwrap();
 
-    let resp = client.get_number(&req).unwrap();
-    println!("The factorial that was calculated by the factorial service and stored in the postgres service is: {}", resp.num);
+    // let resp = client.get_number(&req).unwrap();
+    println!("The factorial that was calculated by the factorial service: {}", fact);
 }
