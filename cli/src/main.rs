@@ -194,7 +194,7 @@ async fn main() {
                     exit(1);
                 }
             };
-            match pkg.install(name, &app).await {
+            match pkg.install(name, &app.proto_path).await {
                 Ok(_) => {}
                 Err(err) => {
                     error("installing the package", err);

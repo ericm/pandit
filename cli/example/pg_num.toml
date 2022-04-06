@@ -1,0 +1,9 @@
+[metadata]
+name = "PostgreNumStore"
+proto = "postgres_numstrore"
+port = 5432
+
+[k8s]
+type = "Pod"
+name = "postgres_numstrore"
+
