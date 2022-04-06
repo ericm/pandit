@@ -550,7 +550,7 @@ impl Service {
                     let val = val.enum_value().unwrap();
                     match Self::handler(val, message.path.clone()) {
                         Some(v) => Some(v),
-                        None => None
+                        None => None,
                     }
                 }
                 None => {
@@ -684,6 +684,7 @@ impl Sender for Service {
         use bytes::BufMut;
         let mut buf = buf.writer();
         {
+            let message = messages.get(&method.output_message).unwrap();
             let mut output = protobuf::CodedOutputStream::new(&mut buf);
             message.write_bytes_from_fields(&mut output, &resp_fields)?;
         }

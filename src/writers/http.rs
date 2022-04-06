@@ -91,7 +91,7 @@ fn request_from_context(
 
     // Set Content-Length.
     builder = builder.header(
-        http::header::HeaderName::from_static("Content-Length"),
+        http::header::HeaderName::from_str("Content-Length")?,
         http::HeaderValue::from_str(len.to_string().as_str())?,
     );
 

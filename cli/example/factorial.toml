@@ -1,8 +1,8 @@
 [metadata]
-name = "PostgreNumStore"
-proto = "postgres_numstrore"
-port = 5432
+name = "FactorialService"
+proto = "factorial"
+port = 8080
 
-[k8s]
-type = "Pod"
-name = "postgres_numstrore"
+# [k8s]
+# type = "Pod"
+# name = "postgres_numstrore"

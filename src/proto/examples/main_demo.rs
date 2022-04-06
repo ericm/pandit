@@ -1,4 +1,4 @@
-use std::{sync::Arc, io};
+use std::{io, sync::Arc};
 
 use grpcio::{ChannelBuilder, EnvBuilder};
 
@@ -24,7 +24,7 @@ fn main() {
         let resp = client.get_factorial(&req).unwrap();
         resp.response
     };
-    
+
     // Set value in postgres.
     let env = Arc::new(EnvBuilder::new().build());
     let ch = ChannelBuilder::new(env).connect("localhost:50122");
