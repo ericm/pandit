@@ -432,7 +432,7 @@ impl K8sHandler {
         let mut ips = HashSet::<String>::new();
         let pod_nodes = match req.container.as_ref().ok_or("no container in req")? {
             k8s_pod(id) => {
-                let pods: kube::Api<Pod> = kube::Api::default_namespaced(client);
+                let pods: kube::Api<Pod> = kube::Api::default_namespaced(client.clone());
                 log::info!("k8s: connected to default namespace pod api");
                 let pod: Pod = pods.get_opt(id.as_str()).await?.ok_or("no pod found")?;
                 log::info!("k8s: found pod with id: {}", id);
@@ -475,7 +475,7 @@ impl K8sHandler {
 
                 let selectors = spec.selector.match_labels.unwrap_or_default();
                 pods_from_labels(selectors, &mut ips, &current_node).await?
-            },
+            }
             docker_id(_) => {
                 return Err(ServiceError::new("cannot use docker_id with k8s"));
             }
@@ -486,10 +486,9 @@ impl K8sHandler {
         }
         // Send to other pod nodes *if* this node is not required to host the service.
         for pod_node in pod_nodes {
-            log::info!("k8s: pod node: {:?}", pod_node);
+            log::info!("k8s: pod node: {}", pod_node);
             let node_ip = {
-                let client = kube::Client::try_default().await?;
-                let nodes: kube::Api<Node> = kube::Api::default_namespaced(client);
+                let nodes: kube::Api<Node> = kube::Api::default_namespaced(client.clone());
                 let node = nodes.get(pod_node.as_str()).await?;
                 let status = node.status.ok_or("no node status")?;
                 let addresses = status.addresses.ok_or("no node addresses")?;
