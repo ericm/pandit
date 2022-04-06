@@ -12,6 +12,10 @@ path = "main1.rs"
 name = "test_example2"
 path = "main2.rs"
 
+[[bin]]
+name = "demo"
+path = "main_demo.rs"
+
 [dependencies]
 grpcio = "0.9.1"
 protobuf = "2.0"

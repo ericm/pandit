@@ -8,7 +8,7 @@ package pg_demo;
 
 message ExampleTable {
   int32 id = 1 [ (pandit.key) = true, (pandit.format.postgres_field) = {key : true} ];
-  string name = 2 [];
+  string name = 2;
 }
 
 message Empty {

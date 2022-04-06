@@ -17,76 +17,49 @@
 #![allow(trivial_casts)]
 #![allow(unused_imports)]
 #![allow(unused_results)]
-//! Generated file from `examples/example2.proto`
+//! Generated file from `examples/factorial.proto`
 
 /// Generated files are compatible only with the same version
 /// of protobuf runtime.
 // const _PROTOBUF_VERSION_CHECK: () = ::protobuf::VERSION_2_27_1;
 
 #[derive(PartialEq,Clone,Default)]
-pub struct ExampleTable {
+pub struct FactorialRequest {
     // message fields
-    pub id: i32,
-    pub name: ::std::string::String,
+    pub number: i32,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
 }
 
-impl<'a> ::std::default::Default for &'a ExampleTable {
-    fn default() -> &'a ExampleTable {
-        <ExampleTable as ::protobuf::Message>::default_instance()
+impl<'a> ::std::default::Default for &'a FactorialRequest {
+    fn default() -> &'a FactorialRequest {
+        <FactorialRequest as ::protobuf::Message>::default_instance()
     }
 }
 
-impl ExampleTable {
-    pub fn new() -> ExampleTable {
+impl FactorialRequest {
+    pub fn new() -> FactorialRequest {
         ::std::default::Default::default()
     }
 
-    // int32 id = 1;
+    // int32 number = 1;
 
 
-    pub fn get_id(&self) -> i32 {
-        self.id
+    pub fn get_number(&self) -> i32 {
+        self.number
     }
-    pub fn clear_id(&mut self) {
-        self.id = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_id(&mut self, v: i32) {
-        self.id = v;
-    }
-
-    // string name = 2;
-
-
-    pub fn get_name(&self) -> &str {
-        &self.name
-    }
-    pub fn clear_name(&mut self) {
-        self.name.clear();
+    pub fn clear_number(&mut self) {
+        self.number = 0;
     }
 
     // Param is passed by value, moved
-    pub fn set_name(&mut self, v: ::std::string::String) {
-        self.name = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_name(&mut self) -> &mut ::std::string::String {
-        &mut self.name
-    }
-
-    // Take field
-    pub fn take_name(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.name, ::std::string::String::new())
+    pub fn set_number(&mut self, v: i32) {
+        self.number = v;
     }
 }
 
-impl ::protobuf::Message for ExampleTable {
+impl ::protobuf::Message for FactorialRequest {
     fn is_initialized(&self) -> bool {
         true
     }
@@ -100,10 +73,7 @@ impl ::protobuf::Message for ExampleTable {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
                     let tmp = is.read_int32()?;
-                    self.id = tmp;
-                },
-                2 => {
-                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.name)?;
+                    self.number = tmp;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -117,11 +87,8 @@ impl ::protobuf::Message for ExampleTable {
     #[allow(unused_variables)]
     fn compute_size(&self) -> u32 {
         let mut my_size = 0;
-        if self.id != 0 {
-            my_size += ::protobuf::rt::value_size(1, self.id, ::protobuf::wire_format::WireTypeVarint);
-        }
-        if !self.name.is_empty() {
-            my_size += ::protobuf::rt::string_size(2, &self.name);
+        if self.number != 0 {
+            my_size += ::protobuf::rt::value_size(1, self.number, ::protobuf::wire_format::WireTypeVarint);
         }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
@@ -129,11 +96,8 @@ impl ::protobuf::Message for ExampleTable {
     }
 
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
-        if self.id != 0 {
-            os.write_int32(1, self.id)?;
-        }
-        if !self.name.is_empty() {
-            os.write_string(2, &self.name)?;
+        if self.number != 0 {
+            os.write_int32(1, self.number)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -165,8 +129,8 @@ impl ::protobuf::Message for ExampleTable {
         Self::descriptor_static()
     }
 
-    fn new() -> ExampleTable {
-        ExampleTable::new()
+    fn new() -> FactorialRequest {
+        FactorialRequest::new()
     }
 
     fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
@@ -174,69 +138,80 @@ impl ::protobuf::Message for ExampleTable {
         descriptor.get(|| {
             let mut fields = ::std::vec::Vec::new();
             fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeInt32>(
-                "id",
-                |m: &ExampleTable| { &m.id },
-                |m: &mut ExampleTable| { &mut m.id },
+                "number",
+                |m: &FactorialRequest| { &m.number },
+                |m: &mut FactorialRequest| { &mut m.number },
             ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "name",
-                |m: &ExampleTable| { &m.name },
-                |m: &mut ExampleTable| { &mut m.name },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<ExampleTable>(
-                "ExampleTable",
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<FactorialRequest>(
+                "FactorialRequest",
                 fields,
                 file_descriptor_proto()
             )
         })
     }
 
-    fn default_instance() -> &'static ExampleTable {
-        static instance: ::protobuf::rt::LazyV2<ExampleTable> = ::protobuf::rt::LazyV2::INIT;
-        instance.get(ExampleTable::new)
+    fn default_instance() -> &'static FactorialRequest {
+        static instance: ::protobuf::rt::LazyV2<FactorialRequest> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(FactorialRequest::new)
     }
 }
 
-impl ::protobuf::Clear for ExampleTable {
+impl ::protobuf::Clear for FactorialRequest {
     fn clear(&mut self) {
-        self.id = 0;
-        self.name.clear();
+        self.number = 0;
         self.unknown_fields.clear();
     }
 }
 
-impl ::std::fmt::Debug for ExampleTable {
+impl ::std::fmt::Debug for FactorialRequest {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         ::protobuf::text_format::fmt(self, f)
     }
 }
 
-impl ::protobuf::reflect::ProtobufValue for ExampleTable {
+impl ::protobuf::reflect::ProtobufValue for FactorialRequest {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
 #[derive(PartialEq,Clone,Default)]
-pub struct Empty {
+pub struct FactorialResponse {
+    // message fields
+    pub response: i32,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
 }
 
-impl<'a> ::std::default::Default for &'a Empty {
-    fn default() -> &'a Empty {
-        <Empty as ::protobuf::Message>::default_instance()
+impl<'a> ::std::default::Default for &'a FactorialResponse {
+    fn default() -> &'a FactorialResponse {
+        <FactorialResponse as ::protobuf::Message>::default_instance()
     }
 }
 
-impl Empty {
-    pub fn new() -> Empty {
+impl FactorialResponse {
+    pub fn new() -> FactorialResponse {
         ::std::default::Default::default()
     }
+
+    // int32 response = 1;
+
+
+    pub fn get_response(&self) -> i32 {
+        self.response
+    }
+    pub fn clear_response(&mut self) {
+        self.response = 0;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_response(&mut self, v: i32) {
+        self.response = v;
+    }
 }
 
-impl ::protobuf::Message for Empty {
+impl ::protobuf::Message for FactorialResponse {
     fn is_initialized(&self) -> bool {
         true
     }
@@ -245,6 +220,13 @@ impl ::protobuf::Message for Empty {
         while !is.eof()? {
             let (field_number, wire_type) = is.read_tag_unpack()?;
             match field_number {
+                1 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_int32()?;
+                    self.response = tmp;
+                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -257,12 +239,18 @@ impl ::protobuf::Message for Empty {
     #[allow(unused_variables)]
     fn compute_size(&self) -> u32 {
         let mut my_size = 0;
+        if self.response != 0 {
+            my_size += ::protobuf::rt::value_size(1, self.response, ::protobuf::wire_format::WireTypeVarint);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
     }
 
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if self.response != 0 {
+            os.write_int32(1, self.response)?;
+        }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -293,57 +281,62 @@ impl ::protobuf::Message for Empty {
         Self::descriptor_static()
     }
 
-    fn new() -> Empty {
-        Empty::new()
+    fn new() -> FactorialResponse {
+        FactorialResponse::new()
     }
 
     fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
         static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
         descriptor.get(|| {
-            let fields = ::std::vec::Vec::new();
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Empty>(
-                "Empty",
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeInt32>(
+                "response",
+                |m: &FactorialResponse| { &m.response },
+                |m: &mut FactorialResponse| { &mut m.response },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<FactorialResponse>(
+                "FactorialResponse",
                 fields,
                 file_descriptor_proto()
             )
         })
     }
 
-    fn default_instance() -> &'static Empty {
-        static instance: ::protobuf::rt::LazyV2<Empty> = ::protobuf::rt::LazyV2::INIT;
-        instance.get(Empty::new)
+    fn default_instance() -> &'static FactorialResponse {
+        static instance: ::protobuf::rt::LazyV2<FactorialResponse> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(FactorialResponse::new)
     }
 }
 
-impl ::protobuf::Clear for Empty {
+impl ::protobuf::Clear for FactorialResponse {
     fn clear(&mut self) {
+        self.response = 0;
         self.unknown_fields.clear();
     }
 }
 
-impl ::std::fmt::Debug for Empty {
+impl ::std::fmt::Debug for FactorialResponse {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         ::protobuf::text_format::fmt(self, f)
     }
 }
 
-impl ::protobuf::reflect::ProtobufValue for Empty {
+impl ::protobuf::reflect::ProtobufValue for FactorialResponse {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\x17examples/example2.proto\x12\x07pg_demo\x1a\x0cpandit.proto\x1a\x15\
-    format/postgres.proto\x1a\rhandler.proto\"@\n\x0cExampleTable\x12\x1c\n\
-    \x02id\x18\x01\x20\x01(\x05R\x02idB\x0c\xc2\xb6\x18\x04\xd0\xb6\x18\x01\
-    \xa8\xb7\x18\x01\x12\x12\n\x04name\x18\x02\x20\x01(\tR\x04name\"\x07\n\
-    \x05Empty2\xb1\x01\n\nPostgreSQL\x12B\n\nSetExample\x12\x15.pg_demo.Exam\
-    pleTable\x1a\x0e.pg_demo.Empty\"\r\x92\xb7\x18\x05\x80\xa8\x1d\xb8\x17\
-    \xaa\xb6\x18\0\x12M\n\nGetExample\x12\x15.pg_demo.ExampleTable\x1a\x15.p\
-    g_demo.ExampleTable\"\x11\x92\xb7\x18\x05\x80\xa8\x1d\xa0\x1f\xaa\xb6\
-    \x18\x04\xb8\xb6\x18\x03\x1a\x10\xb2\xb6\x18\0\xd2\xb5\x18\x08postgresb\
-    \x06proto3\
+    \n\x18examples/factorial.proto\x12\tfactorial\x1a\x0cpandit.proto\x1a\
+    \x11format/http.proto\x1a\rhandler.proto\"0\n\x10FactorialRequest\x12\
+    \x1c\n\x06number\x18\x01\x20\x01(\x05R\x06numberB\x04\xa8\xb7\x18\x01\"/\
+    \n\x11FactorialResponse\x12\x1a\n\x08response\x18\x01\x20\x01(\x05R\x08r\
+    esponse2\xa2\x01\n\x10FactorialService\x12j\n\x0cGetFactorial\x12\x1b.fa\
+    ctorial.FactorialRequest\x1a\x1c.factorial.FactorialResponse\"\x1f\x98\
+    \xb8\x18\0\xda\xb5\x18\x0e\x9a\xb5\x18\n/factorial\x92\xb7\x18\x05\x80\
+    \xa8\x1d\xb8\x17\x1a\"\xe2\xb5\x18\x11\xb2\xb5\x18\tlocalhost\xb8\xb5\
+    \x18\x01\xd2\xb5\x18\tfactorialb\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

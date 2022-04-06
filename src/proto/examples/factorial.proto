@@ -4,7 +4,7 @@ import "pandit.proto";
 import "format/http.proto";
 import "handler.proto";
 
-package http_demo;
+package factorial;
 
 message FactorialRequest {
   int32 number = 1 [ (pandit.key) = true ];

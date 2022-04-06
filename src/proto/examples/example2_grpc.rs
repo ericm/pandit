@@ -16,7 +16,14 @@
 #![allow(unused_imports)]
 #![allow(unused_results)]
 
-const METHOD_POSTGRE_SQL_GET_EXAMPLE: ::grpcio::Method<super::example2::ExampleTable, super::example2::Empty> = ::grpcio::Method {
+const METHOD_POSTGRE_SQL_SET_EXAMPLE: ::grpcio::Method<super::example2::ExampleTable, super::example2::Empty> = ::grpcio::Method {
+    ty: ::grpcio::MethodType::Unary,
+    name: "/pg_demo.PostgreSQL/SetExample",
+    req_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
+    resp_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
+};
+
+const METHOD_POSTGRE_SQL_GET_EXAMPLE: ::grpcio::Method<super::example2::ExampleTable, super::example2::ExampleTable> = ::grpcio::Method {
     ty: ::grpcio::MethodType::Unary,
     name: "/pg_demo.PostgreSQL/GetExample",
     req_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
@@ -35,19 +42,35 @@ impl PostgreSqlClient {
         }
     }
 
-    pub fn get_example_opt(&self, req: &super::example2::ExampleTable, opt: ::grpcio::CallOption) -> ::grpcio::Result<super::example2::Empty> {
+    pub fn set_example_opt(&self, req: &super::example2::ExampleTable, opt: ::grpcio::CallOption) -> ::grpcio::Result<super::example2::Empty> {
+        self.client.unary_call(&METHOD_POSTGRE_SQL_SET_EXAMPLE, req, opt)
+    }
+
+    pub fn set_example(&self, req: &super::example2::ExampleTable) -> ::grpcio::Result<super::example2::Empty> {
+        self.set_example_opt(req, ::grpcio::CallOption::default())
+    }
+
+    pub fn set_example_async_opt(&self, req: &super::example2::ExampleTable, opt: ::grpcio::CallOption) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::example2::Empty>> {
+        self.client.unary_call_async(&METHOD_POSTGRE_SQL_SET_EXAMPLE, req, opt)
+    }
+
+    pub fn set_example_async(&self, req: &super::example2::ExampleTable) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::example2::Empty>> {
+        self.set_example_async_opt(req, ::grpcio::CallOption::default())
+    }
+
+    pub fn get_example_opt(&self, req: &super::example2::ExampleTable, opt: ::grpcio::CallOption) -> ::grpcio::Result<super::example2::ExampleTable> {
         self.client.unary_call(&METHOD_POSTGRE_SQL_GET_EXAMPLE, req, opt)
     }
 
-    pub fn get_example(&self, req: &super::example2::ExampleTable) -> ::grpcio::Result<super::example2::Empty> {
+    pub fn get_example(&self, req: &super::example2::ExampleTable) -> ::grpcio::Result<super::example2::ExampleTable> {
         self.get_example_opt(req, ::grpcio::CallOption::default())
     }
 
-    pub fn get_example_async_opt(&self, req: &super::example2::ExampleTable, opt: ::grpcio::CallOption) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::example2::Empty>> {
+    pub fn get_example_async_opt(&self, req: &super::example2::ExampleTable, opt: ::grpcio::CallOption) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::example2::ExampleTable>> {
         self.client.unary_call_async(&METHOD_POSTGRE_SQL_GET_EXAMPLE, req, opt)
     }
 
-    pub fn get_example_async(&self, req: &super::example2::ExampleTable) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::example2::Empty>> {
+    pub fn get_example_async(&self, req: &super::example2::ExampleTable) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::example2::ExampleTable>> {
         self.get_example_async_opt(req, ::grpcio::CallOption::default())
     }
     pub fn spawn<F>(&self, f: F) where F: ::futures::Future<Output = ()> + Send + 'static {
@@ -56,11 +79,16 @@ impl PostgreSqlClient {
 }
 
 pub trait PostgreSql {
-    fn get_example(&mut self, ctx: ::grpcio::RpcContext, req: super::example2::ExampleTable, sink: ::grpcio::UnarySink<super::example2::Empty>);
+    fn set_example(&mut self, ctx: ::grpcio::RpcContext, req: super::example2::ExampleTable, sink: ::grpcio::UnarySink<super::example2::Empty>);
+    fn get_example(&mut self, ctx: ::grpcio::RpcContext, req: super::example2::ExampleTable, sink: ::grpcio::UnarySink<super::example2::ExampleTable>);
 }
 
 pub fn create_postgre_sql<S: PostgreSql + Send + Clone + 'static>(s: S) -> ::grpcio::Service {
     let mut builder = ::grpcio::ServiceBuilder::new();
+    let mut instance = s.clone();
+    builder = builder.add_unary_handler(&METHOD_POSTGRE_SQL_SET_EXAMPLE, move |ctx, req, resp| {
+        instance.set_example(ctx, req, resp)
+    });
     let mut instance = s;
     builder = builder.add_unary_handler(&METHOD_POSTGRE_SQL_GET_EXAMPLE, move |ctx, req, resp| {
         instance.get_example(ctx, req, resp)

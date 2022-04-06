@@ -17,76 +17,49 @@
 #![allow(trivial_casts)]
 #![allow(unused_imports)]
 #![allow(unused_results)]
-//! Generated file from `examples/example2.proto`
+//! Generated file from `examples/postgres_numstore.proto`
 
 /// Generated files are compatible only with the same version
 /// of protobuf runtime.
 // const _PROTOBUF_VERSION_CHECK: () = ::protobuf::VERSION_2_27_1;
 
 #[derive(PartialEq,Clone,Default)]
-pub struct ExampleTable {
+pub struct NumberTable {
     // message fields
-    pub id: i32,
-    pub name: ::std::string::String,
+    pub num: i32,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
 }
 
-impl<'a> ::std::default::Default for &'a ExampleTable {
-    fn default() -> &'a ExampleTable {
-        <ExampleTable as ::protobuf::Message>::default_instance()
+impl<'a> ::std::default::Default for &'a NumberTable {
+    fn default() -> &'a NumberTable {
+        <NumberTable as ::protobuf::Message>::default_instance()
     }
 }
 
-impl ExampleTable {
-    pub fn new() -> ExampleTable {
+impl NumberTable {
+    pub fn new() -> NumberTable {
         ::std::default::Default::default()
     }
 
-    // int32 id = 1;
+    // int32 num = 1;
 
 
-    pub fn get_id(&self) -> i32 {
-        self.id
+    pub fn get_num(&self) -> i32 {
+        self.num
     }
-    pub fn clear_id(&mut self) {
-        self.id = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_id(&mut self, v: i32) {
-        self.id = v;
-    }
-
-    // string name = 2;
-
-
-    pub fn get_name(&self) -> &str {
-        &self.name
-    }
-    pub fn clear_name(&mut self) {
-        self.name.clear();
+    pub fn clear_num(&mut self) {
+        self.num = 0;
     }
 
     // Param is passed by value, moved
-    pub fn set_name(&mut self, v: ::std::string::String) {
-        self.name = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_name(&mut self) -> &mut ::std::string::String {
-        &mut self.name
-    }
-
-    // Take field
-    pub fn take_name(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.name, ::std::string::String::new())
+    pub fn set_num(&mut self, v: i32) {
+        self.num = v;
     }
 }
 
-impl ::protobuf::Message for ExampleTable {
+impl ::protobuf::Message for NumberTable {
     fn is_initialized(&self) -> bool {
         true
     }
@@ -100,10 +73,7 @@ impl ::protobuf::Message for ExampleTable {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
                     let tmp = is.read_int32()?;
-                    self.id = tmp;
-                },
-                2 => {
-                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.name)?;
+                    self.num = tmp;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -117,11 +87,8 @@ impl ::protobuf::Message for ExampleTable {
     #[allow(unused_variables)]
     fn compute_size(&self) -> u32 {
         let mut my_size = 0;
-        if self.id != 0 {
-            my_size += ::protobuf::rt::value_size(1, self.id, ::protobuf::wire_format::WireTypeVarint);
-        }
-        if !self.name.is_empty() {
-            my_size += ::protobuf::rt::string_size(2, &self.name);
+        if self.num != 0 {
+            my_size += ::protobuf::rt::value_size(1, self.num, ::protobuf::wire_format::WireTypeVarint);
         }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
@@ -129,11 +96,8 @@ impl ::protobuf::Message for ExampleTable {
     }
 
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
-        if self.id != 0 {
-            os.write_int32(1, self.id)?;
-        }
-        if !self.name.is_empty() {
-            os.write_string(2, &self.name)?;
+        if self.num != 0 {
+            os.write_int32(1, self.num)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -165,8 +129,8 @@ impl ::protobuf::Message for ExampleTable {
         Self::descriptor_static()
     }
 
-    fn new() -> ExampleTable {
-        ExampleTable::new()
+    fn new() -> NumberTable {
+        NumberTable::new()
     }
 
     fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
@@ -174,44 +138,38 @@ impl ::protobuf::Message for ExampleTable {
         descriptor.get(|| {
             let mut fields = ::std::vec::Vec::new();
             fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeInt32>(
-                "id",
-                |m: &ExampleTable| { &m.id },
-                |m: &mut ExampleTable| { &mut m.id },
+                "num",
+                |m: &NumberTable| { &m.num },
+                |m: &mut NumberTable| { &mut m.num },
             ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "name",
-                |m: &ExampleTable| { &m.name },
-                |m: &mut ExampleTable| { &mut m.name },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<ExampleTable>(
-                "ExampleTable",
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<NumberTable>(
+                "NumberTable",
                 fields,
                 file_descriptor_proto()
             )
         })
     }
 
-    fn default_instance() -> &'static ExampleTable {
-        static instance: ::protobuf::rt::LazyV2<ExampleTable> = ::protobuf::rt::LazyV2::INIT;
-        instance.get(ExampleTable::new)
+    fn default_instance() -> &'static NumberTable {
+        static instance: ::protobuf::rt::LazyV2<NumberTable> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(NumberTable::new)
     }
 }
 
-impl ::protobuf::Clear for ExampleTable {
+impl ::protobuf::Clear for NumberTable {
     fn clear(&mut self) {
-        self.id = 0;
-        self.name.clear();
+        self.num = 0;
         self.unknown_fields.clear();
     }
 }
 
-impl ::std::fmt::Debug for ExampleTable {
+impl ::std::fmt::Debug for NumberTable {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         ::protobuf::text_format::fmt(self, f)
     }
 }
 
-impl ::protobuf::reflect::ProtobufValue for ExampleTable {
+impl ::protobuf::reflect::ProtobufValue for NumberTable {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
@@ -334,16 +292,15 @@ impl ::protobuf::reflect::ProtobufValue for Empty {
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\x17examples/example2.proto\x12\x07pg_demo\x1a\x0cpandit.proto\x1a\x15\
-    format/postgres.proto\x1a\rhandler.proto\"@\n\x0cExampleTable\x12\x1c\n\
-    \x02id\x18\x01\x20\x01(\x05R\x02idB\x0c\xc2\xb6\x18\x04\xd0\xb6\x18\x01\
-    \xa8\xb7\x18\x01\x12\x12\n\x04name\x18\x02\x20\x01(\tR\x04name\"\x07\n\
-    \x05Empty2\xb1\x01\n\nPostgreSQL\x12B\n\nSetExample\x12\x15.pg_demo.Exam\
-    pleTable\x1a\x0e.pg_demo.Empty\"\r\x92\xb7\x18\x05\x80\xa8\x1d\xb8\x17\
-    \xaa\xb6\x18\0\x12M\n\nGetExample\x12\x15.pg_demo.ExampleTable\x1a\x15.p\
-    g_demo.ExampleTable\"\x11\x92\xb7\x18\x05\x80\xa8\x1d\xa0\x1f\xaa\xb6\
-    \x18\x04\xb8\xb6\x18\x03\x1a\x10\xb2\xb6\x18\0\xd2\xb5\x18\x08postgresb\
-    \x06proto3\
+    \n\x20examples/postgres_numstore.proto\x12\x06pg_num\x1a\x0cpandit.proto\
+    \x1a\x15format/postgres.proto\x1a\rhandler.proto\"-\n\x0bNumberTable\x12\
+    \x1e\n\x03num\x18\x01\x20\x01(\x05R\x03numB\x0c\xc2\xb6\x18\x04\xd0\xb6\
+    \x18\x01\xa8\xb7\x18\x01\"\x07\n\x05Empty2\xad\x01\n\x0fPostgreNumStore\
+    \x12>\n\tSetNumber\x12\x13.pg_num.NumberTable\x1a\r.pg_num.Empty\"\r\x92\
+    \xb7\x18\x05\x80\xa8\x1d\xb8\x17\xaa\xb6\x18\0\x12H\n\tGetNumber\x12\x13\
+    .pg_num.NumberTable\x1a\x13.pg_num.NumberTable\"\x11\x92\xb7\x18\x05\x80\
+    \xa8\x1d\xa0\x1f\xaa\xb6\x18\x04\xb8\xb6\x18\x03\x1a\x10\xb2\xb6\x18\0\
+    \xd2\xb5\x18\x08postgresb\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

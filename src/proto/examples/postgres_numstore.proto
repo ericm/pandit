@@ -4,7 +4,7 @@ import "pandit.proto";
 import "format/postgres.proto";
 import "handler.proto";
 
-package pg_demo;
+package pg_num;
 
 message NumberTable {
   int32 num = 1 [ (pandit.key) = true, (pandit.format.postgres_field) = {key : true} ];
