@@ -690,7 +690,7 @@ impl Sender for Service {
         }
         {
             self.broker
-                .publish_cache(&service_name, method.key(), resp_fields)
+                .publish_cache(&service_name, method.key(), resp_fields, &fields)
                 .await?;
         }
 

@@ -333,7 +333,8 @@ impl Broker {
         &self,
         service_name: &String,
         method_name: &String,
-        fields: Fields,
+        resp_fields: Fields,
+        req_fields: &Fields,
     ) -> ServiceResult<()> {
         let name = format!("{}_{}", service_name, method_name);
         let service_name = format!("service_{}", name.clone());
@@ -343,14 +344,15 @@ impl Broker {
         let primary_key: Value;
         {
             let cached = self.get_entry(&name)?;
-            let prim_key_opt = fields.map.get(&cached.primary_key);
+            let prim_key_opt = req_fields.map.get(&cached.primary_key);
+            log::info!("logging cache for {}; PK: '{:?}'", name, cached.primary_key);
             primary_key = match prim_key_opt {
                 Some(v) => v.to_owned().ok_or(ServiceError::new(
                     format!("no value for primary key entry: {}", cached.primary_key).as_str(),
                 ))?,
                 None => return Ok(()),
             };
-            let fields = self.filter_fields(&fields, &cached.value().message)?;
+            let fields = self.filter_fields(&resp_fields, &cached.value().message)?;
             {
                 let mut output = protobuf::CodedOutputStream::new(&mut buf);
                 cached
