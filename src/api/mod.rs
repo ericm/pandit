@@ -486,6 +486,7 @@ impl K8sHandler {
         }
         // Send to other pod nodes *if* this node is not required to host the service.
         for pod_node in pod_nodes {
+            log::info!("k8s: pod node: {:?}", pod_node);
             let node_ip = {
                 let client = kube::Client::try_default().await?;
                 let nodes: kube::Api<Node> = kube::Api::default_namespaced(client);

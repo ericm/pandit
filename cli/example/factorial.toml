@@ -3,6 +3,6 @@ name = "FactorialService"
 proto = "factorial"
 port = 8080
 
-# [k8s]
-# type = "Pod"
-# name = "postgres_numstrore"
+[k8s]
+type = "Pod"
+name = "pandit-example"
