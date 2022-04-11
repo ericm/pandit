@@ -1,4 +1,4 @@
-\documentclass[a4paper]{article}
+\documentclass[a4paper,12pt]{report}
 \usepackage{hyperref}
 \usepackage{graphicx}
 \graphicspath{ {./} }
@@ -17,6 +17,7 @@ Pandit at its core is a \textbf{distributed service-level proxy}.
 This means it is a proxy tasked with interpreting data on a service level and caching it
 in a distributed manner, allowing it to speed up read and write times of clients querying the services
 in question.
+
 
 Pandit is designed to be able to proxy any data source such as REST APIs or SQL databases.
 It reads in user-defined Protocol Buffers \cite{protobufs} that are extended to provide information on
