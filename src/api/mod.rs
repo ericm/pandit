@@ -132,6 +132,7 @@ impl api_grpc::Api for ApiServer {
                     "docker_id": "",
                     "k8s_pod": "",
                     "k8s_service": "",
+                    "delegated": true, // Delegated true means it will not be sent to other nodes.
                 });
                 if req.has_docker_id() {
                     *save.get_mut("docker_id").unwrap() = serde_json::json!(req.get_docker_id());
@@ -430,7 +431,7 @@ impl K8sHandler {
         let current_node = std::env::var("NODE_NAME")?;
         log::info!("k8s: current_node: {}", current_node);
         let mut ips = HashSet::<String>::new();
-        let pod_nodes = match req.container.as_ref().ok_or("no container in req")? {
+        let mut pod_nodes = match req.container.as_ref().ok_or("no container in req")? {
             k8s_pod(id) => {
                 let pods: kube::Api<Pod> = kube::Api::default_namespaced(client.clone());
                 log::info!("k8s: connected to default namespace pod api");
@@ -481,10 +482,17 @@ impl K8sHandler {
             }
         };
         log::info!("k8s: pod nodes: {:?}", pod_nodes);
+        // Remove current node from send list.
         if pod_nodes.contains(&current_node) {
+            pod_nodes.remove(&current_node);
+        }
+        // Send to other pod nodes if not delegated itself.
+        if req.delegated {
             return Ok(Some(ips));
         }
-        // Send to other pod nodes *if* this node is not required to host the service.
+        // Set delegated to true.
+        let mut req = req.clone();
+        req.set_delegated(true);
         for pod_node in pod_nodes {
             log::info!("k8s: pod node: {}", pod_node);
             let node_ip = {
@@ -502,9 +510,9 @@ impl K8sHandler {
                 let ch = ChannelBuilder::new(env).connect(node_addr.as_str());
                 api_proto::api_grpc::ApiClient::new(ch)
             };
-            client.start_service(req)?;
+            client.start_service(&req)?;
         }
-        Ok(None)
+        Ok(Some(ips))
     }
 
     pub async fn is_pod_on_current(&self, pod: &String) -> ServiceResult<bool> {
