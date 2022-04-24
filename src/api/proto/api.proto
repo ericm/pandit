@@ -17,7 +17,7 @@ message StartServiceRequest {
     string k8s_replica_set = 7;
     string k8s_stateful_set = 8;
   }
-  bool delegated = 9; // TODO: delegated check
+  bool delegated = 9; 
 }
 
 message StartServiceReply {}

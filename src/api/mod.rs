@@ -419,7 +419,7 @@ impl K8sHandler {
                         .ok_or("no pod status")?
                         .pod_ip
                         .ok_or("no pod ip")?;
-                    ips.insert(ip);
+                    ips.insert(ip); // Current node ips only.
                 }
                 nodes.insert(node);
             }
@@ -430,8 +430,9 @@ impl K8sHandler {
         let client = kube::Client::try_default().await?;
         let current_node = std::env::var("NODE_NAME")?;
         log::info!("k8s: current_node: {}", current_node);
+        let container = req.container.as_ref().ok_or("no container in req")?;
         let mut ips = HashSet::<String>::new();
-        let mut pod_nodes = match req.container.as_ref().ok_or("no container in req")? {
+        let mut pod_nodes = match container {
             k8s_pod(id) => {
                 let pods: kube::Api<Pod> = kube::Api::default_namespaced(client.clone());
                 log::info!("k8s: connected to default namespace pod api");
@@ -485,6 +486,24 @@ impl K8sHandler {
         // Remove current node from send list.
         if pod_nodes.contains(&current_node) {
             pod_nodes.remove(&current_node);
+        }
+        // Set ips to node ips if none on current host.
+        if ips.len() == 0 {
+            for pod in &pod_nodes {
+                let pods: kube::Api<Pod> = kube::Api::default_namespaced(client.clone());
+                let pod: Pod = pods.get_opt(pod.as_str()).await?.ok_or("no pod found")?;
+                let spec = pod.spec.ok_or("no pod spec")?;
+                let pod_node = spec.node_name.ok_or("no node name")?;
+                let node_ip = {
+                    let nodes: kube::Api<Node> = kube::Api::default_namespaced(client.clone());
+                    let node = nodes.get(pod_node.as_str()).await?;
+                    let status = node.status.ok_or("no node status")?;
+                    let addresses = status.addresses.ok_or("no node addresses")?;
+                    let addr = addresses.first().ok_or("no available node addresses")?;
+                    addr.address.clone()
+                };
+                ips.insert(node_ip);
+            }
         }
         // Send to other pod nodes if not delegated itself.
         if req.delegated {
