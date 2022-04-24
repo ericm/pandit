@@ -51,7 +51,7 @@ pub fn writer_from_proto(
     Err(ServiceError::new("no format defined in service"))
 }
 
-pub struct LoadBalancer {
+pub struct LoadBalancer { // TODO: Fix
     ips: Arc<RwLock<VecDeque<String>>>,
     port: i32,
 }

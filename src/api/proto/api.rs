@@ -29,6 +29,7 @@ pub struct StartServiceRequest {
     pub name: ::std::string::String,
     pub proto: ::std::vec::Vec<u8>,
     pub port: i32,
+    pub delegated: bool,
     // message oneof groups
     pub container: ::std::option::Option<StartServiceRequest_oneof_container>,
     // special fields
@@ -367,6 +368,21 @@ impl StartServiceRequest {
             ::std::string::String::new()
         }
     }
+
+    // bool delegated = 9;
+
+
+    pub fn get_delegated(&self) -> bool {
+        self.delegated
+    }
+    pub fn clear_delegated(&mut self) {
+        self.delegated = false;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_delegated(&mut self, v: bool) {
+        self.delegated = v;
+    }
 }
 
 impl ::protobuf::Message for StartServiceRequest {
@@ -421,6 +437,13 @@ impl ::protobuf::Message for StartServiceRequest {
                     }
                     self.container = ::std::option::Option::Some(StartServiceRequest_oneof_container::k8s_stateful_set(is.read_string()?));
                 },
+                9 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_bool()?;
+                    self.delegated = tmp;
+                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -441,6 +464,9 @@ impl ::protobuf::Message for StartServiceRequest {
         }
         if self.port != 0 {
             my_size += ::protobuf::rt::value_size(3, self.port, ::protobuf::wire_format::WireTypeVarint);
+        }
+        if self.delegated != false {
+            my_size += 2;
         }
         if let ::std::option::Option::Some(ref v) = self.container {
             match v {
@@ -475,6 +501,9 @@ impl ::protobuf::Message for StartServiceRequest {
         }
         if self.port != 0 {
             os.write_int32(3, self.port)?;
+        }
+        if self.delegated != false {
+            os.write_bool(9, self.delegated)?;
         }
         if let ::std::option::Option::Some(ref v) = self.container {
             match v {
@@ -573,6 +602,11 @@ impl ::protobuf::Message for StartServiceRequest {
                 StartServiceRequest::has_k8s_stateful_set,
                 StartServiceRequest::get_k8s_stateful_set,
             ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBool>(
+                "delegated",
+                |m: &StartServiceRequest| { &m.delegated },
+                |m: &mut StartServiceRequest| { &mut m.delegated },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<StartServiceRequest>(
                 "StartServiceRequest",
                 fields,
@@ -597,6 +631,7 @@ impl ::protobuf::Clear for StartServiceRequest {
         self.container = ::std::option::Option::None;
         self.container = ::std::option::Option::None;
         self.container = ::std::option::Option::None;
+        self.delegated = false;
         self.unknown_fields.clear();
     }
 }
@@ -730,16 +765,16 @@ impl ::protobuf::reflect::ProtobufValue for StartServiceReply {
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\tapi.proto\x12\x03api\"\x93\x02\n\x13StartServiceRequest\x12\x12\n\
+    \n\tapi.proto\x12\x03api\"\xb1\x02\n\x13StartServiceRequest\x12\x12\n\
     \x04name\x18\x01\x20\x01(\tR\x04name\x12\x14\n\x05proto\x18\x02\x20\x01(\
     \x0cR\x05proto\x12\x12\n\x04port\x18\x03\x20\x01(\x05R\x04port\x12\x1d\n\
     \tdocker_id\x18\x04\x20\x01(\tH\0R\x08dockerId\x12\x19\n\x07k8s_pod\x18\
     \x05\x20\x01(\tH\0R\x06k8sPod\x12!\n\x0bk8s_service\x18\x06\x20\x01(\tH\
     \0R\nk8sService\x12(\n\x0fk8s_replica_set\x18\x07\x20\x01(\tH\0R\rk8sRep\
     licaSet\x12*\n\x10k8s_stateful_set\x18\x08\x20\x01(\tH\0R\x0ek8sStateful\
-    SetB\x0b\n\tcontainer\"\x13\n\x11StartServiceReply2I\n\x03API\x12B\n\x0c\
-    StartService\x12\x18.api.StartServiceRequest\x1a\x16.api.StartServiceRep\
-    ly\"\0b\x06proto3\
+    Set\x12\x1c\n\tdelegated\x18\t\x20\x01(\x08R\tdelegatedB\x0b\n\tcontaine\
+    r\"\x13\n\x11StartServiceReply2I\n\x03API\x12B\n\x0cStartService\x12\x18\
+    .api.StartServiceRequest\x1a\x16.api.StartServiceReply\"\0b\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

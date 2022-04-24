@@ -3,7 +3,6 @@ syntax = "proto3";
 package api;
 
 service API {
-  // Sends a greeting
   rpc StartService(StartServiceRequest) returns (StartServiceReply) {}
 }
 
@@ -18,6 +17,7 @@ message StartServiceRequest {
     string k8s_replica_set = 7;
     string k8s_stateful_set = 8;
   }
+  bool delegated = 9; // TODO: delegated check
 }
 
 message StartServiceReply {}
