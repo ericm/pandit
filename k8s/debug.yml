@@ -54,24 +54,20 @@ metadata:
   namespace: default
   name: pod-reader
 rules:
-  - apiGroups: [""] # "" indicates the core API group
+  - apiGroups: [""] 
     resources: ["pods", "nodes"]
     verbs: ["get", "watch", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-# This role binding allows "jane" to read pods in the "default" namespace.
-# You need to already have a Role named "pod-reader" in that namespace.
 kind: ClusterRoleBinding
 metadata:
   name: read-pods
   namespace: default
 subjects:
-  # You can specify more than one "subject"
   - kind: "ServiceAccount"
     name: "default"
     namespace: "default"
 roleRef:
-  # "roleRef" specifies the binding to a Role / ClusterRole
-  kind: ClusterRole #this must be Role or ClusterRole
-  name: pod-reader # this must match the name of the Role or ClusterRole you wish to bind to
+  kind: ClusterRole 
+  name: pod-reader 
   apiGroup: rbac.authorization.k8s.io
