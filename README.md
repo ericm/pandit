@@ -1,1 +1,1 @@
-# ![Pandit](./pandit.png?raw=true)
+# ![Pandit](./pandit400.png?raw=true)
