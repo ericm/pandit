@@ -2,7 +2,7 @@
 
 Pandit is a distributed proxy that converts applications into [gRPC Services](https://grpc.io/docs/what-is-grpc/core-concepts/).
 
-It's architecture allows it to translate requests and responses from gRPC to any data format the application may require.
+Its architecture allows it to translate requests and responses from gRPC to any data format the application may require.
 
 This is is achieved by defining the translation inside the gRPC Protobuf specification. For example:
 ```proto
