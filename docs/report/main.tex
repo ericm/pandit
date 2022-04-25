@@ -75,7 +75,7 @@ In signing this declaration, you are conforming, in writing, that the submitted 
 I hereby declare that:
 \begin{itemize}
     \item this is all my own work, unless clearly indicated otherwise, with full and proper accreditation;
-    \item with respect to my own work: none of it has been submitted at any educational institution contributing in any way to an educational award;
+    \item with respect to my own work: none of it has been submitted to any educational institution contributing in any way to an educational award;
     \item with respect to another’s work: all text, diagrams, code, or ideas,
 whether verbatim, paraphrased or otherwise modified or adapted, have
 been duly attributed to the source in a scholarly manner, whether
@@ -105,7 +105,7 @@ In particular, I would like to thank my host Jose-Luis Izquierdo-Zaragoza for pr
 It was at Google that I learned the power of using code generation and protocol buffers, which is what inspired me to pursue this very project.
 For that, I would like to say a big thank you to everyone who helped me during my time there.
 
-\subsection*{External Libraries Used}
+\chapter*{External Libraries Used}
 I used many external Rust libraries to complete this project. Here is a complete list of them:
 
 \begin{lstlisting}
@@ -155,6 +155,8 @@ protobuf-parse = { git = "https://github.com/stepancheg/rust-protobuf.git", tag=
 redis = { version = "0.21.5", features = [ "cluster", "tokio-comp"] }
 \end{lstlisting}
 
+These packages can be found by looking up their name on \href{https://crates.io/}{https://crates.io/}.
+
 \tableofcontents
 
 \listoffigures
@@ -172,7 +174,7 @@ will be achieved by implementing Pandit in such a way that it is able to parse t
 The proxy will be \textit{distributed} across physical servers. This will allow clients on one physical server to query a Pandit \textit{service}. 
 This query will be handled by the Pandit instance on the local machine. 
 
-Pandit will utilise caching \cite{caching} to speed up the query responses, and since it the server with the data could be on any server, Pandit will delegate the request to another physical server's Pandit instance, allowing for the possibility of another cache hit before the request is translated and sent to the server with the data.
+Pandit will utilise caching \cite{caching} to speed up the query responses, and since the application with the data could be on any physical server, Pandit will delegate the request to another physical server's Pandit instance, allowing for the possibility of another cache hit before the request is translated and sent to the server with the data.
 
 \begin{figure}[hbt!]
     \centering
@@ -318,7 +320,7 @@ extend google.protobuf.ServiceOptions {
 }
 \end{lstlisting}
 
-This example defines an option called \textit{pandit.handler} that can be added to any gRPC method, and an option called \textit{pandit.default$\_$handler} 
+This example defines an option called \textit{handler} that can be added to any gRPC method, and an option called \textit{pandit.default$\_$handler} 
 that can be added to any gRPC service. The reason why they are prefixed with \textit{pandit.} is because they are defined inside the package \textit{pandit}.
 
 These options can then be used to add metadata to methods and services, like so:
@@ -501,7 +503,7 @@ If there is no cache hit, and the server that provides this data is on \textbf{a
     \label{fig:admin}
 \end{figure}
 
-Each daemon maintains its own cache table, a delegated request can have a second chance of a chance of a cache hit.
+Since each daemon maintains its own cache table; a delegated request can have a second chance of a chance of a cache hit.
 
 If no cache hit occurs on the daemon that is responsible, the request will be translated and sent to the application.
 
@@ -979,59 +981,61 @@ Kubernetes also define a set of resources that are an abstraction on top of the 
 These include:
 
 \begin{itemize}
-    \item \textbf{Services} - Since a single Pod can only be deployed on a single node, if a user wishes to deploy an application across multiple nodes, there is no way to address that set of pods with a single IP address. A \textit{Kubernetes Service} is defined as being a set of Pods. It provides an IP address for this set of Pods, and when a request is sent to this address, Kubernetes will Load Balance the requests between the Pods.
-    \item \textbf{ReplicaSets} - A deployment of a set of Pods that are designed to be stateless. A \textit{ReplicaSet} ensures a set number of replicas of Pods are running somewhere in the cluster. \textit{ReplicaSets} don't provide stateful storage to Pods, and hence should only be used to deploy stateless applications that require to be run in a distributed manner. Unlike \textit{Services}, they don't provide an IP address or Load Balancer, requiring the Pods to be communicated with directly, or via a separately deployed \textit{Service}.
+    \item \textbf{Services} - Since a single Pod can only be deployed on a single node. If a user wishes to deploy an application across multiple nodes; there is no way to address that set of pods with a single IP address. A \textit{Kubernetes Service} is defined as being a set of Pods. It provides an IP address for this set of Pods. When a request is sent to this address, Kubernetes will Load Balance the requests between the Pods.
+    \item \textbf{ReplicaSets} - A deployment of a set of Pods that are designed to be stateless. A \textit{ReplicaSet} ensures a set number of replicas of Pods are running somewhere in the cluster. \textit{ReplicaSets} don't provide stateful storage to Pods. Hence, should only be used to deploy stateless applications that require to be run in a distributed manner. Unlike \textit{Services}, they don't provide an IP address or Load Balancer. Requiring the Pods to be communicated with directly, or via a separately deployed \textit{Service}.
     \item \textbf{StatefulSets} - Like \textit{ReplicaSets}, \textit{StatefulSets} run a set of Pods that combined make up a stateful application.
-    \textit{StatefulSets} however, labels the Pods. This is because the identity of the Pods are relevant, because it is used to deploy applications
-    that must be deployed in a specific order. As well as that, the Pods are also able to be given shared volumes, in order to maintain state. 
-    Pods are still ephemeral, meaning they can still be deleted and recreated. However, when they are recreated they are given the exact same configuration, ensuring a Pod with a specific ID and network identifier always exists.  
-    \item \textbf{DaemonSets} - A deployment that puts a single Pod on every single Node. It provides shared storage volumes that allow Pods to communicate and share state. It also allows Pods to expose ports on the node it's running on's network, allowing for communication between pods on that node and the daemon on that Node.
+    \textit{StatefulSets} however, labels the Pods. The identity of the Pods are relevant, because it is used to deploy applications
+    that must be deployed in a specific order. The Pods are also able to be given shared volumes, in order to maintain state. 
+    Pods are still ephemeral, meaning they can still be deleted and recreated. When they are recreated, they are given the exact same configuration; ensuring a Pod with a specific ID and network identifier always exists.  
+    \item \textbf{DaemonSets} - A deployment that puts a single Pod on every single Node. It provides shared storage volumes that allow Pods to communicate and share state. It also allows Pods to expose ports on the node it's running on's network. This allows for communication between the pods and daemon on that node.
 \end{itemize}
 
-Kubernetes provides an API that allows for the deployment of said resources. All resources can be deployed via a YAML file, defining what resource should be deployed, where it should be deployed, etc. The API is available to be queried inside a Pod, however the client inside the Pod must be able to authenticate itself via a user account provided to Kubernetes via a YAML file.
+Kubernetes provides an API that allows for the deployment of said resources. All resources can be deployed via a YAML file. Defining what resource should be deployed, where it should be deployed, etc. The API is available to be queried inside a Pod. The client inside the Pod must be able to authenticate itself, through a user account provided to Kubernetes via a YAML file.
 
 \subsubsection{Design}
 
-Pandit in this deployment will be deployed inside the Kubernetes cluster via a \textit{DaemonSet}, allowing it to run on each Node in a cluster. 
-It will be deployed with access to the Kubernetes via a Kubernetes User, with access to information on Pods, Nodes, Services, ReplicaSets and StatefulSets.
+Pandit in this deployment will be deployed inside the Kubernetes cluster via a \textit{DaemonSet}. Allowing it to run on each Node in a cluster. 
+It will be deployed with access to the Kubernetes via a Kubernetes User. The user has access to information on Pods, Nodes, Services, ReplicaSets and StatefulSets.
 
 It knows it's inside a Kubernetes environment due to it being deployed with the \textit{--k8s} flag (\textit{k8s} is shorthand for Kubernetes).
 
-When a \textit{\nameref{sec:service}} is added to the Pandit, it is defined with extra options. One of the following options can be added to the configuration file:
+When a \textit{\nameref{sec:service}} is added to the Pandit, it is defined with extra options.
+The routine that parses these extra options ultimately returns one or more IP addresses. This to give the node in question a route to the application. If more than one IP address is returned, the IPs are Load Balanced using Pandit's built-in Load Balancer.
+One of the following options can be added to the configuration file:
 
 \begin{itemize}
-    \item \textbf{Kubernetes Pod} - This defines a Pandit service as a singular Pod deployment. The Pod ID is passed to Pandit, which is then used to query for the Pod. If the Pod is on the Node that the service was added to, the IP address of the Pod will be used to construct the address of the Pandit service.
+    \item \textbf{Kubernetes Pod} - This defines a Pandit service as a singular Pod deployment. The Pod ID is passed to Pandit, which is then used to query for the Pod. If the Pod is on the Node that the service was added to; the IP address of the Pod will be used to construct the address of the Pandit service.
     
     If the Pod is on a different Node, Pandit will query the address of its Node via the Kubernetes API. It will then delegate the \textit{Add Service} request to the Node in question. That Pandit instance will then announce itself as the sole host of that particular Pandit Service via Redis.
     
-    When the Pandit Service is queried in the future, all queries will be delegated to the Node that the Pod is on.
+    When the Pandit Service is queried in the future; all queries will be delegated to the Node that the Pod is on.
     
-    \item \textbf{Kubernetes Service} - When a \textit{Pandit} Service is defined to be a \textit{Kubernetes} Service, using the Service ID provided, Pandit will first query the Kubernetes API for details about the service.
+    \item \textbf{Kubernetes Service} - When a \textit{Pandit} Service is defined to be a \textit{Kubernetes} Service, using the Service ID provided. Pandit will first query the Kubernetes API for details about the service.
     
-    Pandit will parse out the \textit{Label Selectors} of the Kubernetes Service. Label Selectors are a map of Keys and Values that define what Pods should be part of an abstraction such as a Service. 
-    All Pods that have labels that match these Label Selectors will be proxied by the Kubernetes Service. 
+    Pandit will parse out the \textit{Label Selectors} of the Kubernetes Service. Label Selectors are a map of Keys and Values that define what Pods should be part of an abstraction, such as a Service. 
+    All Pods that have labels that match these Label Selectors, will be proxied by the Kubernetes Service. 
     
     Pandit will query the API for the Pods that match these Label Selectors. It will then query each Pod for its Node name, using that Node name to query
-    the API for its Node IP address. Pandit will then construct a set of IP addresses that will represent all the Nodes that host a Pod proxied by the Kubernetes Service in question.
+    the API for its Node IP address. Pandit will then construct a set of IP addresses. These will represent all the Nodes that host a Pod proxied by the Kubernetes Service in question.
     
-    All Nodes in this set will be sent this \textit{Add Service} request, ensuring they are all capable of parsing queries for the Service in question.
+    All Nodes in this set will be sent this \textit{Add Service} request. This is to ensure they are all capable of parsing queries for the Service in question.
     
     The resulting set will be announced as the IP addresses of the Pandit Service to all other daemons. When a request is sent to this Pandit Service,
-    it will be called via the load balancer, allowing Pandit to balance the load of Service parsing among all the nodes that have a Pod proxied by the Kubernetes Service. 
+    it will be called via the load balancer. This allows Pandit to balance the load of Service parsing among all the nodes, that have a Pod proxied by the Kubernetes Service. 
     
-    If the Kubernetes Service is using \textit{topology-aware traffic routing \cite{k8s_topology}}, the Node that the Pandit request was sent to will contain the backend Pod that will process the query, making this method of Load Balancing quite efficient. 
+    If the Kubernetes Service is using \textit{topology-aware traffic routing \cite{k8s_topology}}. The Node that the Pandit request was sent to will contain the backend Pod that will process the query. Making this method of Load Balancing quite efficient. 
     
     \item \textbf{ReplicaSets} or \textbf{StatefulSets} - These deployments can both be parsed using the same method due to their similar deployment structure.
-    For the usage of either of these deployments as a Pandit Service, it is assumed that any Pod represented by the \textit{labels \cite{labels}} 
-    defined in the deployment is capable of responding to queries from Pandit.
+    For the usage of either of these deployments as a Pandit Service. It is assumed that any Pod represented by the \textit{labels \cite{labels}} 
+    defined in the deployment, is capable of responding to queries from Pandit.
     
-    Like the process, of deploying a Pandit Service consisting of a \textit{Kubernetes Service}, a set of Node IP addresses will be constructed and 
+    Like the process of deploying a Pandit Service consisting of a \textit{Kubernetes Service}. A set of Node IP addresses will be constructed and 
     announced for every Node that has a Pod belonging to the deployment running on it. This set of Node IP addresses would be Load Balanced the same way.
     
-    However, unlike \textit{Kubernetes Services}, these deployments don't announce a Virtual IP address \cite{vip} that is handled by the Kubernetes Load Balancer.
+    Unlike \textit{Kubernetes Services}, these deployments don't announce a Virtual IP address \cite{vip} that is handled by the Kubernetes Load Balancer.
     
-    This means that Pandit will connect with the relevant Pods on its own host machine by storing the relevant IP addresses locally. 
-    If multiple Pod replicas exist on a particular Node, those will also be Load Balanced locally by the daemon in question.
+    This means that Pandit will connect with the relevant Pods on its own host machine, by storing the relevant IP addresses locally. 
+    If multiple Pod replicas exist on a particular Node. Those will also be Load Balanced locally by the daemon in question.
     
 \end{itemize}
 \begin{figure}[hbt!]
@@ -1042,8 +1046,8 @@ When a \textit{\nameref{sec:service}} is added to the Pandit, it is defined with
 \newpage
 
 \subsubsection{Handling Pod Termination}
-Regardless of the method of deployment, Pods can be created and destroyed automatically by the Kubernetes Scheduler.
-This causes a problem for Pandit because Pods may be deployed on different Nodes. In order for Pandit to be able to handle requests for data on these Pods,
+Regardless of the method of deployment. Pods can be created and destroyed automatically by the Kubernetes Scheduler.
+This causes a problem for Pandit, because Pods may be deployed on different Nodes. In order for Pandit to be able to handle requests for data on these Pods,
 it must do the following:
 
 \begin{enumerate}
@@ -1077,7 +1081,7 @@ pub struct Fields {
 \end{lstlisting}
 
 It is an encapsulated map string keys to options \cite{option} of \textit{Values}.
-The reason why it is a struct encapsulating a map is because it must implement traits that the underlying map does not implement.
+It's a struct encapsulating a map is, because it must implement traits that the underlying map does not implement.
 
 For example, it implements Rust's built-in equality and hash trait:
 
@@ -1113,7 +1117,7 @@ impl PartialEq for Fields {
 \textit{Values} are integral to the abstract representation of fields. 
 Implementing them proved challenging due to their unique requirements:
 
-They must be converted to and from Protocol Buffers, as well as to and from any structured data format.
+They must be converted to and from Protocol Buffers. As well as to and from any structured data format.
 
 The approach chosen was to implement values as an enumeration of a set of general data types:
 
@@ -1131,13 +1135,13 @@ pub enum Value {
 }
 \end{lstlisting}
 
-All of these data types represent one or more Protocol Buffer data types. The purpose of this is to create a general set of data types that the 
+All of these data types represent one or more Protocol Buffer data types. The purpose of this is to create a general set of data types, that the 
 Protocol Buffer interpreter can pull from.
 
-However, the Protocol Buffer interpreter will eventually need more concrete data types. This is particularly apparent with the integer and float data types.
+The Protocol Buffer interpreter will eventually need more concrete data types. This is particularly apparent with the integer and float data types.
 
 These may need to be used as anything from an unsigned 8-bit integer or a signed 64-bit integer. 
-These were all abstracted behind the \textit{Integer} and \textit{Floating} traits in order to simplify the conversion process on between a custom format such as JSON and a \textit{Value}.
+These were all abstracted behind the \textit{Integer} and \textit{Floating} traits; in order to simplify the conversion process on between a custom format such as JSON and a \textit{Value}.
 
 The \textit{Integer} and \textit{Floating} traits are defined as follows:
 
@@ -1177,8 +1181,8 @@ impl Integer for u64 {
 }
 \end{lstlisting}
 
-These methods are implemented to allow the Protocol Buffer interpreter to choose what concrete type it wants, regardless of the underlying type.
-This is because the interpreter cannot be sure that, for example, the JSON parser decided to parse a "number" as a "u32" as opposed to an "i64".
+These methods are implemented to allow the Protocol Buffer interpreter to choose what concrete type it wants; regardless of the underlying type.
+The interpreter cannot be sure that, for example, the JSON parser decided to parse a "number" as a "u32" as opposed to an "i64".
 
 \section{Serialising}
 
@@ -1219,7 +1223,7 @@ impl Serialize for Fields {
 \end{lstlisting}
 
 The benefit to working with Serde is that there is an ecosystem of libraries that implement these traits.
-That makes, for example, the \textit{Fields} struct interoperable with Serde libraries such as \textit{Serde JSON \cite{serde_json}}.
+For example, the \textit{Fields} struct is interoperable with Serde libraries such as \textit{Serde JSON \cite{serde_json}}.
 
 \section{Handler \& Writer Traits}
 
@@ -1290,11 +1294,11 @@ This is used to aid with parsing gRPC payloads that contain nested messages. It 
 
 \subsection{gRPC Payload Parsing}
 
-The primary functionality of the Message struct is to provide methods to both write a gRPC payload from \textit{Fields} and create \textit{Fields}
+The primary functionality of the Message struct is to provide methods to both write a gRPC payload from \textit{Fields}, and create \textit{Fields}
 from a gRPC payload.
 
-While there is an existing set of libraries to use with Protocol Buffers, the use case this project had meant that they couldn't be used.
-That's because the existing methods for using gRPC with Protocol Buffers involve generating a parsing library with code generation.
+While there is an existing set of libraries to use with Protocol Buffers. The use case this project had meant that said libraries couldn't be used;
+ because the existing methods for using gRPC with Protocol Buffers involve generating a parsing library with code generation.
 
 The binary \textit{protoc \cite{protoc}} is used to translate the Proto file to the required programming language. The output is then used as
 a library that provides methods to run both the gRPC server and client.
@@ -1305,11 +1309,13 @@ a library that provides methods to run both the gRPC server and client.
     \caption{A screenshot of Protoc being used.}
     \label{fig:admin}
 \end{figure}
+\newpage
 
-This solution will not work for Pandit's use case, due to the Proto files being read on runtime, and running a gRPC server that is able to reflect
-on multiple gRPC services on runtime.
+This solution will not work for Pandit’s use case, due to the Proto files
+being read on runtime, and running a gRPC server that is able to reflect on
+multiple gRPC services on runtime.
 
-This mean the solution was to implement the majority of the parsing logic for gRPC payload parsing from scratch, with just a few helper functions imported from existing libraries to help with interfacing with the binary directly.
+This mean the solution was to implement the majority of the parsing logic for gRPC payload parsing from scratch. It only used a few helper functions imported from existing libraries to help with interfacing with the binary directly.
 
 Implementing the payload parsing from scratch allowed Pandit to benefit from both the flexibility provided by this solution in the form of being able to integrate it with the \textit{Fields} and \textit{Value} structs, as well as efficiency due to it all being written specifically for this use case.
 
@@ -1336,7 +1342,7 @@ The main challenges involved with implementing the gRPC payload parsers involved
 When parsing embedded messages, a recursive strategy must be used. This is due to the fact that the specification requires the parser to theoretically parse embedded messages recursively ad infinitum.
 
 The solution was to put the logic for both the reader and writer methods into a private "delimited" version of the methods.
-The public methods would then call the private method, passing in the number of bytes that the parser should read to, which in the case of
+The public methods would then call the private method, passing in the number of bytes that the parser should read to. Which in the case of
 the public method should be the entirety of the buffer.
 
 \begin{lstlisting}[language=Rust]
@@ -1349,8 +1355,8 @@ pub fn fields_from_bytes(&self, buf: &[u8]) -> ServiceResult<Fields> {
 \end{lstlisting}
 
 When the parser hits an embedded message, it will read in the length of the message, and then call a method that takes in the Proto for the field that contains the embedded, the byte stream, and the length.
-It uses the aforementioned \textit{parents} field to find the specification for the method based on information provided by the field proto.
-It then handles for the case of multiple embedded messages being repeated in the same field, before calling the delimited parsing method with the relevant parameters, except this time it's being called on the embedded message.
+It uses the aforementioned \textit{parents} field, to find the specification for the method based on information provided by the field proto.
+It then handles for the case of multiple embedded messages being repeated in the same field. Then calls the delimited parsing method with the relevant parameters, except this time it's being called on the embedded message.
 
 \begin{lstlisting}[language=Rust]
 fn parse_another_message(
@@ -1378,7 +1384,7 @@ fn parse_another_message(
 }
 \end{lstlisting}
 
-When implementing the Protocol Buffer writer method, the \textit{\nameref{sec:fv}} proved to make the solution of handling different data types quite simple.
+When implementing the Protocol Buffer writer method. The \textit{\nameref{sec:fv}} proved to make the solution of handling different data types quite simple.
 
 For example, if a method needed a 32-bit integer, this value could be received by simply calling the \textit{to-i32} method on the \textit{Integer} trait.
 
@@ -1404,8 +1410,7 @@ Value::Int(v) => write_value(
 \section{HTTP/JSON Writer}
 \label{im:http}
 
-Since Pandit depends on implementations existing in the codebase of both the \nameref{sec:writer} and \nameref{sec:handler}, some example implementations were made.
-
+Pandit depends on implementations existing in the codebase of both the \nameref{sec:writer} and \nameref{sec:handler}, some example implementations were made.
 One of these is HTTP/JSON also known as a REST API.
 
 \subsection{HTTP Writer}
@@ -1442,31 +1447,31 @@ It implements the \textbf{Fields to Payload} as follows:
 \section{Postgres Writer}
 \label{im:postgres}
 This is implemented in the form of both a Handler and Writer. 
-For the use case of interfacing with Postgres, the Handler's purpose is converting SQL queries and responses to and from "Fields", while the Writer is used to send said queries.
+For the use case of interfacing with Postgres, the Handler's purpose is converting SQL queries and responses to and from "Fields". The Writer is used to send said queries.
 
 \subsection{Writer}
 The implementation of "Write Request" for this writer uses an asynchronous Postgres library to connect to a Postgres instance on the address provided during creation of the writer (this happens during the creation of the service).
 
-The when a request is sent, the fields will be converted to a set of SQL commands via the Handler.
+When a request is sent, the fields will be converted to a set of SQL commands via the handler.
 
 It will then send the commands to the Postgres instance. The response will come in the form of a series of "Row" structs defined in the Postgres library.
 
-These will be serialised to a bytes buffer and returned. This is because it is the responsibility of the Handler to parse the payload.
+These will be serialised to a bytes buffer and returned. It is the responsibility of the Handler to parse the payload.
 
 \subsection{Handler}
-The SQL handler's architecture had to be designed to work with the writer while still remaining separate components due to the architectural requirements.
+The SQL handler's architecture had to be designed to work with the writer. While still remaining separate components due to the architectural requirements.
 The "From Payload" method converts to "Fields" by parsing the serialised payload that came from Postgres.
 It goes through each row and maps its columns to the fields defined in the Pandit "Message".
 
 It handles subsequent rows by mapping them to fields that require embedded messages. This allows Pandit to have embedded messages in SQL. 
-This is achieved by building out a table of "wanted table references" and matching subsequent responses serialised in the payload by the name of their table.
+This is achieved by building out a table of "wanted table references", and matching subsequent responses serialised in the payload by the name of their table.
 
 The result is a fully built out "Fields". This is then returned.
 
 The "To Payload" converts "Fields" to SQL commands. It utilises a query building library called \textit{Sea QL \cite{sea}}. 
 The commands are defined in the Proto options for each method. Based on the command type chosen, different things will be added to the query builder.
 
-Some commands such as "SELECT" require conditions. These are defined on the Proto Message fields and take the format of adding a condition enum to the field.
+Some commands such as "SELECT" require conditions. These are defined on the Proto Message fields. The commands take the format of an additional condition enum on the field.
 
 \section{Administration API}
 
@@ -1487,7 +1492,7 @@ fn main() {
         .expect("Failed to compile gRPC definitions!");
 }
 \end{lstlisting}
-This will run when the rust project is being build and, if the Proto files are changed, will regenerate the code.
+This will run when the rust project is being built, and if the Proto files are changed; the code will be regenerated.
 
 \subsection{Adding a Service}
 The method that the API exposes allows the user to add a service to the daemon. The main process involves:
@@ -1495,7 +1500,7 @@ The method that the API exposes allows the user to add a service to the daemon. 
 \begin{enumerate}
     \item Figure out the \nameref{sec:deployment_modes}. This will result in a mode-specific method call that will ultimately return the IP addresses of the service. If it's in Basic deployment mode, the IP address will just be the local host.
     
-    \item Create the file structure that Pandit's Service constructor requires in the temporary directory. Since the Service uses a library that parses Proto files from a directory, this must be set up before the constructor is called.
+    \item Create the file structure that Pandit's Service constructor requires in the temporary directory. Since the Service uses a library that parses Proto files from a directory. The service must be set up before the constructor is called.
     
     All of Pandit's proto library files that provide the options are embedded in the binary. They are then written to the correct file location via a static method call:
     
@@ -1529,16 +1534,16 @@ The method that the API exposes allows the user to add a service to the daemon. 
 \subsubsection{Docker}
 
 Interfacing with the Docker API is done via the library \textit{Bollard \cite{bollard}}. 
-Since the deployment mode method is run from the gRPC Add Service handler, it is run from via the gRPC library's custom asynchronous context.
+Since the deployment mode method is run from the gRPC Add Service call; the method is called from the gRPC library's custom asynchronous context.
 
-Rust provides asynchronous features, however, the underlying runtime that provides asynchronicity is decided by the user. This problem is that
+Rust provides asynchronous features, however, the underlying runtime that provides asynchronicity is decided by the user. The problem is that
 Bollard is programmed to be used with a specific asynchronous runtime, but it has to be called from the gRPC asynchronous runtime.
 
-The solution was to use a concept called a \textit{channel \cite{channel}}. This allows data to be transferred between threads, and hence, asynchronous runtimes.
+The solution was to use a concept called a \textit{channel \cite{channel}}. This allows data to be transferred between threads, and hence asynchronous runtimes.
 
-This solution, however, required that a dedicated asynchronous listener thread to be started on startup. It would listen for requests via a channel, and return the resulting address or error via other channels.
+This solution required a dedicated asynchronous listener thread to be run on startup. It would listen for requests via a channel, and return the resulting address or error via other channels.
 
-When a request for a docker container was sent, the commands for the Docker Deployment Mode would be executed and the results returned, before being sent back via channels to the gRPC runtime.
+When a request for a docker container was sent, the commands for the Docker Deployment Mode would be executed and the results returned before being sent back via channels to the gRPC runtime.
 
 The code that listened for requests via channels is as follows:
 
@@ -1569,26 +1574,26 @@ async fn run(&self) {
 
 \subsubsection{Kubernetes}
 For the same reason as Docker, the Kubernetes handler also needs to be run in a separate asynchronous runtime on startup.
-The main challenge when implementing this deployment mode was the fact that it had to work in a distributed environment.
+The main challenge when implementing this deployment mode was that it had to work in a distributed environment.
 
 The handler must figure what node(s) the service should run on (depending on the resource).
 No matter what the resource being targeted is, it will always result in the querying of Pods.
 These Pods will be assigned to a specific Node.
 
-Pandit queries these nodes and constructs a set of IP addresses of the Nodes the Pods are running on.
+Pandit queries these nodes, and constructs a set of IP addresses of the Nodes the Pods are running on.
 
 The solution to getting the service running on each daemon, is to simply interface with each Node's Pandit daemon as a client.
-The Node IP addresses will be sent a copy of the \textit{StartServiceRequest} to their own administration APIs, where they will add the Service using the same method.
+The Node IP addresses will be sent a copy of the \textit{StartServiceRequest} to their own administration APIs. Where they will add the Service using the same method.
 
-The one change to the request is that the "delegated" field is set to true, telling the other nodes not to forward on the request further.
+The one change to the request is that the "delegated" field is set to true. This tells the other nodes not to forward on the request further.
 
 \section{Service Server}
 
 The Service Server is responsible for handling all requests sent to Pandit services on that daemon.
-The first challenge associated with implementing the server was the fact that it had to parse any gRPC request.
+The first challenge associated with implementing the server was that it had to parse any gRPC request.
 
-Usually, a gRPC server would be implemented by code generation, however, due to the aforementioned requirement, the gRPC server had to be implemented from scratch.
-Since gRPC is based on HTTP/2, the server is implemented as a HTTP/2 server. After researching the abstractions gRPC introduces on top of HTTP/2,
+Usually, a gRPC server would be implemented by code generation; due to the aforementioned requirement, the gRPC server had to be implemented from scratch.
+Since gRPC is based on HTTP/2 \cite{http2}, the server is implemented as a HTTP/2 server. After researching the abstractions gRPC introduces on top of HTTP/2,
 a gRPC parser was implemented.
 
 gRPC uses HTTP headers to define the metadata required to parse a request \cite{grpc_protocol}.
@@ -1641,11 +1646,11 @@ The Service was implemented to be a \textit{Sender}.
 
 \subsection{Constructing a Service}
 
-The service is constructed by parsing a Proto file using the Rust Protobuf Parse package \cite{parse}, a package generally used by the Proto to Rust compiler to generate a detailed "description" of the Proto file before compilation.
+The service is constructed by parsing a Proto file using the Rust Protobuf Parse package \cite{parse}. This is a package generally used by the Proto to Rust compiler to generate a detailed "description" of the Proto file before compilation.
 
-The Service was engineered to handle these "descriptors" by converting them into Pandit-specific structures, such as creating a series of method structs that pointed to an input message and output message.
+The Service was engineered to handle these "descriptors" by converting them into Pandit-specific structures. Such as creating a series of method structs that pointed to an input message and output message.
 
-The service constructs a \nameref{sec:handler} for each method based on the options set by the user. This has to be reflected on using a method that dynamically returns a Handler due to the Method struct being Handler-agnostic.
+The service constructs a \nameref{sec:handler} for each method based on the options set by the user. This has to be reflected on using a method that dynamically returns a Handler, due to the Method struct being Handler-agnostic.
 
 This method demonstrates how the handlers options can be parsed:
 
@@ -1662,7 +1667,7 @@ fn handler(
 }
 \end{lstlisting}
 
-The issue was how to provide format-specific context to the handlers when implementing the "Send" method. The solution was to write a method that reflects on information available in the Service, such as options set for a specific format, and construct a "Writer Context" based on this information.
+The issue was how to provide format-specific context to the handlers when implementing the "Send" method. The solution was to write a method that reflects on information available in the Service. Such as options set for a specific format, and construct a "Writer Context" based on this information.
 
 For example, here is the implementation for the HTTP format:
 
@@ -1706,7 +1711,7 @@ fn context_from_api(api: &Option<format::HTTP>) -> ServiceResult<WriterContext> 
 
 \subsection{Handling Services on Startup}
 
-Services must be run on startup to maintain the posterity of a service through interruptions such as restarts or redeployments.
+Services must be run on startup to maintain the posterity of a service through interruptions such as, restarts or redeployments.
 
 This is achieved firstly be the \nameref{sec:api} serialising the request used to create the service to a file.
 
@@ -1720,7 +1725,7 @@ When the program starts, it then checks reads all the service files and does the
 
 \section{Broker}
 \subsection{Announcing a Service}
-While announcing a Service does mainly entail pointing a key to the host of the daemon it's running on, it also requires the publishing of other information such as:
+While announcing a Service does mainly entail pointing a key to the host of the daemon it's running on. It also requires the publishing of other information, such as:
 
 \begin{itemize}
     \item The default cache config for the service. This is used as a fallback cache configuration during a cache probe.
@@ -1731,13 +1736,13 @@ While announcing a Service does mainly entail pointing a key to the host of the 
 \subsection{Publishing Cache}
 When a new cache is published, the fields are serialised and sent to Redis.
 The problem is that other metadata is required to enable features such as cache expiry.
-The solution to this was to add a timestamp to the published data, allowing the daemons to know when a cache should expire.
+The solution to this was to add a timestamp to the published data; allowing the daemons to know when a cache should expire.
 
 There is also an edge case where some \textbf{fields} may have been disabled from being cached. 
 The solution to this problem was to filter these fields out using a recursive cloning approach:
 
 The fields would be iterated through and cloned, unless the "disabled" option was set to true. These fields would be ignored.
-The challenge with this approach however was that it had to handle embedded messages recursively. This was achieved by finding the message descriptor for this embedded message (the descriptor is what stores the user-defined options) and recursively calling the "filter fields" function from there.
+The challenge with this approach however was that it had to handle embedded messages recursively. This was achieved by finding the message descriptor for this embedded message, (the descriptor is what stores the user-defined options) and recursively calling the "filter fields" function from there.
 
 Here is a code snippet of the values either being cloned or recursively cloned, depending on the type:
 
@@ -1760,9 +1765,9 @@ match value {
 \end{lstlisting}
 
 \subsection{Receiving Cache}
-The Broker is implemented to run from startup. It will connect to a Redis instance and start listening for updates to the PUB/SUB database using an event loop.
+The Broker is implemented to run from startup. It will connect to a Redis instance, and start listening for updates to the PUB/SUB database using an event loop.
 
-When a value is received, it will decide what type of update it is based on the name. For example, when the cache is published and the daemon is subscribed, the solution to parsing this cache is to deserialize the payload. The deserialized values include the timestamp that the cache was created at. 
+When a value is received, it will decide what type of update it is based on the name. For example, when the cache is published and the daemon is subscribed; the solution to parsing this cache is to deserialize the payload. The deserialized values include the timestamp that the cache was created at. 
 
 Along with the cache expiry time, this can be used to check if a cache is expired. Here is a sample of the code that handles this:
 
@@ -1796,7 +1801,7 @@ However, when a Service is not on the local daemon, there is no service object t
 
 \begin{itemize}
     \item When queried for cache, it will look interface with the broker's cache table to find the latest cache, ensuring it is in date.
-    \item If the server doesn't find cache and wants to send the query to the proxied application via the "send" method, the remote sender will instead send the raw query to the daemon that hosts the Service, delegating the query.
+    \item If the server doesn't find cache and wants to send the query to the proxied application via the "send" method. The remote sender will instead send the raw query to the daemon that hosts the Service, delegating the query.
 \end{itemize}
 
 \section{CLI}
@@ -1849,10 +1854,10 @@ This required the integration of a package called \textit{Indicatif \cite{indica
 Many unit tests were implemented to test the functionality of the components of the daemon.
 
 \subsection{Messages}
-The \textit{\nameref{sec:messages}} methods used to parse Protobuf payloads were tested to ensure that they provided the correct
+The \textit{\nameref{sec:messages}} component's methods used to parse Protobuf payloads were tested to ensure that they provided the correct
 data to the rest of the program. This was done because there was no feasible way of reliably testing this functionality manually.
 
-The Protobuf writer test was implemented as a "table" of tests. This is a design pattern that involves creating a structure that represents a set of test parameters and filling out those fields with different values that increase coverage of the tests.
+The Protobuf writer test was implemented as a "table" of tests. This is a design pattern that involves creating a structure that represents a set of test parameters. The structure is then filled with different values that increase coverage of the tests.
 The structure used was as follows:
 
 \begin{lstlisting}[language=Rust]
@@ -1866,7 +1871,7 @@ struct Table {
 }
 \end{lstlisting}
 
-Since the action of writing a field to the bytes buffer is atomic, the field values in each table are put into a single "Fields" object and sent to the method.
+Since the action of writing a field to the bytes buffer is atomic. The field values in each table are put into a single "Fields" object, and sent to the method.
 The buffer is then checked against the desired value after the test is executed to ensure it behaved properly
 
 The reading of a Protobuf to the "Fields" object was tested by constructing a desired "Fields" object alongside a hardcoded Protobuf payload:
@@ -1895,12 +1900,12 @@ Finally, the values sent to the fake Writer are checked to ensure the method wor
 \section{System Testing}
 \label{sec:test}
 \subsection{Basic Deployment}
-In order to ensure the daemon was working correctly, a fake REST API was implemented in python to serve as an authoritative container.
+In order to ensure the daemon was working correctly. A fake REST API was implemented in python to serve as an authoritative container.
 A Protobuf specification was created for the API, and it was passed to the daemon via \textit{\nameref{sec:cli}}.
 
 The Protobuf specification was used to generate a Rust client library \cite{codegen} that was used to interact with the daemon.
-A standalone testing binary was implemented by importing this library and calling the service in question.
-It sent the same query twice, the first time it was ensured that the data came directly from the authoritative container, and the second time it was
+A standalone testing binary was implemented by importing this library, and calling the service in question.
+It sent the same query twice. The first time, it was ensured that the data came directly from the authoritative container. The second time, it was
 ensured that the data came from the cache.
 
 \subsection{Docker Deployment}
@@ -1984,11 +1989,17 @@ Another feature that was tested was Pod eviction handling. Upon first try, the f
 
 After days of testing, bug fixing and recompiling, the feature began to work as expected, allowing services to move between Nodes as the Pods's states change.
 
+\begin{figure}[hbt!]
+    \centering
+    \includegraphics[width=\linewidth]{k8s_eg.png}
+    \caption{A screenshot of a Pandit service being queried from 2 different nodes.}
+\end{figure}
+
 \subsection{Handlers and Writers}
 
 Due to time constraints, most of the testing was focused on the deployment modes using a HTTP/JSON application.
 Testing also takes a long time due to the requirement of building a sample application and client.
-For this reason, the SQL writer and handler are not confirmed to be fully functional, however, some functionality was tested, such as 
+For this reason, the SQL writer and handler are not confirmed to be fully functional. Some functionality was tested, such as 
 SELECT statements on a Postgres database. A sample Proto file was also made to ensure the Service can successfully construct an SQL Handler:
 
 \begin{lstlisting}
@@ -2029,10 +2040,10 @@ service PostgreSQL {
 This project went through many iterations, both in concept and implementation.
 
 It was originally conceptualised as a proxy that performed kernel-level packet parsing (using eBPF \cite{ebpf}), ultimately providing a distributed gRPC service.
-After working on a sample implementation of the eBPF code, the problems associated with eBPF in the \textit{\nameref{sec:ebpf}} section became apparent.
+After working on a sample implementation of the eBPF code, the problems associated with eBPF (see \textit{\nameref{sec:ebpf}}) became apparent.
 
-After deciding on doing all packet parsing in user space, the project began to take form.
-C++ was originally the language being used to implement the user space code, however, the implementation was switched to Rust due to it having a more suitable set of libraries available to it when it came to implementing the gRPC server.
+After deciding on doing all packet parsing in user space \cite{userspace}, the project began to take form.
+C++ was originally the language being used to implement the user space code. However, the implementation was switched to Rust due to it having a more suitable set of libraries available to it when it came to implementing the gRPC server. Some of these libraries were: Protobuf Parse \cite{parse}, Hyper \cite{hyper} and Serde \cite{serde}.
 
 \subsection{Does Pandit meet the Objectives?}
 
@@ -2043,19 +2054,19 @@ This is where the final implementation stands in relation to these objectives:
     \item The final product's architecture enables developers to easily integrate new data formats into Pandit. 
     All a developer needs to do is provide implementations for the traits \nameref{sec:writer} and \nameref{sec:handler}.
     
-    These traits should allow developers to implement support for any data format they require, as demonstrated by the existing implementations of the \nameref{im:http} and \nameref{im:postgres}. 
-    JSON being a text-based object notation and Postgres being a Structured Query Language mean that these two implementations differ wildly in how they interface with applications.
-    But since the fact that they are both interfaced with by the rest of the Pandit components behind the same trait shows that the architecture meets the objective: being able to proxy any data source.
+    These traits should allow developers to implement support for any data format they require; as demonstrated by the existing implementations of the \nameref{im:http} and \nameref{im:postgres}. 
+    JSON being a text-based object notation and Postgres being a Structured Query Language (henceforth SQL); means that these two implementations differ wildly in how they interface with applications.
+    But since the fact that they are both interfaced with by the rest of the Pandit components behind the same trait; the architecture meets the objective: being able to proxy any data source.
     
     \item Another objective was the ability to provide a Pandit \nameref{sec:service}. This objective was met when the \nameref{sec:service} and \nameref{sec:server} components were implemented. 
-    However, outside unit tests, the product was only able to verified to work after the \nameref{sec:api} was implemented as this is what allows users to add services.
+    However, outside unit tests, the product was only able to be verified to work after the \nameref{sec:api} was implemented as this is what allows users to add services.
     
     \item Pandit achieves the objective "Using Protobuf Options, Pandit should provide a way to define the conversion between the application and the Pandit Service" for the most part.
     
     Users can define how conversions are done by importing the provided Proto files. 
     They are able to get around edge cases such as the required object being a child of the object returned by the application via a "path" option available on each message.
     
-    Overall this provides a decent user experience, however, the limitations of \nameref{sec:options} are apparent in some ways when writing a service. 
+    Overall, this provides a decent user experience; however, the limitations of \nameref{sec:options} are apparent in some ways when writing a service. 
     For example, the amount of copied and pasted syntax and repetition required to implement a message is more than desirable.
     This is particularly evident with the primary key, which requires the following option to be attached to a field in every request message:
     \begin{lstlisting}
@@ -2076,7 +2087,7 @@ This is where the final implementation stands in relation to these objectives:
       uint64 cache_time = 60032; // If set, the cache will expire after this amount of seconds.
     }
     \end{lstlisting}
-    This was deemed sufficient due to the scope of this project, however, given more time many more options would be added.
+    This was deemed sufficient due to the scope of this project; however, given more time, many more options would be added.
     These could include a way to define more complex associations between fields. 
     Right not the only way to get a cache hit is with a matching primary key. 
     A more flexible (and technically challenging) approach would be to allow users to define cache hits via conditions such as:
@@ -2090,19 +2101,19 @@ This is where the final implementation stands in relation to these objectives:
     \item Pandit is able to run in a cluster of servers whilst coordinating requests between servers due to every server being connected to a message broker.
     It is confirmed to be working sufficiently during the aforementioned system \nameref{sec:test}. 
     
-    The deployment of Pandit in a distributed environment requires prerequisite knowledge of the cluster's network architecture, and so isn't designed to be easy to installed out of the box. 
-    It is instead designed to be deployed by an engineer familiar with the cluster, and to that end, it has met this objective.
+    The deployment of Pandit in a distributed environment requires prerequisite knowledge of the cluster's network architecture. So isn't designed to be easy to installed out of the box. 
+    It is instead designed to be deployed by an engineer familiar with the cluster, and to that end it has met this objective.
     
 \end{itemize}
 
 \subsection{Qualitative Evaluation}
 \label{sec:qual}
 \subsubsection{Caching}
-Compared to other industry solutions such as those mentioned in \nameref{sec:solutions}, Pandit in its current form provides a set of features that stand out from the competition.
+Compared to other industry solutions such as those mentioned in \nameref{sec:solutions}. Pandit in its current form provides a set of features that stand out from the competition.
 
-The caching features have limitations, however. Pandit assumes that when an object is cached, the underlying data will not change, i.e. the underlying methods are deterministic. This is because maintaining coherency between the cache and the underlying data is a problem outside the scope of this project.
+The caching features have limitations, however. Pandit assumes that when an object is cached, the underlying data will not change, i.e. the underlying methods are deterministic. This is because maintaining coherency between the cache, and the underlying data is a problem outside the scope of this project.
 
-Since the user is responsible for defining how and what should be proxied, Pandit has no way of knowing what is happening on the application outside the snippets of information it gets from the query responses. 
+Since the user is responsible for defining how and what should be proxied. Pandit has no way of knowing what is happening on the application outside the snippets of information it gets from the query responses. 
 This means, if information changes due to an action handled outside of Pandit, there is no way to maintain consistency between the application and daemon.
 
 \textit{See \nameref{sec:future} for possible solutions to this problem.}
@@ -2116,7 +2127,7 @@ The ability to turn any application into a gRPC service without any modification
 This is due to the innate benefits of a gRPC service over other data formats, such as:
 being able to generate a client library in any language \cite{codegen}. 
 
-Pandit integrates basic package management functionality into its \nameref{sec:cli}. 
+Pandit integrates basic package management functionality into its CLI. 
 This feature could be used to interface with an internal repository of Proto files inside a company.
 When a developer needs to implement a client for a particular service, they could simply use Pandit to both download the relevant Proto file 
 and deploy a local version of the application for testing.
@@ -2124,13 +2135,13 @@ A system administrator can use the same feature to install the relevant Proto fi
 They can subsequently use said Proto files to deploy services to Pandit.
 Therefore, this feature allows there to be an ecosystem of Pandit packages that simplify both development time and deployment.
 
-As outlined in \nameref{sec:deployment_modes}, Pandit integrates into industry standard deployment models such as Docker and Kubernetes. 
+As outlined in \nameref{sec:deployment_modes}, Pandit integrates into industry standard deployment models \cite{share} such as Docker and Kubernetes. 
 Since these technologies are widely adopted within the industry, most companies could integrate Pandit into their existing software stack.
 
 \subsubsection{Comparison to Other Solutions}
 \label{sec:comp}
 As mentioned in the \nameref{sec:solutions} section, there are alternative solutions to Pandit.
-Here we will compare Pandit in its current form to these solutions.
+Below is a comparison between said solutions and Pandit, in its current form:
 
 \begin{itemize}
     \item Pandit provides similar functionality to \textit{Google Cloud Endpoints with HTTP/JSON to gRPC encoding \cite{cloud_endpoints}}; but Pandit provides far more flexibility due to its ability to translate any data format.
@@ -2156,16 +2167,16 @@ Here we will compare Pandit in its current form to these solutions.
 It also provides a great deal of flexibility for users to define their own caching and querying strategies.
 
 Whether it be a REST API or an SQL Database, all it takes is a single Protobuf specification \cite{protobuf} to turn it into a
-\textbf{widely available gRPC \cite{grpc} Service}. Services become widely available due to the caching mechanism in the daemon being on every host,
-as well as the publish/subscribe mechanism used to distribute the cache to all interested daemons.
+\textbf{widely available gRPC \cite{grpc} Service}. Services become widely available due to the caching mechanism in the daemon being on every host.
+As well as the publish/subscribe mechanism used to distribute the cache to all interested daemons.
 
 The fact that anything can be turned into a gRPC service provides a lot more flexibility to the users of the product compared to any existing solution.
 This is because you can build a client library for any language or framework using a Protobuf \cite{codegen}.
 
 This also means that Pandit has innate benefits for any application that requires data from other services.
-For example, instead of using an ORM \cite{orm} and manually encoding the data to be read in the application, you can use Pandit to
+For example, instead of using an ORM \cite{orm} and manually encoding the data to be read in the application. You can use Pandit to
 to turn the database into a gRPC service and then use the gRPC client library to read the data. This will give you the added benefit of
-being able to cache the data and query it in a distributed system if it needs to be deployed to multiple hosts later on.
+being able to cache the data, and query it in a distributed system if it needs to be deployed to multiple hosts later on.
 You could also implement another client in a different language in one step by generating code from the Protobuf \cite{codegen}.
 
 Pandit also requires no configuration of the application being proxied. As long as pandit has the service added, it will be ready to accept requests.
@@ -2173,7 +2184,7 @@ This is because the daemon interfaces with the application as a client.
 
 Overall, Pandit's quality is fitting of a proof of concept. 
 It demonstrates the possibilities of this approach to distributing services, meeting the objectives set for it.
-It is not ready to be deployed in a production environment, however, as far more testing would be required, especially in the areas of stability and performance.
+It is not ready to be deployed in a production environment. However, as far more testing would be required; especially in the areas of stability and performance.
 
 Pandit in its current form could find success as an open-source project, where it would benefit from having many eyes on it, reducing the likelihood of it experiencing bugs and instability.
 
@@ -2226,11 +2237,11 @@ If this project was started again, the report would be done alongside the implem
 \label{sec:future}
 \subsection{Solutions to Caching Problems}
 In the \nameref{sec:qual}, the problems associated with caching were introduced.
-A possible solution to some of these issues could involve a user-defined refresh time. For example, if it is known that a particular value is mutated on a recurring daily interval, such as every day at 1am, the user could configure Pandit to either invalidate the cache at 1am or query for an updated version of the cache.
+A possible solution to some of these issues could involve a user-defined refresh time. For example, if it is known that a particular value is mutated on a recurring daily interval, such as every day at 1am. The user could configure Pandit to either invalidate the cache at 1am or query for an updated version of the cache.
 This solution would likely be implemented given more time.
 
 There are still coherency issues with this solution if there is no set interval for mutations of the data.
-In its current form, the user would be advised to either disable caching on these methods. They would still benefit from the gRPC translation aspects of the project.
+In its current form, the user would be advised to disable caching on these methods; they would still benefit from the gRPC translation aspects of the project.
 
 A solution that could solve this may involve a callback method the application can avail of that will notify Pandit of changes to the data.
 This would have many issues and is in conflict with one of the core selling points of the project: "the application should not need to be modified in order to work with Pandit".
@@ -2253,7 +2264,17 @@ It would allow users to manage and upload packages, as well as discover new pack
 
 \chapter*{Terminology}
 
-\printbibliography
+\begin{itemize}
+    \item \textbf{JSON} - JavaScript Object Notation, an open standard text-based data format.
+    \item \textbf{ORM} - Object-Relational Mapping, a design pattern allowing for the manipulation of a database using the Object-Oriented paradigm.
+    \item \textbf{gRPC} - gRPC Remote Procedure Calls; a recursive acronym.
+    \item \textbf{Protocol Buffer} - A binary format for serialising structured data.
+    \item \textbf{eBPF} - Extended Berkley Packet Filter, a kernel feature that runs sandboxed bytecode in kernel mode.
+    \item \textbf{Message Broker} - A program responsible for sending/broadcasting a message from one application to other applications.
+    \item \textbf{SQL} - Structured Query Language, used to query data in a relational database.
+    \item \textbf{CLI} - Command Line Application.
+\end{itemize}
 
+\printbibliography
 
 \end{document}
