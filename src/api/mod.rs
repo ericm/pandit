@@ -515,7 +515,7 @@ impl K8sHandler {
         for pod_node in pod_nodes {
             log::info!("k8s: pod node: {}", pod_node);
             let node_ip = {
-                let nodes: kube::Api<Node> = kube::Api::default_namespaced(client.clone());
+                let nodes: kube::Api<Node> = kube::Api::all(client.clone());
                 let node = nodes.get(pod_node.as_str()).await?;
                 let status = node.status.ok_or("no node status")?;
                 let addresses = status.addresses.ok_or("no node addresses")?;

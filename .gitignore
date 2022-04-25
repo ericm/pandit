@@ -8,6 +8,7 @@ target*
 xdp-tools
 *.rdb
 *.pandit_service
+*.demo
 *.code-workspaceoverleafv2-git.py
 overleafv2-git
 .overleafv2-git

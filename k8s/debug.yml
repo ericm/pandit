@@ -36,6 +36,8 @@ spec:
             - -c
             - .pandit.docker.yml
             - --k8s
+            # - --level
+            # - TRACE
           securityContext:
             privileged: true
             runAsGroup: 0
