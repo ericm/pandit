@@ -1,5 +1,7 @@
 # ![Pandit](./pandit400.png?raw=true)
 
+*This was my Final Year Project for BSc Computer Science in University College Cork. Overall Mark: 87%*
+
 Pandit is a distributed proxy that converts applications into [gRPC Services](https://grpc.io/docs/what-is-grpc/core-concepts/).
 
 Its architecture allows it to translate requests and responses from gRPC to any data format the application may require.
